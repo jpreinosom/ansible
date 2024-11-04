@@ -1,15 +1,24 @@
 ---
 - name: Generar archivo de texto con versión de Linux
   hosts: all
-  gather_facts: yes
+  gather_facts: no
   tasks:
-    - name: Obtener la versión de Linux
-      command: uname -r
-      register: linux_version
+    - name: Preguntar por la versión del sistema operativo
+      vars:
+        ansible_python_interpreter: /usr/bin/python3  # Asegúrate de que el intérprete de Python esté disponible
+      pause:
+        prompt: "Por favor, ingresa la versión de Linux (centos, rhel, ubuntu):"
+      register: user_input
 
-    - name: Crear archivo en el directorio home del usuario
+    - name: Crear archivo en el directorio home correspondiente
       copy:
-        content: "archivo generado por ansible\nVersión de Linux: {{ linux_version.stdout }}"
-        dest: "{{ ansible_env.HOME }}/archivo_generado.txt"
-      become: true  # Si es necesario, para permisos de escritura en el directorio home
+        content: "archivo generado por ansible\nVersión de Linux: {{ user_input.user_input }}"
+        dest: "/home/{{ user_input.user_input }}/archivo_generado.txt"
+      when: user_input.user_input in ['centos', 'rhel', 'ubuntu']
+      become: true  # Si es necesario para permisos de escritura en el directorio home
+
+    - name: Mensaje de error si la versión no es válida
+      debug:
+        msg: "Versión no válida. Por favor, ingresa 'centos', 'rhel' o 'ubuntu'."
+      when: user_input.user_input not in ['centos', 'rhel', 'ubuntu']
 ...
