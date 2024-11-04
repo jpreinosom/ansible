@@ -19,7 +19,11 @@
         content: "archivo generado por ansible\nVersión de Linux: {{ ansible_distribution }} {{ ansible_distribution_version }}"
         dest: "/home/{{ ansible_ssh_user }}/archivo_generado.txt"
       when: linux_distribution in ['centos', 'rhel', 'ubuntu']
-      become: true  # Asegúrate de tener permisos de escritura
+      become: true  # Necesario para permisos de escritura
+
+    - name: Mostrar ruta donde se debería guardar el archivo
+      debug:
+        msg: "El archivo se intentará guardar en: /home/{{ ansible_ssh_user }}/archivo_generado.txt"
 
     - name: Mensaje de error si la distribución no es válida
       debug:
