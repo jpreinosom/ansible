@@ -1,0 +1,48 @@
+---
+- name: Obtener distribución y versión del sistema operativo
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: Verificar si /etc/os-release existe
+      ansible.builtin.stat:
+        path: /etc/os-release
+      register: os_release_file
+
+    - name: Usar /etc/os-release si existe
+      ansible.builtin.shell: "cat /etc/os-release"
+      when: os_release_file.stat.exists
+      register: os_info
+
+    - name: Verificar si /etc/lsb-release existe (Ubuntu/Debian)
+      ansible.builtin.stat:
+        path: /etc/lsb-release
+      register: lsb_release_file
+
+    - name: Usar /etc/lsb-release si existe
+      ansible.builtin.shell: "cat /etc/lsb-release"
+      when: lsb_release_file.stat.exists and not os_release_file.stat.exists
+      register: os_info_lsb
+
+    - name: Verificar si /etc/redhat-release existe (Red Hat/CentOS)
+      ansible.builtin.stat:
+        path: /etc/redhat-release
+      register: redhat_release_file
+
+    - name: Usar /etc/redhat-release si existe
+      ansible.builtin.shell: "cat /etc/redhat-release"
+      when: redhat_release_file.stat.exists and not os_release_file.stat.exists and not lsb_release_file.stat.exists
+      register: os_info_redhat
+
+    - name: Mostrar información del sistema operativo
+      debug:
+        msg: |
+          {% if os_release_file.stat.exists %}
+          {{ os_info.stdout_lines }}
+          {% elif lsb_release_file.stat.exists %}
+          {{ os_info_lsb.stdout_lines }}
+          {% elif redhat_release_file.stat.exists %}
+          {{ os_info_redhat.stdout_lines }}
+          {% else %}
+          "No se encontró información del sistema operativo."
+          {% endif %}
+...
