@@ -1,18 +1,25 @@
 ---
 - name: Generar archivo de texto con versión de Linux
   hosts: all
-  gather_facts: yes  # Recolectamos información del sistema
+  gather_facts: yes
   tasks:
     - name: Determinar la distribución de Linux
       set_fact:
         linux_distribution: "{{ ansible_distribution | lower }}"
 
+    - name: Mostrar información de depuración
+      debug:
+        msg: 
+          - "Distribución: {{ ansible_distribution }}"
+          - "Versión: {{ ansible_distribution_version }}"
+          - "Usuario SSH: {{ ansible_ssh_user }}"
+
     - name: Crear archivo en el directorio home correspondiente
       copy:
         content: "archivo generado por ansible\nVersión de Linux: {{ ansible_distribution }} {{ ansible_distribution_version }}"
-        dest: "/home/{{ linux_distribution }}/archivo_generado.txt"
+        dest: "/home/{{ ansible_ssh_user }}/archivo_generado.txt"
       when: linux_distribution in ['centos', 'rhel', 'ubuntu']
-      become: true  # Si es necesario para permisos de escritura en el directorio home
+      become: true  # Asegúrate de tener permisos de escritura
 
     - name: Mensaje de error si la distribución no es válida
       debug:
