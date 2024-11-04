@@ -1,0 +1,15 @@
+---
+- name: Generar archivo de texto con versión de Linux
+  hosts: all
+  gather_facts: yes
+  tasks:
+    - name: Obtener la versión de Linux
+      command: uname -r
+      register: linux_version
+
+    - name: Crear archivo en el directorio home del usuario
+      copy:
+        content: "archivo generado por ansible\nVersión de Linux: {{ linux_version.stdout }}"
+        dest: "{{ ansible_env.HOME }}/archivo_generado.txt"
+      become: true  # Si es necesario, para permisos de escritura en el directorio home
+...
