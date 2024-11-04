@@ -18,7 +18,7 @@
       copy:
         content: "archivo generado por ansible\nVersión de Linux: {{ ansible_distribution }} {{ ansible_distribution_version }}"
         dest: "/home/{{ ansible_ssh_user }}/archivo_generado.txt"
-      when: linux_distribution in ['centos', 'rhel', 'ubuntu']
+      when: linux_distribution in ['centos', 'redhat', 'ubuntu']
       become: true  # Necesario para permisos de escritura
 
     - name: Mostrar ruta donde se debería guardar el archivo
@@ -28,5 +28,5 @@
     - name: Mensaje de error si la distribución no es válida
       debug:
         msg: "Distribución no válida: {{ linux_distribution }}. No se creó el archivo."
-      when: linux_distribution not in ['centos', 'rhel', 'ubuntu']
+      when: linux_distribution not in ['centos', 'redhat', 'ubuntu']
 ...
