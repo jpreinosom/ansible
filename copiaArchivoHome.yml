@@ -1,24 +1,21 @@
 ---
 - name: Generar archivo de texto con versión de Linux
   hosts: all
-  gather_facts: no
+  gather_facts: yes  # Recolectamos información del sistema
   tasks:
-    - name: Preguntar por la versión del sistema operativo
-      vars:
-        ansible_python_interpreter: /usr/bin/python3  # Asegúrate de que el intérprete de Python esté disponible
-      pause:
-        prompt: "Por favor, ingresa la versión de Linux (centos, rhel, ubuntu):"
-      register: user_input
+    - name: Determinar la distribución de Linux
+      set_fact:
+        linux_distribution: "{{ ansible_distribution | lower }}"
 
     - name: Crear archivo en el directorio home correspondiente
       copy:
-        content: "archivo generado por ansible\nVersión de Linux: {{ user_input.user_input }}"
-        dest: "/home/{{ user_input.user_input }}/archivo_generado.txt"
-      when: user_input.user_input in ['centos', 'rhel', 'ubuntu']
+        content: "archivo generado por ansible\nVersión de Linux: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+        dest: "/home/{{ linux_distribution }}/archivo_generado.txt"
+      when: linux_distribution in ['centos', 'rhel', 'ubuntu']
       become: true  # Si es necesario para permisos de escritura en el directorio home
 
-    - name: Mensaje de error si la versión no es válida
+    - name: Mensaje de error si la distribución no es válida
       debug:
-        msg: "Versión no válida. Por favor, ingresa 'centos', 'rhel' o 'ubuntu'."
-      when: user_input.user_input not in ['centos', 'rhel', 'ubuntu']
+        msg: "Distribución no válida: {{ linux_distribution }}. No se creó el archivo."
+      when: linux_distribution not in ['centos', 'rhel', 'ubuntu']
 ...
