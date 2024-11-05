@@ -1,0 +1,10 @@
+---
+- name: Eliminar usuario 'test' de todas las máquinas de la red
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Eliminar usuario 'test'
+      user:
+        name: test
+        state: absent
