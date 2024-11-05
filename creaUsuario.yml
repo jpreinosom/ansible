@@ -1,0 +1,18 @@
+---
+- name: Crear usuarios en todas las máquinas de la red
+  hosts: all
+  become: yes
+  vars_prompt:
+    - name: "username"
+      prompt: "Introduce el nombre de usuario"
+      private: no
+    - name: "password"
+      prompt: "Introduce la contraseña"
+      private: yes
+
+  tasks:
+    - name: Crear usuario
+      user:
+        name: "{{ username }}"
+        password: "{{ password | password_hash('sha512') }}"
+        state: present
