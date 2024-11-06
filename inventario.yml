@@ -107,8 +107,12 @@
         path: /home/ansible/resultado
         state: directory
         mode: '0755'
-      delegate_to: 192.168.100.51
-      become: yes
+      delegate_to: "{{ item.IP }}"
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+      when: item.IP == '192.168.100.51'
+      become: yes  # Ahora no requerirá contraseña
 
     - name: Crear archivo resultado.csv en el servidor destino
       copy:
@@ -118,5 +122,9 @@
           {% for entry in csv_data %}
           {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }}
           {% endfor %}
-      delegate_to: 192.168.100.51
-      become: yes
+      delegate_to: "{{ item.IP }}"
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+      when: item.IP == '192.168.100.51'
+      become: yes  # Ahora no requerirá contraseña
