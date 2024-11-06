@@ -1,19 +1,118 @@
 ---
-- name: Leer y mostrar información del inventario CSV
+- name: Leer y procesar el inventario CSV
   hosts: localhost
   gather_facts: no
   vars:
-    input_file: "/tmp/inventario.csv"
+    input_file: "{{ playbook_dir }}/inventario.csv"
+    delimiter: ";"
   tasks:
-    - name: Leer datos desde el archivo CSV usando lookup csvfile
+    - name: Mostrar valor de input_file
+      debug:
+        var: input_file
+
+    - name: Verificar que el archivo existe
+      stat:
+        path: "{{ input_file }}"
+      register: file_check
+
+    - name: Mostrar resultado de la verificación del archivo
+      debug:
+        var: file_check
+
+    - name: Leer contenido del archivo CSV
+      when: file_check.stat.exists
       set_fact:
-        csv_data: "{{ lookup('csvfile', input_file, delimiter=';') }}"
+        csv_content: "{{ lookup('file', input_file) }}"
+
+    - name: Mostrar contenido del archivo CSV
+      when: file_check.stat.exists
+      debug:
+        var: csv_content
+
+    - name: Extraer encabezados del CSV
+      when: file_check.stat.exists
+      set_fact:
+        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Mostrar encabezados
+      when: file_check.stat.exists
+      debug:
+        var: headers
+
+    - name: Extraer filas del CSV
+      when: file_check.stat.exists
+      set_fact:
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Mostrar filas
+      when: file_check.stat.exists
+      debug:
+        var: rows
+
+    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
+      when: file_check.stat.exists
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != headers | length
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Inicializar csv_data
+      when: file_check.stat.exists
+      set_fact:
+        csv_data: []
+
+    - name: Combinar encabezados con filas para crear diccionarios
+      when: file_check.stat.exists
+      set_fact:
+        csv_data: "{{ csv_data + [ dict(headers | zip(row)) ] }}"
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
 
     - name: Mostrar estructura completa de csv_data
+      when: file_check.stat.exists
       debug:
         var: csv_data
 
-    - name: Mostrar información de cada entrada del inventario
-      debug:
-        msg: "IP: {{ item.IP }}, Usuario: {{ item.Usuario }}, Contraseña: {{ item.Contraseña }}"
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
+      when: file_check.stat.exists
+      add_host:
+        name: "{{ item.IP }}"
+        groups: dynamic_hosts
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
+        ansible_connection: ssh
+        ansible_ssh_pass: "{{ item.Contraseña }}"
       loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+
+- name: Obtener información de los servidores
+  hosts: dynamic_hosts
+  gather_facts: yes
+  tasks:
+    - name: Mostrar distribución y versión de Linux
+      debug:
+        msg: "Servidor {{ inventory_hostname }}: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
+
+- name: Generar archivo resultado.csv
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Asegurar que el directorio /home/ansible/resultado existe
+      file:
+        path: /home/ansible/resultado
+        state: directory
+        mode: '0755'
+
+    - name: Crear archivo resultado.csv
+      copy:
+        dest: /home/ansible/resultado/resultado.csv
+        content: |
+          IP;Usuario;Contraseña;Distribucion;Version
+          {% for entry in hostvars['localhost']['csv_data'] %}
+          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }}
+          {% endfor %}
