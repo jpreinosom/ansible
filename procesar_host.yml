@@ -1,0 +1,60 @@
+---
+- name: Procesar hosts desde archivo Excel
+  hosts: localhost
+  gather_facts: no
+  vars:
+    input_file: "~/inventario.xlsx"
+    output_file: "~/resultado.xlsx"
+  tasks:
+    - name: Leer datos desde el archivo Excel
+      community.general.read_excel:
+        path: "{{ input_file }}"
+        sheet_name: 'Hoja1'
+      register: excel_data
+
+    - name: Inicializar lista de resultados
+      set_fact:
+        result_list: []
+
+    - name: Procesar cada entrada del Excel
+      vars:
+        host_entry: "{{ item }}"
+      loop: "{{ excel_data['Sheet1'] }}"
+      tasks:
+        - name: Agregar host dinámicamente
+          add_host:
+            name: "{{ host_entry['IP'] }}"
+            ansible_user: "{{ host_entry['Usuario'] }}"
+            ansible_password: "{{ host_entry['Contraseña'] }}"
+            ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+            groups: dynamic_hosts
+
+- name: Recopilar información de los hosts
+  hosts: dynamic_hosts
+  gather_facts: yes
+  tasks:
+    - name: Obtener información del sistema
+      set_fact:
+        os_info:
+          IP: "{{ ansible_host }}"
+          Distribucion: "{{ ansible_distribution }}"
+          Version: "{{ ansible_distribution_version }}"
+          Usuario: "{{ ansible_user }}"
+          Contraseña: "{{ ansible_password }}"
+      delegate_to: localhost
+
+    - name: Agregar información a la lista de resultados
+      run_once: true
+      set_fact:
+        result_list: "{{ result_list + [os_info] }}"
+      delegate_to: localhost
+
+- name: Escribir resultados en archivo Excel
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Escribir datos en Excel
+      community.general.write_excel:
+        path: "{{ output_file }}"
+        data:
+          'Resultados': "{{ result_list }}"
