@@ -1,25 +1,25 @@
 ---
-- name: Procesar hosts desde archivo Excel
+- name: Procesar hosts desde archivo CSV
   hosts: localhost
   gather_facts: no
   vars:
-    input_file: "~/inventario.xlsx"
-    output_file: "~/resultado.xlsx"
+    input_file: "/tmp/inventario.csv"
+    output_file: "/tmp/resultado.csv"
   tasks:
-    - name: Leer datos desde el archivo Excel
-      community.general.read_excel:
+    - name: Leer datos desde el archivo CSV
+      read_csv:
         path: "{{ input_file }}"
-        sheet_name: 'Hoja1'
-      register: excel_data
+        delimiter: ';'
+      register: csv_data
 
     - name: Inicializar lista de resultados
       set_fact:
         result_list: []
 
-    - name: Procesar cada entrada del Excel
+    - name: Procesar cada entrada del CSV
       vars:
         host_entry: "{{ item }}"
-      loop: "{{ excel_data['Sheet1'] }}"
+      loop: "{{ csv_data.list }}"
       tasks:
         - name: Agregar host dinámicamente
           add_host:
@@ -41,7 +41,6 @@
           Version: "{{ ansible_distribution_version }}"
           Usuario: "{{ ansible_user }}"
           Contraseña: "{{ ansible_password }}"
-      delegate_to: localhost
 
     - name: Agregar información a la lista de resultados
       run_once: true
@@ -49,12 +48,19 @@
         result_list: "{{ result_list + [os_info] }}"
       delegate_to: localhost
 
-- name: Escribir resultados en archivo Excel
+- name: Escribir resultados en archivo CSV
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Escribir datos en Excel
-      community.general.write_excel:
-        path: "{{ output_file }}"
-        data:
-          'Resultados': "{{ result_list }}"
+    - name: Formatear datos para CSV
+      set_fact:
+        csv_output: |
+          IP;Distribucion;Version;Usuario;Contraseña
+          {% for item in result_list %}
+          {{ item.IP }};{{ item.Distribucion }};{{ item.Version }};{{ item.Usuario }};{{ item.Contraseña }}
+          {% endfor %}
+
+    - name: Escribir datos en CSV
+      copy:
+        content: "{{ csv_output }}"
+        dest: "{{ output_file }}"
