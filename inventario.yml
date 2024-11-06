@@ -107,13 +107,10 @@
         path: /home/ansible/resultado
         state: directory
         mode: '0755'
-      delegate_to: "{{ item.IP }}"
-      loop: "{{ csv_data }}"
-      loop_control:
-        loop_var: item
-      when: item.IP == '192.168.100.51'
+      delegate_to: 192.168.100.51
+      become: yes
 
-    - name: Crear archivo resultado.csv
+    - name: Crear archivo resultado.csv en el servidor destino
       copy:
         dest: /home/ansible/resultado/resultado.csv
         content: |
@@ -121,13 +118,5 @@
           {% for entry in csv_data %}
           {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }}
           {% endfor %}
-
-    - name: Transferir resultado.csv al servidor destino vía SCP
-      copy:
-        src: /home/ansible/resultado/resultado.csv
-        dest: /home/ansible/resultado/resultado.csv
-      delegate_to: "{{ item.IP }}"
-      loop: "{{ csv_data }}"
-      loop_control:
-        loop_var: item
-      when: item.IP == '192.168.100.51'
+      delegate_to: 192.168.100.51
+      become: yes
