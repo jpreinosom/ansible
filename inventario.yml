@@ -99,7 +99,7 @@
         msg: "Servidor {{ inventory_hostname }}: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
 
 - name: Generar archivo resultado.csv
-  hosts: localhost
+  hosts: local
   gather_facts: no
   tasks:
     - name: Asegurar que el directorio /home/ansible/resultado existe
