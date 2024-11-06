@@ -98,33 +98,21 @@
       debug:
         msg: "Servidor {{ inventory_hostname }}: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
 
-- name: Generar archivo resultado.csv y Transferirlo vía SCP
+- name: Generar archivo resultado.csv
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Asegurar que el directorio /home/ansible/resultado existe en el servidor destino
+    - name: Asegurar que el directorio /home/ansible/resultado existe
       file:
         path: /home/ansible/resultado
         state: directory
         mode: '0755'
-      delegate_to: "{{ item.IP }}"
-      loop: "{{ csv_data }}"
-      loop_control:
-        loop_var: item
-      when: item.IP == '192.168.100.51'
-      become: yes  # Ahora no requerirá contraseña
 
-    - name: Crear archivo resultado.csv en el servidor destino
+    - name: Crear archivo resultado.csv
       copy:
         dest: /home/ansible/resultado/resultado.csv
         content: |
           IP;Usuario;Contraseña;Distribucion;Version
-          {% for entry in csv_data %}
+          {% for entry in hostvars['localhost']['csv_data'] %}
           {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }}
           {% endfor %}
-      delegate_to: "{{ item.IP }}"
-      loop: "{{ csv_data }}"
-      loop_control:
-        loop_var: item
-      when: item.IP == '192.168.100.51'
-      become: yes  # Ahora no requerirá contraseña
