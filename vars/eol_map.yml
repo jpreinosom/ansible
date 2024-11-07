@@ -9,6 +9,7 @@ eol_map:
     "20.04": "2030-04-30"      # Focal Fossa (LTS)
     "22.04": "2032-04-30"      # Jammy Jellyfish (LTS)
     "23.04": "2024-01-01"      # Lunar Lobster (No LTS, EoL rápido)
+    "24.04": "2032-04-30"
   
   # **Debian**
   Debian:
