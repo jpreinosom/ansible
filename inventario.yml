@@ -6,53 +6,31 @@
     input_file: "{{ playbook_dir }}/inventario.csv"
     delimiter: ";"
   vars_files:
-    - var/eol_map.yml  # Asegúrate de que la ruta sea correcta (var vs. vars)
+    - vars/eol_map.yml  # Asegúrate de que esta ruta sea correcta
   tasks:
-    - name: Mostrar valor de input_file
-      debug:
-        var: input_file
-
     - name: Verificar que el archivo existe
       stat:
         path: "{{ input_file }}"
       register: file_check
 
-    - name: Mostrar resultado de la verificación del archivo
-      debug:
-        var: file_check
+    - name: Fallar si el archivo de inventario no existe
+      fail:
+        msg: "El archivo de inventario {{ input_file }} no existe."
+      when: not file_check.stat.exists
 
     - name: Leer contenido del archivo CSV
-      when: file_check.stat.exists
       set_fact:
         csv_content: "{{ lookup('file', input_file) }}"
 
-    - name: Mostrar contenido del archivo CSV
-      when: file_check.stat.exists
-      debug:
-        var: csv_content
-
     - name: Extraer encabezados del CSV
-      when: file_check.stat.exists
       set_fact:
         headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
 
-    - name: Mostrar encabezados
-      when: file_check.stat.exists
-      debug:
-        var: headers
-
     - name: Extraer filas del CSV
-      when: file_check.stat.exists
       set_fact:
         rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
 
-    - name: Mostrar filas
-      when: file_check.stat.exists
-      debug:
-        var: rows
-
     - name: Validar que cada fila tenga el mismo número de campos que los encabezados
-      when: file_check.stat.exists
       fail:
         msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
       when: row | length != headers | length
@@ -60,43 +38,34 @@
       loop_control:
         loop_var: row
 
-    - name: Inicializar csv_data
-      when: file_check.stat.exists
-      set_fact:
-        csv_data: []
-
     - name: Combinar encabezados con filas para crear diccionarios
-      when: file_check.stat.exists
       set_fact:
-        csv_data: "{{ csv_data + [ dict(headers | zip(row)) ] }}"
+        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
       loop: "{{ rows }}"
       loop_control:
         loop_var: row
 
-    - name: Mostrar estructura completa de csv_data
-      when: file_check.stat.exists
-      debug:
-        var: csv_data
-
     - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
-      when: file_check.stat.exists
       add_host:
         name: "{{ item.IP }}"
         groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
-        ansible_ssh_pass: "{{ item.Contraseña }}"
+        ansible_ssh_private_key_file: "/ruta/a/tu/clave_privada"  # Actualiza esta ruta
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
+
+    - name: Mostrar estructura completa de csv_data
+      debug:
+        var: csv_data
 
 - name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
   gather_facts: yes
   vars_files:
-    - var/eol_map.yml  # Asegúrate de que la ruta sea correcta (var vs. vars)
+    - vars/eol_map.yml
   tasks:
     - name: Mostrar distribución y versión de Linux
       debug:
@@ -159,6 +128,10 @@
             Soportada
           {% endif %}
 
+    - name: Mostrar subscription_status
+      debug:
+        var: subscription_status
+
 - name: Generar archivo resultado.csv
   hosts: localhost
   gather_facts: no
@@ -173,7 +146,7 @@
       copy:
         dest: /home/ansible/resultado/resultado.csv
         content: |
-          IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion
+          IP;Usuario;Distribucion;Version;Estado_Suscripcion
           {% for entry in hostvars['localhost']['csv_data'] %}
-          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') }}
+          {{ entry.IP }};{{ entry.Usuario }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') }}
           {% endfor %}
