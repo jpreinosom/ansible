@@ -51,8 +51,10 @@
         groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
-        ansible_ssh_private_key_file: "/ruta/a/tu/clave_privada"  # Actualiza esta ruta
+        ansible_ssh_pass: "{{ item.Contraseña }}"
+
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
