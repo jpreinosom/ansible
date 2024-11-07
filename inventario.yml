@@ -5,6 +5,8 @@
   vars:
     input_file: "{{ playbook_dir }}/inventario.csv"
     delimiter: ";"
+  vars_files:
+    - vars/eol_map.yml  # Archivo que contiene eol_map
   tasks:
     - name: Mostrar valor de input_file
       debug:
@@ -90,16 +92,70 @@
       loop_control:
         loop_var: item
 
-- name: Obtener información de los servidores
+- name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
   gather_facts: yes
+  vars_files:
+    - vars/eol_map.yml
   tasks:
     - name: Mostrar distribución y versión de Linux
       debug:
         msg: "Servidor {{ inventory_hostname }}: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
 
+    - name: Obtener la fecha actual del sistema
+      set_fact:
+        current_date: "{{ ansible_date_time.iso8601_basic[:8] }}"  # YYYYMMDD
+
+    - name: Determinar la fecha de EoL para la distribución y versión
+      set_fact:
+        eol_date: >-
+          {{
+            eol_map[ansible_distribution]
+            | default({})
+            | dict2items
+            | selectattr('key', '==', ansible_distribution_version)
+            | map(attribute='value')
+            | list
+            | first
+          }}
+
+    - name: Verificar si el servidor está EoL
+      fail:
+        msg: "El servidor {{ inventory_hostname }} está ejecutando {{ ansible_distribution }} {{ ansible_distribution_version }}, que ha alcanzado su End of Life (EoL) el {{ eol_date }}."
+      when:
+        - eol_date is defined
+        - eol_date != "rolling"
+        - current_date | int > (eol_date | regex_replace('-', '') | int)
+
+    - name: Notificar si la distribución es Rolling Release
+      debug:
+        msg: "El servidor {{ inventory_hostname }} está ejecutando {{ ansible_distribution }} {{ ansible_distribution_version }}, que es una distribución Rolling Release y no tiene una fecha fija de EoL."
+      when:
+        - eol_date == "rolling"
+
+    - name: Notificar si la distribución no está mapeada
+      debug:
+        msg: "La distribución {{ ansible_distribution }} {{ ansible_distribution_version }} no está mapeada para verificar EoL. Se asume que está soportada."
+      when:
+        - eol_date is not defined
+
+    - name: Establecer el estado de suscripción
+      set_fact:
+        subscription_status: >-
+          {% if eol_date is defined %}
+            {% if eol_date == "rolling" %}
+              Rolling Release
+            {% elif current_date | int > (eol_date | regex_replace('-', '') | int) %}
+              EoL
+            {% else %}
+              Soportada
+            {% endif %}
+          {% else %}
+            Soportada
+          {% endif %}
+
 - name: Generar archivo resultado.csv
-  hosts: local
+  hosts: localhost
   gather_facts: no
   tasks:
     - name: Asegurar que el directorio /home/ansible/resultado existe
@@ -112,7 +168,7 @@
       copy:
         dest: /home/ansible/resultado/resultado.csv
         content: |
-          IP;Usuario;Contraseña;Distribucion;Version
+          IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion
           {% for entry in hostvars['localhost']['csv_data'] %}
-          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }}
+          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] }}
           {% endfor %}
