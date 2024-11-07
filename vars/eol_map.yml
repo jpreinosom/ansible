@@ -4,12 +4,12 @@ eol_map:
   # **Ubuntu**
   Ubuntu:
     "14.04": "2019-04-30"      # Trusty Tahr (EoL)
-    "16.04": "2024-04-30"      # Xenial Xerus (EoL para soporte estándar)
+    "16.04": "2024-04-30"      # Xenial Xerus (LTS)
     "18.04": "2028-04-30"      # Bionic Beaver (LTS)
     "20.04": "2030-04-30"      # Focal Fossa (LTS)
     "22.04": "2032-04-30"      # Jammy Jellyfish (LTS)
     "23.04": "2024-01-01"      # Lunar Lobster (No LTS, EoL rápido)
-    "24.04": "2032-04-30"
+    "24.04": "2029-04-30"      # Pop!_OS 24.04 (EoL)
   
   # **Debian**
   Debian:
@@ -18,14 +18,22 @@ eol_map:
     "10": "2024-06-30"          # Buster (EoL)
     "11": "2026-08-30"          # Bullseye (EoL)
     "12": "2027-06-30"          # Bookworm (EoL)
+    "13": "2030-06-30"          # Trixie (EoL)
   
   # **Red Hat Enterprise Linux (RHEL)**
   RedHat:
     "6": "2020-11-30"           # RHEL 6 (EoL)
     "7": "2024-06-30"           # RHEL 7 (EoL)
     "8": "2030-05-31"           # RHEL 8 (EoL)
+    "8.4": "2023-05-31"         # RHEL 8.4 (EUS ended)
+    "8.6": "2024-05-31"         # RHEL 8.6 (EUS ended)
+    "8.8": "2025-05-31"         # RHEL 8.8 (EUS ends)
     "9": "2032-05-31"           # RHEL 9 (EoL)
+    "9.2": "2032-07-31"         # RHEL 9.2 (Subversión)
+    "9.4": "2032-09-30"         # RHEL 9.4 (Subversión)
     "10": "2034-05-31"          # RHEL 10 (EoL)
+    "10.2": "2034-07-31"        # RHEL 10.2 (Subversión)
+    "10.4": "2034-09-30"        # RHEL 10.4 (Subversión)
   
   # **CentOS**
   CentOS:
@@ -33,6 +41,11 @@ eol_map:
     "7": "2024-06-30"           # CentOS 7 (EoL)
     "8": "2029-05-31"           # CentOS 8 (EoL)
     "9": "2032-05-31"           # CentOS 9 (EoL)
+    "9.2": "2032-07-31"         # CentOS 9.2 (Subversión)
+    "9.4": "2032-09-30"         # CentOS 9.4 (Subversión)
+    "10": "2034-05-31"          # CentOS 10 (EoL)
+    "10.2": "2034-07-31"        # CentOS 10.2 (Subversión)
+    "10.4": "2034-09-30"        # CentOS 10.4 (Subversión)
   
   # **Fedora**
   Fedora:
@@ -75,6 +88,11 @@ eol_map:
     "7": "2024-06-30"           # Oracle Linux 7 (EoL)
     "8": "2029-05-31"           # Oracle Linux 8 (EoL)
     "9": "2032-05-31"           # Oracle Linux 9 (EoL)
+    "9.2": "2032-07-31"         # Oracle Linux 9.2 (Subversión)
+    "9.4": "2032-09-30"         # Oracle Linux 9.4 (Subversión)
+    "10": "2034-05-31"          # Oracle Linux 10 (EoL)
+    "10.2": "2034-07-31"        # Oracle Linux 10.2 (Subversión)
+    "10.4": "2034-09-30"        # Oracle Linux 10.4 (Subversión)
   
   # **Amazon Linux**
   AmazonLinux:
@@ -93,7 +111,7 @@ eol_map:
     "3.17": "2026-04-01"        # Alpine Linux 3.17 (EoL)
     "3.18": "2027-04-01"        # Alpine Linux 3.18 (EoL)
     "edge": "rolling"            # Rolling Release
-    
+  
   # **Manjaro Linux**
   Manjaro:
     "rolling": "rolling"         # Rolling Release (sin fecha fija de EoL)
@@ -107,3 +125,62 @@ eol_map:
   # **EndeavorOS**
   EndeavorOS:
     "rolling": "rolling"         # Rolling Release (sin fecha fija de EoL)
+  
+  # **Kali Linux**
+  KaliLinux:
+    "2020.4": "2021-04-01"       # Kali Linux 2020.4 (EoL)
+    "2021.1": "2022-01-01"       # Kali Linux 2021.1 (EoL)
+    "2021.2": "2022-02-01"       # Kali Linux 2021.2 (EoL)
+    "2021.3": "2022-03-01"       # Kali Linux 2021.3 (EoL)
+    "2021.4": "2022-04-01"       # Kali Linux 2021.4 (EoL)
+    "2022.1": "2023-01-01"       # Kali Linux 2022.1 (EoL)
+    "2022.2": "2023-02-01"       # Kali Linux 2022.2 (EoL)
+    "2022.3": "2023-03-01"       # Kali Linux 2022.3 (EoL)
+    "2022.4": "2023-04-01"       # Kali Linux 2022.4 (EoL)
+    "2023.1": "2024-01-01"       # Kali Linux 2023.1 (EoL)
+    "2023.2": "2024-02-01"       # Kali Linux 2023.2 (EoL)
+  
+  # **Gentoo**
+  Gentoo:
+    "stable": "rolling"          # Gentoo es Rolling Release
+  
+  # **Slackware**
+  Slackware:
+    "14.2": "2023-02-01"         # Slackware 14.2 (EoL)
+    "current": "rolling"         # Slackware Current (Rolling Release)
+  
+  # **Mageia**
+  Mageia:
+    "6": "2022-05-31"            # Mageia 6 (EoL)
+    "7": "2024-05-31"            # Mageia 7 (EoL)
+    "8": "2026-05-31"            # Mageia 8 (EoL)
+  
+  # **Clear Linux**
+  ClearLinux:
+    "rolling": "rolling"         # Clear Linux (Rolling Release)
+  
+  # **AlmaLinux**
+  AlmaLinux:
+    "8": "2029-05-31"           # AlmaLinux 8 (EoL)
+    "9": "2032-05-31"           # AlmaLinux 9 (EoL)
+    "9.2": "2032-07-31"         # AlmaLinux 9.2 (Subversión)
+    "9.4": "2032-09-30"         # AlmaLinux 9.4 (Subversión)
+  
+  # **Rocky Linux**
+  RockyLinux:
+    "8": "2029-05-31"           # RockyLinux 8 (EoL)
+    "9": "2032-05-31"           # RockyLinux 9 (EoL)
+    "9.2": "2032-07-31"         # RockyLinux 9.2 (Subversión)
+    "9.4": "2032-09-30"         # RockyLinux 9.4 (Subversión)
+  
+  # **ArchBang**
+  ArchBang:
+    "rolling": "rolling"         # ArchBang (Rolling Release)
+  
+  # **Artix Linux**
+  ArtixLinux:
+    "rolling": "rolling"         # Artix Linux (Rolling Release)
+  
+  # **Void Linux**
+  VoidLinux:
+    "rolling": "rolling"         # Void Linux (Rolling Release)

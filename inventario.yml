@@ -80,14 +80,23 @@
       set_fact:
         eol_date: >-
           {{
-            eol_map[ansible_distribution]
+            (eol_map[ansible_distribution]
             | default({})
             | dict2items
             | selectattr('key', '==', ansible_distribution_version)
             | map(attribute='value')
             | list
-            | first
-            | default(None)
+            | first)
+            | default(
+              (eol_map[ansible_distribution]
+              | default({})
+              | dict2items
+              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
+              | map(attribute='value')
+              | list
+              | first),
+              None
+            )
           }}
 
     - name: Mostrar eol_date
@@ -114,7 +123,7 @@
         var: subscription_status
 
 - name: Generar archivo resultado.csv
-  hosts: local
+  hosts: localhost
   gather_facts: no
   tasks:
     - name: Asegurar que el directorio /home/ansible/resultado existe
