@@ -54,7 +54,6 @@
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
-
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
@@ -95,26 +94,6 @@
       debug:
         var: eol_date
 
-    - name: Verificar si el servidor está EoL
-      fail:
-        msg: "El servidor {{ inventory_hostname }} está ejecutando {{ ansible_distribution }} {{ ansible_distribution_version }}, que ha alcanzado su End of Life (EoL) el {{ eol_date }}."
-      when:
-        - eol_date is defined
-        - eol_date != "rolling"
-        - (current_date | int) > (eol_date | regex_replace('-', '') | int)
-
-    - name: Notificar si la distribución es Rolling Release
-      debug:
-        msg: "El servidor {{ inventory_hostname }} está ejecutando {{ ansible_distribution }} {{ ansible_distribution_version }}, que es una distribución Rolling Release y no tiene una fecha fija de EoL."
-      when:
-        - eol_date == "rolling"
-
-    - name: Notificar si la distribución no está mapeada
-      debug:
-        msg: "La distribución {{ ansible_distribution }} {{ ansible_distribution_version }} no está mapeada para verificar EoL. Se asume que está soportada."
-      when:
-        - eol_date is not defined
-
     - name: Establecer el estado de suscripción
       set_fact:
         subscription_status: >-
@@ -122,12 +101,12 @@
             {% if eol_date == "rolling" %}
               Rolling Release
             {% elif current_date | int > (eol_date | regex_replace('-', '') | int) %}
-              EoL
+              Deprecado
             {% else %}
               Soportada
             {% endif %}
           {% else %}
-            Soportada
+            version sin fecha establecida de EOL
           {% endif %}
 
     - name: Mostrar subscription_status
@@ -148,7 +127,7 @@
       copy:
         dest: /home/ansible/resultado/resultado.csv
         content: |
-          IP;Usuario;Distribucion;Version;Estado_Suscripcion
+          IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion
           {% for entry in hostvars['localhost']['csv_data'] %}
-          {{ entry.IP }};{{ entry.Usuario }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') }}
+          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') }}
           {% endfor %}
