@@ -6,7 +6,7 @@
     input_file: "{{ playbook_dir }}/inventario.csv"
     delimiter: ";"
   vars_files:
-    - vars/eol_map.yml  # Archivo que contiene eol_map
+    - var/eol_map.yml  # Asegúrate de que la ruta sea correcta (var vs. vars)
   tasks:
     - name: Mostrar valor de input_file
       debug:
@@ -96,11 +96,11 @@
   hosts: dynamic_hosts
   gather_facts: yes
   vars_files:
-    - vars/eol_map.yml
+    - var/eol_map.yml  # Asegúrate de que la ruta sea correcta (var vs. vars)
   tasks:
     - name: Mostrar distribución y versión de Linux
       debug:
-        msg: "Servidor {{ inventory_hostname }}: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
 
     - name: Obtener la fecha actual del sistema
       set_fact:
@@ -117,7 +117,12 @@
             | map(attribute='value')
             | list
             | first
+            | default(None)
           }}
+
+    - name: Mostrar eol_date
+      debug:
+        var: eol_date
 
     - name: Verificar si el servidor está EoL
       fail:
@@ -125,7 +130,7 @@
       when:
         - eol_date is defined
         - eol_date != "rolling"
-        - current_date | int > (eol_date | regex_replace('-', '') | int)
+        - (current_date | int) > (eol_date | regex_replace('-', '') | int)
 
     - name: Notificar si la distribución es Rolling Release
       debug:
@@ -170,5 +175,5 @@
         content: |
           IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion
           {% for entry in hostvars['localhost']['csv_data'] %}
-          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] }}
+          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') }}
           {% endfor %}
