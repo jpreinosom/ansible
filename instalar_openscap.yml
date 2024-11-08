@@ -74,27 +74,45 @@
         msg: "Distribución detectada: {{ ansible_distribution }} {{ ansible_distribution_version }}"
 
     # Habilitar repositorios específicos según la distribución
-    - name: Habilitar el repositorio "universe" en Ubuntu
+    - name: Habilitar el repositorio "universe" y "multiverse" en Ubuntu
       apt_repository:
-        repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} main universe"
+        repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} main universe multiverse"
         state: present
-      when: ansible_distribution == "Ubuntu"
-
-    - name: Habilitar el repositorio "multiverse" en Ubuntu (opcional)
-      apt_repository:
-        repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} multiverse"
-        state: present
-      when: ansible_distribution == "Ubuntu"
-
-    - name: Actualizar la lista de paquetes (solo para Ubuntu)
-      apt:
-        update_cache: yes
       when: ansible_distribution == "Ubuntu"
 
     - name: Habilitar el repositorio EPEL en CentOS/RHEL
-      yum:
-        name: epel-release
-        state: present
+      block:
+        - name: Determinar la versión de EPEL basada en la versión de RHEL/CentOS
+          set_fact:
+            epel_url: >-
+              {% if ansible_distribution_major_version | int == 7 %}
+                https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+              {% elif ansible_distribution_major_version | int == 8 %}
+                https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+              {% elif ansible_distribution_major_version | int == 9 %}
+                https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+              {% else %}
+                https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+              {% endif %}
+
+        - name: Instalar EPEL-release para CentOS/RHEL
+          get_url:
+            url: "{{ epel_url }}"
+            dest: /tmp/epel-release-latest.noarch.rpm
+          register: download_epel
+          until: download_epel is succeeded
+          retries: 3
+          delay: 5
+
+        - name: Instalar el paquete EPEL-release
+          yum:
+            name: /tmp/epel-release-latest.noarch.rpm
+            state: present
+
+        - name: Limpiar el archivo descargado de EPEL
+          file:
+            path: /tmp/epel-release-latest.noarch.rpm
+            state: absent
       when: ansible_os_family == "RedHat"
 
     - name: Habilitar el repositorio EPEL en Fedora
@@ -102,6 +120,19 @@
         name: epel-release
         state: present
       when: ansible_distribution == "Fedora"
+
+    # Actualizar la lista de paquetes según la distribución
+    - name: Actualizar la lista de paquetes (solo para Ubuntu)
+      apt:
+        update_cache: yes
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Actualizar la lista de paquetes (solo para CentOS/RHEL/Fedora)
+      yum:
+        name: "*"
+        state: latest
+        update_cache: yes
+      when: ansible_os_family == "RedHat"
 
     # Definir paquetes necesarios para OpenSCAP y scap-security-guide
     - name: Definir paquetes necesarios para OpenSCAP y scap-security-guide
