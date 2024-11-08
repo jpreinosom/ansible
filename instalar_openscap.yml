@@ -120,3 +120,4 @@
     - name: Mostrar mensaje de éxito
       debug:
         msg: "OpenSCAP se instaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+...
