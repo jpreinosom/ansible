@@ -86,14 +86,14 @@
       yum:
         name: epel-release
         state: present
-      when: ansible_distribution in ["CentOS", "Red Hat Enterprise Linux"]
+      when: ansible_distribution in ["CentOS", "RedHat"]
 
     - name: Actualizar los repositorios (solo para CentOS y RHEL)
       yum:
         name: "*"
         state: latest
         update_cache: yes
-      when: ansible_distribution in ["CentOS", "Red Hat Enterprise Linux"]
+      when: ansible_distribution in ["CentOS", "RedHat"]
 
     - name: Definir paquetes necesarios para OpenSCAP
       set_fact:
@@ -113,7 +113,7 @@
       yum:
         name: "{{ openscap_packages }}"
         state: present
-      when: ansible_distribution in ["CentOS", "Red Hat Enterprise Linux"] and openscap_packages | length > 0
+      when: ansible_distribution in ["CentOS", "RedHat"] and openscap_packages | length > 0
 
     - name: Verificar instalación de OpenSCAP
       command: which oscap
