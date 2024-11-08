@@ -120,4 +120,22 @@
     - name: Mostrar mensaje de éxito
       debug:
         msg: "OpenSCAP se instaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-        
+
+- name: Generar archivo resultado_openscap.csv
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Asegurar que el directorio /home/ansible/resultado existe
+      file:
+        path: /home/ansible/resultado
+        state: directory
+        mode: '0755'
+
+    - name: Crear archivo resultado_openscap.csv
+      copy:
+        dest: /home/ansible/resultado/resultado_openscap.csv
+        content: |
+          IP;Usuario;Contraseña;Distribucion;Version;OpenSCAP_Instalado
+          {% for entry in hostvars['localhost']['csv_data'] %}
+          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['openscap_instalado'] | default(False) | ternary('Sí', 'No') }}
+          {% endfor %}
