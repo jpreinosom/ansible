@@ -67,6 +67,11 @@
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
   tasks:
+    - name: Asegurarse de que EPEL esté habilitado
+      yum:
+        name: epel-release
+        state: present
+
     - name: Instalar scap-security-guide
       package:
         name: scap-security-guide
