@@ -1,12 +1,14 @@
 ---
-- name: Leer y procesar el inventario CSV
+# playbooks/clasificar_eol.yml
+
+- name: Leer y procesar el inventario CSV para clasificar EoL
   hosts: localhost
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventario.csv"
+    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
     delimiter: ";"
   vars_files:
-    - vars/eol_map.yml  # Asegúrate de que esta ruta sea correcta
+    - ../vars/eol_map.yml  # Ruta relativa al playbook
   tasks:
     - name: Verificar que el archivo existe
       stat:
@@ -28,7 +30,7 @@
 
     - name: Extraer filas del CSV
       set_fact:
-        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^#|^$') | list | map('split', delimiter) | list }}"
 
     - name: Validar que cada fila tenga el mismo número de campos que los encabezados
       fail:
@@ -45,10 +47,10 @@
       loop_control:
         loop_var: row
 
-    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts_eol'
       add_host:
         name: "{{ item.IP }}"
-        groups: dynamic_hosts
+        groups: dynamic_hosts_eol
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_password: "{{ item.Contraseña }}"
@@ -62,11 +64,11 @@
       debug:
         var: csv_data
 
-- name: Obtener información y verificar EoL de los servidores
-  hosts: dynamic_hosts
+- name: Clasificar EoL en los hosts dinámicos
+  hosts: dynamic_hosts_eol
   gather_facts: yes
   vars_files:
-    - vars/eol_map.yml
+    - ../vars/eol_map.yml
   tasks:
     - name: Mostrar distribución y versión de Linux
       debug:
@@ -122,7 +124,7 @@
       debug:
         var: subscription_status
 
-- name: Generar archivo resultado.csv
+- name: Generar archivo resultado_eol.csv
   hosts: local
   gather_facts: no
   tasks:
@@ -132,9 +134,9 @@
         state: directory
         mode: '0755'
 
-    - name: Crear archivo resultado.csv
+    - name: Crear archivo resultado_eol.csv
       copy:
-        dest: /home/ansible/resultado/resultado.csv
+        dest: /home/ansible/resultado/resultado_eol.csv
         content: |
           IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion
           {% for entry in hostvars['localhost']['csv_data'] %}

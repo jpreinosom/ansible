@@ -1,0 +1,129 @@
+---
+# playbooks/instalar_openscap.yml
+
+- name: Leer y procesar el inventario CSV para instalar OpenSCAP
+  hosts: localhost
+  gather_facts: no
+  vars:
+    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
+    delimiter: ";"
+  tasks:
+    - name: Verificar que el archivo existe
+      stat:
+        path: "{{ input_file }}"
+      register: file_check
+
+    - name: Fallar si el archivo de inventario no existe
+      fail:
+        msg: "El archivo de inventario {{ input_file }} no existe."
+      when: not file_check.stat.exists
+
+    - name: Leer contenido del archivo CSV
+      set_fact:
+        csv_content: "{{ lookup('file', input_file) }}"
+
+    - name: Extraer encabezados del CSV
+      set_fact:
+        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del CSV
+      set_fact:
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^#|^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != headers | length
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas para crear diccionarios
+      set_fact:
+        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts_openscap'
+      add_host:
+        name: "{{ item.IP }}"
+        groups: dynamic_hosts_openscap
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
+        ansible_connection: ssh
+        ansible_ssh_pass: "{{ item.Contraseña }}"
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+
+    - name: Mostrar estructura completa de csv_data
+      debug:
+        var: csv_data
+
+- name: Instalar OpenSCAP en los hosts dinámicos
+  hosts: dynamic_hosts_openscap
+  gather_facts: yes
+  become: yes  # Si se requieren privilegios de superusuario
+  tasks:
+    - name: Definir paquetes necesarios para OpenSCAP
+      set_fact:
+        openscap_packages: >
+          {{
+            {
+              "Ubuntu": ["openscap-tools"],
+              "Debian": ["openscap-tools"],
+              "RedHat": ["openscap-scanner", "openscap-utils"],
+              "CentOS": ["openscap-scanner", "openscap-utils"],
+              "Fedora": ["openscap-scanner", "openscap-utils"],
+              "openSUSE": ["openscap"],
+              "SLES": ["openscap"],
+              "AlpineLinux": ["openscap-tools"],
+              "OracleLinux": ["openscap-scanner", "openscap-utils"],
+              "AlmaLinux": ["openscap-scanner", "openscap-utils"],
+              "RockyLinux": ["openscap-scanner", "openscap-utils"],
+              "AmazonLinux": ["openscap-scanner", "openscap-utils"],
+              "Mageia": ["openscap"],
+              # Agrega más distribuciones según sea necesario
+            }[ansible_distribution] | default([])
+          }}
+
+    - name: Instalar paquetes necesarios para OpenSCAP
+      package:
+        name: "{{ openscap_packages }}"
+        state: present
+      when: openscap_packages | length > 0
+
+    - name: Verificar instalación de OpenSCAP
+      command: which oscap
+      register: oscap_installed
+      ignore_errors: yes
+
+    - name: Asegurarse de que OpenSCAP está instalado
+      fail:
+        msg: "OpenSCAP no se pudo instalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      when: oscap_installed.rc != 0
+
+    - name: Mostrar mensaje de éxito
+      debug:
+        msg: "OpenSCAP se instaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+- name: Generar archivo resultado_openscap.csv
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Asegurar que el directorio /home/ansible/resultado existe
+      file:
+        path: /home/ansible/resultado
+        state: directory
+        mode: '0755'
+
+    - name: Crear archivo resultado_openscap.csv
+      copy:
+        dest: /home/ansible/resultado/resultado_openscap.csv
+        content: |
+          IP;Usuario;Contraseña;Distribucion;Version;OpenSCAP_Instalado
+          {% for entry in hostvars['localhost']['csv_data'] %}
+          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['openscap_installed'].rc == 0 | ternary('Sí', 'No') }}
+          {% endfor %}
