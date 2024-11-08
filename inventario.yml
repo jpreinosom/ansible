@@ -1,7 +1,7 @@
 ---
-# playbooks/clasificar_eol.yml
+# playbooks/clasificar_eol_y_vulnerabilidades.yml
 
-- name: Leer y procesar el inventario CSV para clasificar EoL
+- name: Leer y procesar el inventario CSV para clasificar EoL y vulnerabilidades
   hosts: localhost
   gather_facts: no
   vars:
@@ -47,10 +47,10 @@
       loop_control:
         loop_var: row
 
-    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts_eol'
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts_eol_vuln'
       add_host:
         name: "{{ item.IP }}"
-        groups: dynamic_hosts_eol
+        groups: dynamic_hosts_eol_vuln
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_password: "{{ item.Contraseña }}"
@@ -64,15 +64,86 @@
       debug:
         var: csv_data
 
-- name: Clasificar EoL en los hosts dinámicos
-  hosts: dynamic_hosts_eol
+- name: Clasificar EoL y ejecutar análisis de vulnerabilidades en los hosts dinámicos
+  hosts: dynamic_hosts_eol_vuln
   gather_facts: yes
+  become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
   vars_files:
     - ../vars/eol_map.yml
   tasks:
-    - name: Mostrar distribución y versión de Linux
+    - name: Depurar la distribución del sistema
       debug:
-        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
+        msg: "Distribución detectada: {{ ansible_distribution }}"
+
+    - name: Definir paquetes necesarios para OpenSCAP
+      set_fact:
+        openscap_packages: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
+
+    - name: Mostrar paquetes a instalar para OpenSCAP
+      debug:
+        msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ openscap_packages }}"
+
+    - name: Instalar paquetes necesarios para OpenSCAP (Ubuntu)
+      apt:
+        name: "{{ openscap_packages }}"
+        state: present
+        update_cache: yes
+      when: ansible_distribution == "Ubuntu" and openscap_packages | length > 0
+
+    - name: Instalar paquetes necesarios para OpenSCAP (CentOS/RHEL)
+      yum:
+        name: "{{ openscap_packages }}"
+        state: present
+      when: ansible_distribution in ["CentOS", "Red Hat Enterprise Linux"] and openscap_packages | length > 0
+
+    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP
+      command: >
+        oscap oval eval
+        --results /tmp/openscap-results.xml
+        /usr/share/xml/scap/ssg/content/ssg-{{ ansible_distribution | lower }}-ds.xml
+      register: scan_result
+      changed_when: false
+
+    - name: Verificar si el análisis se ejecutó correctamente
+      fail:
+        msg: "El análisis de vulnerabilidades con OpenSCAP falló en {{ inventory_hostname }}"
+      when: scan_result.rc != 0
+
+    - name: Leer el archivo de resultados XML
+      slurp:
+        src: /tmp/openscap-results.xml
+      register: slurped_xml
+
+    - name: Decodificar el contenido del archivo XML
+      set_fact:
+        openscap_results: "{{ slurped_xml.content | b64decode }}"
+
+    - name: Contar vulnerabilidades altas
+      set_fact:
+        vulnerabilities_high: "{{ (openscap_results | from_xml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'high') | list | length }}"
+
+    - name: Contar vulnerabilidades medias
+      set_fact:
+        vulnerabilities_medium: "{{ (openscap_results | from_xml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'medium') | list | length }}"
+
+    - name: Contar vulnerabilidades bajas
+      set_fact:
+        vulnerabilities_low: "{{ (openscap_results | from_xml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'low') | list | length }}"
+
+    - name: Determinar la clasificación de vulnerabilidades
+      set_fact:
+        vulnerabilities_classification: >-
+          {% if vulnerabilities_high > 10 %}
+            Alta
+          {% elif vulnerabilities_medium > 5 %}
+            Media
+          {% else %}
+            Baja
+          {% endif %}
+
+    - name: Mostrar la clasificación de vulnerabilidades
+      debug:
+        msg: "Clasificación de Vulnerabilidades: {{ vulnerabilities_classification }} (Altas: {{ vulnerabilities_high }}, Medias: {{ vulnerabilities_medium }}, Bajas: {{ vulnerabilities_low }})"
 
     - name: Obtener la fecha actual del sistema
       set_fact:
@@ -117,15 +188,15 @@
               Soportada
             {% endif %}
           {% else %}
-            version sin fecha establecida de EOL
+            versión sin fecha establecida de EOL
           {% endif %}
 
     - name: Mostrar subscription_status
       debug:
         var: subscription_status
 
-- name: Generar archivo resultado_eol.csv
-  hosts: local
+- name: Generar archivo resultado_eol_vulnerabilidades.csv
+  hosts: localhost
   gather_facts: no
   tasks:
     - name: Asegurar que el directorio /home/ansible/resultado existe
@@ -134,11 +205,11 @@
         state: directory
         mode: '0755'
 
-    - name: Crear archivo resultado_eol.csv
+    - name: Crear archivo resultado_eol_vulnerabilidades.csv
       copy:
-        dest: /home/ansible/resultado/resultado.csv
+        dest: /home/ansible/resultado/resultado_eol_vulnerabilidades.csv
         content: |
-          IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion
+          IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion;Clasificacion_Vulnerabilidades;Vulnerabilidades_Altas;Vulnerabilidades_Medias;Vulnerabilidades_Bajas
           {% for entry in hostvars['localhost']['csv_data'] %}
-          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') }}
+          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_classification'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_high'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'] | default(0) }}
           {% endfor %}
