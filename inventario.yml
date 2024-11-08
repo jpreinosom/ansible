@@ -196,7 +196,7 @@
         var: subscription_status
 
 - name: Generar archivo resultado_eol_vulnerabilidades.csv
-  hosts: localhost
+  hosts: local
   gather_facts: no
   tasks:
     - name: Asegurar que el directorio /home/ansible/resultado existe
