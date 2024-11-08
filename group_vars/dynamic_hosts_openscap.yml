@@ -1,7 +1,7 @@
 distribuciones_paquetes:
   Ubuntu: ["openscap-scanner", "openscap-utils"]
   Debian: ["openscap-scanner", "openscap-utils"]
-  "Red Hat Enterprise Linux": ["openscap-scanner", "openscap-utils"]
+  "RedHat": ["openscap-scanner", "openscap-utils"]
   CentOS: ["openscap-scanner", "openscap-utils"]
   Fedora: ["openscap-scanner", "openscap-utils"]
   openSUSE: ["openscap"]
