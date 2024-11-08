@@ -1,101 +1,131 @@
 ---
 # playbooks/instalar_openscap.yml
 
-- name: Instalar OpenSCAP y scap-security-guide
-  hosts: dynamic_hosts_openscap
-  become: yes
-  vars_files:
-    - ../vars/eol_map.yml
+- name: Leer y procesar el inventario CSV para instalar OpenSCAP y scap-security-guide
+  hosts: localhost
+  gather_facts: no
+  vars:
+    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
+    delimiter: ";"
   tasks:
-    - name: Definir paquetes necesarios para OpenSCAP
+    - name: Verificar que el archivo existe
+      stat:
+        path: "{{ input_file }}"
+      register: file_check
+
+    - name: Fallar si el archivo de inventario no existe
+      fail:
+        msg: "El archivo de inventario {{ input_file }} no existe."
+      when: not file_check.stat.exists
+
+    - name: Leer contenido del archivo CSV
+      set_fact:
+        csv_content: "{{ lookup('file', input_file) }}"
+
+    - name: Extraer encabezados del CSV
+      set_fact:
+        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del CSV
+      set_fact:
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^#|^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != headers | length
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas para crear diccionarios
+      set_fact:
+        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts_openscap'
+      add_host:
+        name: "{{ item.IP }}"
+        groups: dynamic_hosts_openscap
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
+        ansible_connection: ssh
+        ansible_ssh_pass: "{{ item.Contraseña }}"
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+
+    - name: Mostrar estructura completa de csv_data
+      debug:
+        var: csv_data
+
+- name: Instalar OpenSCAP y scap-security-guide en los hosts dinámicos
+  hosts: dynamic_hosts_openscap
+  gather_facts: yes
+  become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
+  vars_files:
+    - ../vars/dynamic_hosts_openscap.yml  # Ruta al archivo con los paquetes
+  tasks:
+    - name: Depurar la distribución del sistema
+      debug:
+        msg: "Distribución detectada: {{ ansible_distribution }}"
+
+    - name: Habilitar el repositorio "universe" (solo para Ubuntu)
+      apt_repository:
+        repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} universe"
+        state: present
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Actualizar la lista de paquetes (solo para Ubuntu)
+      apt:
+        update_cache: yes
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Definir paquetes necesarios para OpenSCAP y scap-security-guide
       set_fact:
         openscap_packages: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
+        scap_security_guide: "scap-security-guide"
 
     - name: Mostrar paquetes a instalar para OpenSCAP
       debug:
         msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ openscap_packages }}"
 
-    - name: Habilitar el repositorio EPEL en CentOS/RHEL
-      yum:
-        name: epel-release
-        state: present
-      when: ansible_os_family == "RedHat"
-
-    - name: Habilitar el repositorio EPEL en Fedora
-      dnf:
-        name: epel-release
-        state: present
-      when: ansible_os_family == "Fedora"
-
-    - name: Instalar paquetes necesarios para OpenSCAP (Ubuntu/Debian)
+    - name: Instalar paquetes necesarios para OpenSCAP (Ubuntu)
       apt:
-        name: "{{ openscap_packages }}"
+        name: "{{ openscap_packages + [scap_security_guide] }}"
         state: present
-        update_cache: yes
-      when: ansible_os_family == "Debian" and openscap_packages | length > 0
-
-    - name: Instalar scap-security-guide (Ubuntu/Debian)
-      apt:
-        name: scap-security-guide
-        state: present
-        update_cache: yes
-      when: ansible_os_family == "Debian"
+      when: ansible_distribution == "Ubuntu" and openscap_packages | length > 0
 
     - name: Instalar paquetes necesarios para OpenSCAP (CentOS/RHEL)
       yum:
-        name: "{{ openscap_packages }}"
+        name: "{{ openscap_packages + [scap_security_guide] }}"
         state: present
-      when: ansible_os_family == "RedHat" and openscap_packages | length > 0
-
-    - name: Instalar scap-security-guide (CentOS/RHEL)
-      yum:
-        name: scap-security-guide
-        state: present
-      when: ansible_os_family == "RedHat"
+      when: ansible_distribution in ["CentOS", "RedHat"] and openscap_packages | length > 0
 
     - name: Instalar paquetes necesarios para OpenSCAP (Fedora)
       dnf:
-        name: "{{ openscap_packages }}"
+        name: "{{ openscap_packages + [scap_security_guide] }}"
         state: present
-      when: ansible_os_family == "Fedora" and openscap_packages | length > 0
+      when: ansible_distribution == "Fedora" and openscap_packages | length > 0
 
-    - name: Instalar scap-security-guide (Fedora)
-      dnf:
-        name: scap-security-guide
-        state: present
-      when: ansible_os_family == "Fedora"
-
-    - name: Verificar archivos SCAP disponibles
-      command: ls /usr/share/xml/scap/ssg/content/
-      register: scp_files
-      changed_when: false
-
-    - name: Mostrar archivos SCAP disponibles
-      debug:
-        var: scp_files.stdout_lines
-
-    - name: Verificar existencia del archivo SCAP específico
-      stat:
-        path: "/usr/share/xml/scap/ssg/content/ssg-{{ ansible_distribution | lower }}-ds.xml"
-      register: scap_file_check
-
-    - name: Fallar si el archivo SCAP no existe
-      fail:
-        msg: "El archivo SCAP '/usr/share/xml/scap/ssg/content/ssg-{{ ansible_distribution | lower }}-ds.xml' no existe en {{ inventory_hostname }}."
-      when: not scap_file_check.stat.exists
-
-    - name: Verificar la instalación de OpenSCAP
+    - name: Verificar instalación de OpenSCAP
       command: which oscap
-      register: oscap_check
-      changed_when: false
-      ignore_errors: true
+      register: openscap_installed
+      ignore_errors: yes
 
-    - name: Mostrar resultado de la verificación de oscap
-      debug:
-        msg: "OpenSCAP está instalado en {{ inventory_hostname }}"
-      when: oscap_check.rc == 0
+    - name: Establecer el estado de instalación
+      set_fact:
+        openscap_instalado: "{{ openscap_installed.rc == 0 }}"
+      when: openscap_installed.rc is defined
 
-    - name: Mostrar mensaje si OpenSCAP no está instalado
+    - name: Asegurarse de que OpenSCAP está instalado
+      fail:
+        msg: "OpenSCAP no se pudo instalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      when: not openscap_instalado
+
+    - name: Mostrar mensaje de éxito
       debug:
-        msg: "OpenSCAP no está instalado en {{ inventory_hostname }}"
-      when: oscap_check.rc != 0
+        msg: "OpenSCAP y scap-security-guide se instalaron correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
