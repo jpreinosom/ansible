@@ -92,6 +92,7 @@
           - git
           - python3
           - libxml2-utils
+          - xsltproc  # Instala xsltproc
         state: present
 
     - name: Clonar el repositorio SCAP Security Guide
