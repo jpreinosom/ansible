@@ -75,49 +75,6 @@
       debug:
         msg: "Distribución detectada: {{ ansible_distribution }}"
 
-    - name: Definir paquetes necesarios para OpenSCAP
-      set_fact:
-        openscap_packages: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
-
-    - name: Mostrar paquetes a instalar para OpenSCAP
-      debug:
-        msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ openscap_packages }}"
-
-    - name: Instalar paquetes necesarios para OpenSCAP (Ubuntu)
-      apt:
-        name: "{{ openscap_packages }}"
-        state: present
-        update_cache: yes
-      when: ansible_distribution == "Ubuntu" and openscap_packages | length > 0
-
-    - name: Instalar scap-security-guide (Ubuntu)
-      apt:
-        name: scap-security-guide
-        state: present
-        update_cache: yes
-      when: ansible_distribution == "Ubuntu"
-
-    - name: Instalar paquetes necesarios para OpenSCAP (CentOS/RHEL)
-      yum:
-        name: "{{ openscap_packages }}"
-        state: present
-      when: ansible_distribution in ["CentOS", "RedHat"] and openscap_packages | length > 0
-
-    - name: Instalar scap-security-guide (CentOS/RHEL)
-      yum:
-        name: scap-security-guide
-        state: present
-      when: ansible_distribution in ["CentOS", "RedHat"]
-
-    - name: Verificar archivos SCAP disponibles
-      command: ls /usr/share/xml/scap/ssg/content/
-      register: scp_files
-      changed_when: false
-
-    - name: Mostrar archivos SCAP disponibles
-      debug:
-        var: scp_files.stdout_lines
-
     - name: Ejecutar análisis de vulnerabilidades con OpenSCAP
       command: >
         oscap oval eval
@@ -224,15 +181,8 @@
         state: absent
       when: ansible_os_family in ["Debian", "RedHat"]
 
-    # Opcional: Limpiar archivos de reporte HTML si se generaron
-    - name: Limpiar archivos temporales de reporte HTML de OpenSCAP
-      file:
-        path: /tmp/openscap-report.html
-        state: absent
-      when: ansible_os_family in ["Debian", "RedHat"]
-
 - name: Generar archivo resultado_eol_vulnerabilidades.csv
-  hosts: local
+  hosts: localhost
   gather_facts: no
   tasks:
     - name: Asegurar que el directorio /home/ansible/resultado existe
@@ -243,7 +193,7 @@
 
     - name: Crear archivo resultado_eol_vulnerabilidades.csv
       copy:
-        dest: /home/ansible/resultado/resultado.csv
+        dest: /home/ansible/resultado/resultado_eol_vulnerabilidades.csv
         content: |
           IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion;Clasificacion_Vulnerabilidades;Vulnerabilidades_Altas;Vulnerabilidades_Medias;Vulnerabilidades_Bajas
           {% for entry in hostvars['localhost']['csv_data'] %}
