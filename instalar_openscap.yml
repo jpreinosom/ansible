@@ -82,12 +82,11 @@
           RockyLinux: ["openscap-scanner", "openscap-utils"]
           AmazonLinux: ["openscap-scanner", "openscap-utils"]
           Mageia: ["openscap"]
-          # Agrega más distribuciones según sea necesario
 
 - name: Instalar OpenSCAP en los hosts dinámicos
   hosts: dynamic_hosts_openscap
   gather_facts: yes
-  become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
+  become: yes  
   tasks:
     - name: Verificar si el usuario puede ejecutar sudo sin contraseña
       command: sudo whoami
