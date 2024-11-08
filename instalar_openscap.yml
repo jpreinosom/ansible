@@ -62,32 +62,46 @@
       debug:
         var: csv_data
 
+- name: Definir diccionario de distribuciones y paquetes
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Definir diccionario de distribuciones y paquetes
+      set_fact:
+        distribuciones_paquetes:
+          Ubuntu: ["openscap-tools"]
+          Debian: ["openscap-tools"]
+          RedHat: ["openscap-scanner", "openscap-utils"]
+          CentOS: ["openscap-scanner", "openscap-utils"]
+          Fedora: ["openscap-scanner", "openscap-utils"]
+          openSUSE: ["openscap"]
+          SLES: ["openscap"]
+          AlpineLinux: ["openscap-tools"]
+          OracleLinux: ["openscap-scanner", "openscap-utils"]
+          AlmaLinux: ["openscap-scanner", "openscap-utils"]
+          RockyLinux: ["openscap-scanner", "openscap-utils"]
+          AmazonLinux: ["openscap-scanner", "openscap-utils"]
+          Mageia: ["openscap"]
+          # Agrega más distribuciones según sea necesario
+
 - name: Instalar OpenSCAP en los hosts dinámicos
   hosts: dynamic_hosts_openscap
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
   tasks:
+    - name: Verificar si el usuario puede ejecutar sudo sin contraseña
+      command: sudo whoami
+      register: sudo_check
+      ignore_errors: yes
+
+    - name: Mostrar resultado de sudo
+      debug:
+        msg: "Sudo check: {{ sudo_check.stdout }}"
+      when: sudo_check.rc == 0
+
     - name: Definir paquetes necesarios para OpenSCAP
       set_fact:
-        openscap_packages: >
-          {{
-            {
-              "Ubuntu": ["openscap-tools"],
-              "Debian": ["openscap-tools"],
-              "RedHat": ["openscap-scanner", "openscap-utils"],
-              "CentOS": ["openscap-scanner", "openscap-utils"],
-              "Fedora": ["openscap-scanner", "openscap-utils"],
-              "openSUSE": ["openscap"],
-              "SLES": ["openscap"],
-              "AlpineLinux": ["openscap-tools"],
-              "OracleLinux": ["openscap-scanner", "openscap-utils"],
-              "AlmaLinux": ["openscap-scanner", "openscap-utils"],
-              "RockyLinux": ["openscap-scanner", "openscap-utils"],
-              "AmazonLinux": ["openscap-scanner", "openscap-utils"],
-              "Mageia": ["openscap"],
-              # Agrega más distribuciones según sea necesario
-            }[ansible_distribution] | default([])
-          }}
+        openscap_packages: "{{ distribuciones_paquetes[ansible_distribution | replace(' ', '')] | default([]) }}"
 
     - name: Instalar paquetes necesarios para OpenSCAP
       package:
