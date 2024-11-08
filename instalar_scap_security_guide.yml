@@ -96,6 +96,11 @@
           - openscap-scanner
         state: present
 
+    - name: Instalar git (si es necesario para Ubuntu)
+      apt:
+        name: git
+        state: present
+
     - name: Verificar la instalación de oscap
       command: which oscap
       register: scap_installed
@@ -106,17 +111,11 @@
         msg: "oscap no se pudo instalar en {{ inventory_hostname }}"
       when: scap_installed.rc != 0
 
-    - name: Instalar git (si es necesario para Ubuntu)
-      apt:
-        name: git
-        state: present
-      when: ansible_distribution == "Ubuntu"
-
     - name: Descargar SCAP Security Guide
       git:
         repo: https://github.com/ComplianceAsCode/content.git
         dest: /tmp/content
-        version: main
+        version: master  # Cambio de 'main' a 'master'
       when: ansible_distribution == "Ubuntu"
 
     - name: Compilar el contenido SCAP (Ubuntu)
