@@ -67,35 +67,10 @@
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
   tasks:
-    - name: Instalar scap-security-guide (Ubuntu)
-      apt:
+    - name: Instalar scap-security-guide
+      package:
         name: scap-security-guide
         state: present
-      when: ansible_distribution == "Ubuntu"
-
-    - name: Instalar scap-security-guide (Debian)
-      apt:
-        name: scap-security-guide
-        state: present
-      when: ansible_distribution == "Debian"
-
-    - name: Instalar scap-security-guide (CentOS/RHEL)
-      yum:
-        name: scap-security-guide
-        state: present
-      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-
-    - name: Instalar scap-security-guide (Fedora)
-      dnf:
-        name: scap-security-guide
-        state: present
-      when: ansible_distribution == "Fedora"
-
-    - name: Instalar scap-security-guide (openSUSE)
-      zypper:
-        name: scap-security-guide
-        state: present
-      when: ansible_distribution == "openSUSE"
 
     - name: Confirmar la instalación de scap-security-guide
       command: which scap
