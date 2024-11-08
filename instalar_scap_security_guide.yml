@@ -67,23 +67,55 @@
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
   tasks:
-    - name: Asegurarse de que EPEL esté habilitado en RHEL/CentOS
-      yum:
-        name: epel-release
+    - name: Habilitar repositorios necesarios en Ubuntu/Debian
+      apt_repository:
+        repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} universe"
         state: present
-      when: ansible_distribution in ["CentOS", "RedHat"]
+      when: ansible_distribution in ["Ubuntu", "Debian"]
 
-    - name: Instalar scap-security-guide
-      package:
-        name: scap-security-guide
+    - name: Actualizar la lista de paquetes en Ubuntu/Debian
+      apt:
+        update_cache: yes
+      when: ansible_distribution in ["Ubuntu", "Debian"]
+
+    - name: Instalar openscap-scanner y scap-security-guide en Ubuntu/Debian
+      apt:
+        name:
+          - openscap-scanner
+          - scap-security-guide
         state: present
+      when: ansible_distribution in ["Ubuntu", "Debian"]
 
-    - name: Confirmar la instalación de scap-security-guide
-      command: which scap
+    - name: Instalar openscap-scanner y scap-security-guide en CentOS/RHEL
+      dnf:
+        name:
+          - openscap-scanner
+          - scap-security-guide
+        state: present
+      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+
+    - name: Instalar openscap-scanner y scap-security-guide en Fedora
+      dnf:
+        name:
+          - openscap-scanner
+          - scap-security-guide
+        state: present
+      when: ansible_distribution == "Fedora"
+
+    - name: Instalar openscap-scanner y scap-security-guide en openSUSE
+      zypper:
+        name:
+          - openscap
+          - scap-security-guide
+        state: present
+      when: ansible_distribution == "openSUSE"
+
+    - name: Confirmar la instalación de scap-security-guide y openscap-scanner
+      command: which oscap
       register: scap_installed
       ignore_errors: yes
 
-    - name: Asegurarse de que scap-security-guide está instalado
+    - name: Asegurarse de que scap-security-guide y openscap-scanner están instalados
       fail:
         msg: "scap-security-guide no se pudo instalar en {{ inventory_hostname }}"
       when: scap_installed.rc != 0
