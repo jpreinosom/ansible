@@ -132,6 +132,12 @@
         msg: "El repositorio de SCAP Security Guide no se clonó correctamente en {{ inventory_hostname }}"
       when: ansible_distribution == "Ubuntu" and not git_repo_check.stat.exists
 
+    - name: Verificar existencia de archivos XML compilados
+      stat:
+        path: "/tmp/content/build/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml"
+      register: ssg_compiled
+      when: ansible_distribution == "Ubuntu"
+
     - name: Compilar el contenido SCAP (Ubuntu)
       command: ./build.sh
       args:
@@ -147,10 +153,10 @@
         msg: "Compilación de SCAP Security Guide completada en {{ inventory_hostname }}"
       when: compile_ssg.rc == 0 and ansible_distribution == "Ubuntu"
 
-    - name: Verificar existencia de archivos XML compilados
+    - name: Verificar existencia de archivos XML compilados después de compilación
       stat:
         path: "/tmp/content/build/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml"
-      register: ssg_compiled
+      register: ssg_compiled_post
       when: ansible_distribution == "Ubuntu"
 
     - name: Fallar si la compilación no generó los archivos XML esperados
@@ -158,7 +164,7 @@
         msg: "La compilación de SCAP Security Guide no generó los archivos XML en {{ inventory_hostname }}"
       when:
         - ansible_distribution == "Ubuntu"
-        - not ssg_compiled.stat.exists
+        - not ssg_compiled_post.stat.exists
 
     - name: Copiar archivos XML de SCAP Security Guide para Ubuntu
       copy:
@@ -169,7 +175,7 @@
         mode: '0644'
       when:
         - ansible_distribution == "Ubuntu"
-        - ssg_compiled.stat.exists
+        - ssg_compiled_post.stat.exists
 
     - name: Verificar la copia de archivos XML
       stat:
