@@ -75,11 +75,55 @@
       debug:
         msg: "Distribución detectada: {{ ansible_distribution }}"
 
+    - name: Encontrar el archivo XML de SCAP Security Guide en Ubuntu/Debian
+      find:
+        paths: /usr/share/xml/scap/ssg/content/
+        patterns: "ssg-ubuntu-*-ds.xml"
+        file_type: file
+      register: xml_files
+      when: ansible_distribution in ["Ubuntu", "Debian"]
+
+    - name: Establecer la ruta del archivo XML de SCAP Security Guide para Ubuntu/Debian
+      set_fact:
+        ssg_xml_path: "{{ xml_files.files[0].path }}"
+      when:
+        - ansible_distribution in ["Ubuntu", "Debian"]
+        - xml_files.matched > 0
+
+    - name: Fallar si no se encontró el archivo XML en Ubuntu/Debian
+      fail:
+        msg: "No se encontró el archivo XML de SCAP Security Guide para Ubuntu/Debian en {{ inventory_hostname }}"
+      when:
+        - ansible_distribution in ["Ubuntu", "Debian"]
+        - xml_files.matched == 0
+
+    - name: Encontrar el archivo XML de SCAP Security Guide en CentOS/RHEL
+      find:
+        paths: /usr/share/xml/scap/ssg/content/
+        patterns: "ssg-redhat-ds.xml"
+        file_type: file
+      register: xml_files_rh
+      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+
+    - name: Establecer la ruta del archivo XML de SCAP Security Guide para CentOS/RHEL
+      set_fact:
+        ssg_xml_path: "{{ xml_files_rh.files[0].path }}"
+      when:
+        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+        - xml_files_rh.matched > 0
+
+    - name: Fallar si no se encontró el archivo XML en CentOS/RHEL
+      fail:
+        msg: "No se encontró el archivo XML de SCAP Security Guide para CentOS/RHEL en {{ inventory_hostname }}"
+      when:
+        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+        - xml_files_rh.matched == 0
+
     - name: Ejecutar análisis de vulnerabilidades con OpenSCAP
       command: >
         oscap oval eval
         --results /tmp/openscap-results.xml
-        /usr/share/xml/scap/ssg/content/ssg-{{ ansible_distribution | lower }}-ds.xml
+        {{ ssg_xml_path }}
       register: scan_result
       changed_when: false
 
@@ -180,22 +224,3 @@
         path: /tmp/openscap-results.xml
         state: absent
       when: ansible_os_family in ["Debian", "RedHat"]
-
-- name: Generar archivo resultado_eol_vulnerabilidades.csv
-  hosts: localhost
-  gather_facts: no
-  tasks:
-    - name: Asegurar que el directorio /home/ansible/resultado existe
-      file:
-        path: /home/ansible/resultado
-        state: directory
-        mode: '0755'
-
-    - name: Crear archivo resultado_eol_vulnerabilidades.csv
-      copy:
-        dest: /home/ansible/resultado/resultado_eol_vulnerabilidades.csv
-        content: |
-          IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion;Clasificacion_Vulnerabilidades;Vulnerabilidades_Altas;Vulnerabilidades_Medias;Vulnerabilidades_Bajas
-          {% for entry in hostvars['localhost']['csv_data'] %}
-          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_classification'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_high'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'] | default(0) }}
-          {% endfor %}
