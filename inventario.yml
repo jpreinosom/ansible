@@ -90,11 +90,33 @@
         update_cache: yes
       when: ansible_distribution == "Ubuntu" and openscap_packages | length > 0
 
+    - name: Instalar scap-security-guide (Ubuntu)
+      apt:
+        name: scap-security-guide
+        state: present
+        update_cache: yes
+      when: ansible_distribution == "Ubuntu"
+
     - name: Instalar paquetes necesarios para OpenSCAP (CentOS/RHEL)
       yum:
         name: "{{ openscap_packages }}"
         state: present
       when: ansible_distribution in ["CentOS", "Red Hat Enterprise Linux"] and openscap_packages | length > 0
+
+    - name: Instalar scap-security-guide (CentOS/RHEL)
+      yum:
+        name: scap-security-guide
+        state: present
+      when: ansible_distribution in ["CentOS", "Red Hat Enterprise Linux"]
+
+    - name: Verificar archivos SCAP disponibles
+      command: ls /usr/share/xml/scap/ssg/content/
+      register: scp_files
+      changed_when: false
+
+    - name: Mostrar archivos SCAP disponibles
+      debug:
+        var: scp_files.stdout_lines
 
     - name: Ejecutar análisis de vulnerabilidades con OpenSCAP
       command: >
@@ -118,15 +140,15 @@
       set_fact:
         openscap_results: "{{ slurped_xml.content | b64decode }}"
 
-    - name: Contar vulnerabilidades altas
+    - name: Parsear XML y contar vulnerabilidades altas
       set_fact:
         vulnerabilities_high: "{{ (openscap_results | from_xml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'high') | list | length }}"
 
-    - name: Contar vulnerabilidades medias
+    - name: Parsear XML y contar vulnerabilidades medias
       set_fact:
         vulnerabilities_medium: "{{ (openscap_results | from_xml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'medium') | list | length }}"
 
-    - name: Contar vulnerabilidades bajas
+    - name: Parsear XML y contar vulnerabilidades bajas
       set_fact:
         vulnerabilities_low: "{{ (openscap_results | from_xml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'low') | list | length }}"
 
@@ -195,6 +217,20 @@
       debug:
         var: subscription_status
 
+    # Opcional: Limpiar archivos temporales
+    - name: Limpiar archivos temporales de OpenSCAP
+      file:
+        path: /tmp/openscap-results.xml
+        state: absent
+      when: ansible_os_family in ["Debian", "RedHat"]
+
+    # Opcional: Limpiar archivos de reporte HTML si se generaron
+    - name: Limpiar archivos temporales de reporte HTML de OpenSCAP
+      file:
+        path: /tmp/openscap-report.html
+        state: absent
+      when: ansible_os_family in ["Debian", "RedHat"]
+
 - name: Generar archivo resultado_eol_vulnerabilidades.csv
   hosts: local
   gather_facts: no
@@ -207,7 +243,7 @@
 
     - name: Crear archivo resultado_eol_vulnerabilidades.csv
       copy:
-        dest: /home/ansible/resultado/resultado_eol_vulnerabilidades.csv
+        dest: /home/ansible/resultado/resultado.csv
         content: |
           IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion;Clasificacion_Vulnerabilidades;Vulnerabilidades_Altas;Vulnerabilidades_Medias;Vulnerabilidades_Bajas
           {% for entry in hostvars['localhost']['csv_data'] %}
