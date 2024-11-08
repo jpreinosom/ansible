@@ -34,7 +34,7 @@
       set_fact:
         csv_hosts: "{{ csv_hosts | default([]) + [ dict(csv_headers[0:3] | zip(line.split(delimiter)[0:3])) ] }}"
       with_items: "{{ csv_lines[1:] }}"
-      when: item.strip() != ''
+      when: line.strip() != ''
       loop_control:
         loop_var: line
       vars:
@@ -43,7 +43,7 @@
     - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
       add_host:
         name: "{{ item.IP }}"
-        groups: dynamic_hosts
+        groups: "{{ 'ubuntu_hosts' if ansible_distribution == 'Ubuntu' else 'rhel_hosts' }}"
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_password: "{{ item.Contraseña }}"
@@ -56,7 +56,7 @@
 
     - name: Mostrar hosts agregados
       debug:
-        msg: "Host agregado: {{ item.IP }} al grupo dynamic_hosts"
+        msg: "Host agregado: {{ item.IP }} al grupo {{ 'ubuntu_hosts' if ansible_distribution == 'Ubuntu' else 'rhel_hosts' }}"
       with_items: "{{ csv_hosts }}"
       loop_control:
         label: "{{ item.IP }}"
