@@ -67,10 +67,11 @@
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
   tasks:
-    - name: Asegurarse de que EPEL esté habilitado
+    - name: Asegurarse de que EPEL esté habilitado en RHEL/CentOS
       yum:
         name: epel-release
         state: present
+      when: ansible_distribution in ["CentOS", "RedHat"]
 
     - name: Instalar scap-security-guide
       package:
