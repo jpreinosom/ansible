@@ -62,7 +62,7 @@
       debug:
         var: csv_data
 
-- name: Instalar OpenSCAP en los hosts dinámicos
+- name: Instalar OpenSCAP y scap-security-guide en los hosts dinámicos
   hosts: dynamic_hosts_openscap
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
@@ -82,37 +82,32 @@
         update_cache: yes
       when: ansible_distribution == "Ubuntu"
 
-    - name: Instalar EPEL si es necesario (CentOS/RHEL)
-      shell: |
-        yum install -y epel-release || (rpm -Uvh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm)
-      when: ansible_distribution in ["CentOS", "RedHat"]
-
-    - name: Definir paquetes necesarios para OpenSCAP y scap-security-guide
-      set_fact:
-        openscap_packages: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
-        scap_security_guide: "scap-security-guide"
-
-    - name: Mostrar paquetes a instalar para OpenSCAP
-      debug:
-        msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ openscap_packages }} y {{ scap_security_guide }}"
-
-    - name: Instalar paquetes necesarios para OpenSCAP y scap-security-guide (Ubuntu)
+    - name: Instalar paquetes OpenSCAP y scap-security-guide (Ubuntu/Debian)
       apt:
-        name: "{{ openscap_packages + [scap_security_guide] }}"
+        name:
+          - openscap-scanner
+          - openscap-utils
+          - scap-security-guide
         state: present
-      when: ansible_distribution == "Ubuntu" and openscap_packages | length > 0
+      when: ansible_os_family == "Debian"
 
-    - name: Instalar paquetes necesarios para OpenSCAP y scap-security-guide (CentOS/RHEL)
+    - name: Instalar paquetes OpenSCAP y scap-security-guide (CentOS/RHEL)
       yum:
-        name: "{{ openscap_packages + [scap_security_guide] }}"
+        name:
+          - openscap-scanner
+          - openscap-utils
+          - scap-security-guide
         state: present
-      when: ansible_distribution in ["CentOS", "RedHat"] and openscap_packages | length > 0
+      when: ansible_os_family == "RedHat"
 
-    - name: Instalar paquetes necesarios para OpenSCAP y scap-security-guide (Fedora)
+    - name: Instalar paquetes OpenSCAP y scap-security-guide (Fedora)
       dnf:
-        name: "{{ openscap_packages + [scap_security_guide] }}"
+        name:
+          - openscap-scanner
+          - openscap-utils
+          - scap-security-guide
         state: present
-      when: ansible_distribution == "Fedora" and openscap_packages | length > 0
+      when: ansible_os_family == "Fedora"
 
     - name: Verificar instalación de OpenSCAP
       command: which oscap
@@ -131,4 +126,4 @@
 
     - name: Mostrar mensaje de éxito
       debug:
-        msg: "OpenSCAP y scap-security-guide se instalaron correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+        msg: "OpenSCAP se instaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
