@@ -71,7 +71,7 @@
       debug:
         msg: "Distribución detectada: {{ ansible_distribution }} {{ ansible_distribution_version }}"
 
-    # Habilitar repositorios específicos según la distribución
+    # Habilitar los repositorios "universe" y "multiverse" en Ubuntu (si es aplicable)
     - name: Habilitar los repositorios "universe" y "multiverse" en Ubuntu
       apt_repository:
         repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} main universe multiverse"
@@ -84,75 +84,22 @@
         cache_valid_time: 3600  # Tiempo en segundos para validar el cache
       when: ansible_distribution == "Ubuntu"
 
-    # Habilitar el repositorio EPEL en CentOS/RHEL
-    - name: Determinar la versión de EPEL basada en la versión de RHEL/CentOS
-      set_fact:
-        epel_url: >-
-          {% if ansible_distribution_major_version | int == 7 %}
-            https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-          {% elif ansible_distribution_major_version | int == 8 %}
-            https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
-          {% elif ansible_distribution_major_version | int == 9 %}
-            https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
-          {% else %}
-            https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
-          {% endif %}
-        epel_gpg_key_url: >-
-          {% if ansible_distribution_major_version | int == 7 %}
-            https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-7
-          {% elif ansible_distribution_major_version | int == 8 %}
-            https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-8
-          {% elif ansible_distribution_major_version | int == 9 %}
-            https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-9
-          {% else %}
-            https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-9
-          {% endif %}
+    # Asegurar que el repositorio AppStream esté habilitado en CentOS Stream 9
+    - name: Habilitar el repositorio AppStream en CentOS Stream 9
+      yum_repository:
+        name: AppStream
+        description: CentOS Stream 9 AppStream Repository
+        baseurl: "https://mirror.centos.org/centos/9-stream/AppStream/x86_64/os/"
+        enabled: yes
+        gpgcheck: yes
+        repo_gpgcheck: yes
+        gpgkey: "https://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-9-Stream"
+      when:
+        - ansible_distribution == "CentOS"
+        - ansible_distribution_major_version | int == 9
 
-    - name: Descargar y importar la clave GPG de EPEL
-      block:
-        - name: Descargar la clave GPG de EPEL
-          get_url:
-            url: "{{ epel_gpg_key_url }}"
-            dest: /tmp/RPM-GPG-KEY-EPEL
-          register: download_epel_gpg
-          retries: 3
-          delay: 5
-          until: download_epel_gpg is succeeded
-
-        - name: Importar la clave GPG de EPEL
-          rpm_key:
-            state: present
-            key: /tmp/RPM-GPG-KEY-EPEL
-
-        - name: Limpiar el archivo de la clave GPG de EPEL
-          file:
-            path: /tmp/RPM-GPG-KEY-EPEL
-            state: absent
-      when: ansible_os_family == "RedHat"
-
-    - name: Descargar EPEL-release para CentOS/RHEL
-      get_url:
-        url: "{{ epel_url }}"
-        dest: /tmp/epel-release-latest.noarch.rpm
-      register: download_epel
-      retries: 3
-      delay: 5
-      until: download_epel is succeeded
-      when: ansible_os_family == "RedHat"
-
-    - name: Instalar el paquete EPEL-release
-      yum:
-        name: /tmp/epel-release-latest.noarch.rpm
-        state: present
-      when: ansible_os_family == "RedHat"
-
-    - name: Limpiar el archivo descargado de EPEL-release
-      file:
-        path: /tmp/epel-release-latest.noarch.rpm
-        state: absent
-      when: ansible_os_family == "RedHat"
-
-    - name: Actualizar la lista de paquetes (solo para CentOS/RHEL/Fedora)
+    # Limpiar la caché de DNF/YUM para asegurarse de que los repositorios estén actualizados
+    - name: Limpiar caché de DNF/YUM
       yum:
         name: "*"
         state: latest
