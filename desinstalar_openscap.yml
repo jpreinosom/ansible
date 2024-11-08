@@ -45,10 +45,10 @@
       loop_control:
         loop_var: row
 
-    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts_desinstalar_openscap'
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts_openscap'
       add_host:
         name: "{{ item.IP }}"
-        groups: dynamic_hosts_desinstalar_openscap
+        groups: dynamic_hosts_openscap
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_password: "{{ item.Contraseña }}"
@@ -63,72 +63,52 @@
         var: csv_data
 
 - name: Desinstalar OpenSCAP en los hosts dinámicos
-  hosts: dynamic_hosts_desinstalar_openscap
+  hosts: dynamic_hosts_openscap
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
+  vars_files:
+    - group_vars/dynamic_hosts_openscap.yml  # Asegúrate de que este archivo contiene 'distribuciones_paquetes'
   tasks:
+    - name: Depurar la distribución del sistema
+      debug:
+        msg: "Distribución detectada: {{ ansible_distribution }}"
+
     - name: Definir paquetes necesarios para desinstalar OpenSCAP
       set_fact:
-        openscap_packages: >
-          {{
-            {
-              "Ubuntu": ["openscap-tools"],
-              "Debian": ["openscap-tools"],
-              "RedHat": ["openscap-scanner", "openscap-utils"],
-              "CentOS": ["openscap-scanner", "openscap-utils"],
-              "Fedora": ["openscap-scanner", "openscap-utils"],
-              "openSUSE": ["openscap"],
-              "SLES": ["openscap"],
-              "AlpineLinux": ["openscap-tools"],
-              "OracleLinux": ["openscap-scanner", "openscap-utils"],
-              "AlmaLinux": ["openscap-scanner", "openscap-utils"],
-              "RockyLinux": ["openscap-scanner", "openscap-utils"],
-              "AmazonLinux": ["openscap-scanner", "openscap-utils"],
-              "Mageia": ["openscap"],
-              # Agrega más distribuciones según sea necesario
-            }[ansible_distribution] | default([])
-          }}
+        openscap_packages: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
 
-    - name: Desinstalar paquetes de OpenSCAP
-      package:
+    - name: Mostrar paquetes a desinstalar para OpenSCAP
+      debug:
+        msg: "Paquetes a desinstalar para {{ ansible_distribution }}: {{ openscap_packages }}"
+
+    - name: Desinstalar paquetes necesarios para OpenSCAP (Ubuntu)
+      apt:
         name: "{{ openscap_packages }}"
         state: absent
-      when: openscap_packages | length > 0
+        purge: yes  # Opcional: purgar archivos de configuración
+      when: ansible_distribution == "Ubuntu" and openscap_packages | length > 0
 
-    - name: Verificar desinstalación de OpenSCAP
+    - name: Desinstalar paquetes necesarios para OpenSCAP (CentOS/RHEL)
+      yum:
+        name: "{{ openscap_packages }}"
+        state: absent
+      when: ansible_distribution in ["CentOS", "RedHat"] and openscap_packages | length > 0
+
+    - name: Verificar eliminación de OpenSCAP
       command: which oscap
       register: openscap_removed
       ignore_errors: yes
 
-    - name: Establecer el estado de desinstalación
+    - name: Establecer el estado de eliminación
       set_fact:
-        openscap_desinstalado: "{{ openscap_removed.rc != 0 }}"
+        openscap_eliminado: "{{ openscap_removed.rc != 0 }}"
       when: openscap_removed.rc is defined
 
-    - name: Asegurarse de que OpenSCAP está desinstalado
+    - name: Asegurarse de que OpenSCAP ha sido desinstalado
       fail:
         msg: "OpenSCAP no se pudo desinstalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-      when: not openscap_desinstalado
+      when: not openscap_eliminado
 
     - name: Mostrar mensaje de éxito
       debug:
-        msg: "OpenSCAP se desinstaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-
-- name: Generar archivo resultado_desinstalar_openscap.csv
-  hosts: localhost
-  gather_facts: no
-  tasks:
-    - name: Asegurar que el directorio /home/ansible/resultado existe
-      file:
-        path: /home/ansible/resultado
-        state: directory
-        mode: '0755'
-
-    - name: Crear archivo resultado_desinstalar_openscap.csv
-      copy:
-        dest: /home/ansible/resultado/resultado_desinstalar_openscap.csv
-        content: |
-          IP;Usuario;Contraseña;Distribucion;Version;OpenSCAP_Desinstalado
-          {% for entry in hostvars['localhost']['csv_data'] %}
-          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['openscap_desinstalado'] | default(False) | ternary('Sí', 'No') }}
-          {% endfor %}
+        msg: "OpenSCAP ha sido desinstalado correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
