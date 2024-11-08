@@ -132,6 +132,36 @@
         msg: "El repositorio de SCAP Security Guide no se clonó correctamente en {{ inventory_hostname }}"
       when: ansible_distribution == "Ubuntu" and not git_repo_check.stat.exists
 
+    - name: Listar el contenido de /tmp/content para verificar build.sh
+      command: ls -l /tmp/content
+      register: content_listing
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Mostrar el contenido de /tmp/content
+      debug:
+        var: content_listing.stdout_lines
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Verificar la existencia de build.sh
+      stat:
+        path: /tmp/content/build.sh
+      register: build_sh_check
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Fallar si build.sh no existe
+      fail:
+        msg: "El script build.sh no se encontró en /tmp/content en {{ inventory_hostname }}"
+      when:
+        - ansible_distribution == "Ubuntu"
+        - not build_sh_check.stat.exists
+
+    - name: Asegurar que build.sh es ejecutable
+      file:
+        path: /tmp/content/build.sh
+        mode: '0755'
+        state: file
+      when: ansible_distribution == "Ubuntu"
+
     - name: Verificar existencia de archivos XML compilados
       stat:
         path: "/tmp/content/build/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml"
