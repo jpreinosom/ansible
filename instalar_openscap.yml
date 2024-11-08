@@ -65,7 +65,7 @@
 - name: Instalar OpenSCAP y scap-security-guide en los hosts dinámicos
   hosts: dynamic_hosts_openscap
   gather_facts: yes
-  become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
+  become: yes
   vars_files:
     - ../vars/dynamic_hosts_openscap.yml  # Ruta al archivo con los paquetes
   tasks:
@@ -80,6 +80,12 @@
         state: present
       when: ansible_distribution == "Ubuntu"
 
+    - name: Actualizar la lista de paquetes (solo para Ubuntu)
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600  # Tiempo en segundos para validar el cache
+      when: ansible_distribution == "Ubuntu"
+
     - name: Habilitar el repositorio EPEL en CentOS/RHEL
       block:
         - name: Determinar la versión de EPEL basada en la versión de RHEL/CentOS
@@ -92,22 +98,37 @@
               {% elif ansible_distribution_major_version | int == 9 %}
                 https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
               {% else %}
-                https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+                https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+              {% endif %}
+            epel_gpg_key_url: >-
+              {% if ansible_distribution_major_version | int == 7 %}
+                https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-7
+              {% elif ansible_distribution_major_version | int == 8 %}
+                https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-8
+              {% elif ansible_distribution_major_version | int == 9 %}
+                https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-9
+              {% else %}
+                https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-9
               {% endif %}
 
-        - name: Instalar EPEL-release para CentOS/RHEL
+        - name: Descargar EPEL-release para CentOS/RHEL
           get_url:
             url: "{{ epel_url }}"
             dest: /tmp/epel-release-latest.noarch.rpm
           register: download_epel
-          until: download_epel is succeeded
           retries: 3
           delay: 5
+          until: download_epel is succeeded
 
         - name: Instalar el paquete EPEL-release
           yum:
             name: /tmp/epel-release-latest.noarch.rpm
             state: present
+
+        - name: Importar la clave GPG de EPEL
+          rpm_key:
+            state: present
+            key: "{{ epel_gpg_key_url }}"
 
         - name: Limpiar el archivo descargado de EPEL
           file:
@@ -122,11 +143,6 @@
       when: ansible_distribution == "Fedora"
 
     # Actualizar la lista de paquetes según la distribución
-    - name: Actualizar la lista de paquetes (solo para Ubuntu)
-      apt:
-        update_cache: yes
-      when: ansible_distribution == "Ubuntu"
-
     - name: Actualizar la lista de paquetes (solo para CentOS/RHEL/Fedora)
       yum:
         name: "*"
@@ -134,22 +150,44 @@
         update_cache: yes
       when: ansible_os_family == "RedHat"
 
+    # Verificar disponibilidad de 'ssg-base' en Ubuntu
+    - name: Verificar disponibilidad de 'ssg-base' en Ubuntu
+      when: ansible_distribution == "Ubuntu"
+      shell: apt-cache policy ssg-base
+      register: scap_check_ubuntu
+
+    - name: Mostrar estado del paquete 'ssg-base' en Ubuntu
+      debug:
+        msg: "Estado de 'ssg-base': {{ scap_check_ubuntu.stdout }}"
+      when: ansible_distribution == "Ubuntu"
+
     # Definir paquetes necesarios para OpenSCAP y scap-security-guide
     - name: Definir paquetes necesarios para OpenSCAP y scap-security-guide
       set_fact:
         openscap_packages: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
-        scap_security_guide: "scap-security-guide"
+        # Para Ubuntu, usar 'ssg-base' en lugar de 'scap-security-guide'
+        scap_security_guide: "{{ 'ssg-base' if ansible_distribution == 'Ubuntu' else 'scap-security-guide' }}"
 
     - name: Mostrar paquetes a instalar para OpenSCAP y scap-security-guide
       debug:
         msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ openscap_packages }} y {{ scap_security_guide }}"
 
     # Instalar paquetes en Ubuntu/Debian
-    - name: Instalar paquetes necesarios para OpenSCAP y scap-security-guide (Ubuntu/Debian)
+    - name: Instalar paquetes necesarios para OpenSCAP y ssg-base (Ubuntu/Debian)
       apt:
         name: "{{ openscap_packages + [scap_security_guide] }}"
         state: present
-      when: ansible_os_family == "Debian" and openscap_packages | length > 0
+      when: 
+        - (ansible_distribution == "Ubuntu" or ansible_os_family == "Debian")
+        - openscap_packages | length > 0
+      ignore_errors: yes
+
+    - name: Fallar si 'ssg-base' no está disponible en Ubuntu
+      fail:
+        msg: "El paquete '{{ scap_security_guide }}' no está disponible en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      when:
+        - (ansible_distribution == "Ubuntu" or ansible_os_family == "Debian")
+        - scap_check_ubuntu.stdout.find('ssg-base') == -1
 
     # Instalar paquetes en CentOS/RHEL
     - name: Instalar paquetes necesarios para OpenSCAP y scap-security-guide (CentOS/RHEL)
