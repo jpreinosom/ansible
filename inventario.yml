@@ -101,13 +101,13 @@
       yum:
         name: "{{ openscap_packages }}"
         state: present
-      when: ansible_distribution in ["CentOS", "Red Hat Enterprise Linux"] and openscap_packages | length > 0
+      when: ansible_distribution in ["CentOS", "RedHat"] and openscap_packages | length > 0
 
     - name: Instalar scap-security-guide (CentOS/RHEL)
       yum:
         name: scap-security-guide
         state: present
-      when: ansible_distribution in ["CentOS", "Red Hat Enterprise Linux"]
+      when: ansible_distribution in ["CentOS", "RedHat"]
 
     - name: Verificar archivos SCAP disponibles
       command: ls /usr/share/xml/scap/ssg/content/
