@@ -4,8 +4,6 @@
 - name: Leer y procesar el inventario CSV para agregar hosts dinámicamente
   hosts: localhost
   gather_facts: no
-  collections:
-    - community.general
   vars:
     input_file: "{{ playbook_dir }}/inventario.csv"  # Ajusta la ruta según tu estructura
     delimiter: ";"
@@ -21,31 +19,61 @@
       when: not file_check.stat.exists
 
     - name: Leer contenido del archivo CSV
-      read_csv:
-        path: "{{ input_file }}"
-        delimiter: "{{ delimiter }}"
-      register: csv_data
+      command: cat "{{ input_file }}"
+      register: csv_content
 
-    - name: Agregar hosts al grupo correspondiente según la distribución
+    - name: Dividir contenido en líneas
+      set_fact:
+        csv_lines: "{{ csv_content.stdout.split('\n') }}"
+
+    - name: Extraer encabezados
+      set_fact:
+        csv_headers: "{{ csv_lines[0].split(delimiter) | map('trim') | list }}"
+
+    - name: Crear lista de hosts
+      set_fact:
+        csv_hosts: "{{ csv_hosts | default([]) + [ dict(csv_headers[0:3] | zip(line.split(delimiter)[0:3])) ] }}"
+      with_items: "{{ csv_lines[1:] }}"
+      when: item.strip() != ''
+      loop_control:
+        loop_var: line
+      vars:
+        line: "{{ item }}"
+
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
       add_host:
         name: "{{ item.IP }}"
-        groups: "{{ 'ubuntu_hosts' if ansible_distribution == 'Ubuntu' else 'rhel_hosts' }}"
+        groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
-      loop: "{{ csv_data.list }}"
+      with_items: "{{ csv_hosts }}"
       loop_control:
         label: "{{ item.IP }}"
       delegate_to: localhost
 
     - name: Mostrar hosts agregados
       debug:
-        msg: "Host agregado: {{ item.IP }} al grupo {{ 'ubuntu_hosts' if ansible_distribution == 'Ubuntu' else 'rhel_hosts' }}"
-      loop: "{{ csv_data.list }}"
+        msg: "Host agregado: {{ item.IP }} al grupo dynamic_hosts"
+      with_items: "{{ csv_hosts }}"
       loop_control:
         label: "{{ item.IP }}"
+
+- name: Agrupar hosts por distribución
+  hosts: dynamic_hosts
+  gather_facts: yes
+  tasks:
+    - name: Agrupar en 'ubuntu_hosts' si Ubuntu
+      group_by:
+        key: "ubuntu_hosts"
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Agrupar en 'rhel_hosts' si RHEL/CentOS
+      group_by:
+        key: "rhel_hosts"
+      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
 
 - name: Instalar paquetes necesarios en Ubuntu/Debian
   hosts: ubuntu_hosts
@@ -91,7 +119,7 @@
         chdir: /tmp/content
       when:
         - ansible_distribution == "Ubuntu"
-        - not lookup('pipe', 'ls /tmp/content/build/content/ssg-ubuntu-*.xml 2>/dev/null')
+        - not lookup('pipe', "ls /tmp/content/build/content/ssg-ubuntu-*.xml 2>/dev/null")
       register: compile_ssg
       ignore_errors: yes
 
@@ -105,7 +133,7 @@
       when:
         - ansible_distribution == "Ubuntu"
         - compile_ssg is succeeded
-        - stat.path.exists("/tmp/content/build/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml")
+        - stat(path="/tmp/content/build/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml").exists
 
     - name: Verificar la copia de archivos XML
       stat:
