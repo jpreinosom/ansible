@@ -62,7 +62,7 @@
       debug:
         var: csv_data
 
-- name: Instalar OpenSCAP en los hosts dinámicos
+- name: Instalar OpenSCAP y scap-security-guide en los hosts dinámicos
   hosts: dynamic_hosts_openscap
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
@@ -77,12 +77,24 @@
         state: present
       when: ansible_distribution == "Ubuntu"
 
+    - name: Habilitar el repositorio EPEL en CentOS/RHEL
+      yum:
+        name: epel-release
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Habilitar el repositorio EPEL en Fedora
+      dnf:
+        name: epel-release
+        state: present
+      when: ansible_os_family == "Fedora"
+
     - name: Actualizar la lista de paquetes (solo para Ubuntu)
       apt:
         update_cache: yes
       when: ansible_distribution == "Ubuntu"
 
-    - name: Definir paquetes necesarios para OpenSCAP
+    - name: Definir paquetes necesarios para OpenSCAP y scap-security-guide
       set_fact:
         openscap_packages: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
 
@@ -102,6 +114,30 @@
         state: present
       when: ansible_distribution in ["CentOS", "RedHat"] and openscap_packages | length > 0
 
+    - name: Instalar paquetes necesarios para OpenSCAP (Fedora)
+      dnf:
+        name: "{{ openscap_packages }}"
+        state: present
+      when: ansible_distribution == "Fedora" and openscap_packages | length > 0
+
+    - name: Instalar scap-security-guide (Ubuntu/Debian)
+      apt:
+        name: scap-security-guide
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Instalar scap-security-guide (CentOS/RHEL)
+      yum:
+        name: scap-security-guide
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Instalar scap-security-guide (Fedora)
+      dnf:
+        name: scap-security-guide
+        state: present
+      when: ansible_os_family == "Fedora"
+
     - name: Verificar instalación de OpenSCAP
       command: which oscap
       register: openscap_installed
@@ -120,4 +156,3 @@
     - name: Mostrar mensaje de éxito
       debug:
         msg: "OpenSCAP se instaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-        
