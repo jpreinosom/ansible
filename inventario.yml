@@ -8,7 +8,7 @@
     input_file: "{{ playbook_dir }}/inventory/inventario.csv"
     delimiter: ";"
   vars_files:
-    - ../vars/eol_map.yml  # Ruta relativa al playbook
+    - vars/eol_map.yml  # Ruta relativa al playbook
   tasks:
     - name: Verificar que el archivo existe
       stat:
