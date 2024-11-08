@@ -1,8 +1,55 @@
 ---
 # playbooks/instalar_scap_security_guide.yml
 
+- name: Leer y procesar el inventario CSV para agregar hosts dinámicamente
+  hosts: localhost
+  gather_facts: no
+  collections:
+    - community.general
+  vars:
+    input_file: "{{ playbook_dir }}/inventario.csv"  # Ajusta la ruta según tu estructura
+    delimiter: ";"
+  tasks:
+    - name: Verificar que el archivo CSV existe
+      stat:
+        path: "{{ input_file }}"
+      register: file_check
+
+    - name: Fallar si el archivo CSV no existe
+      fail:
+        msg: "El archivo de inventario {{ input_file }} no existe."
+      when: not file_check.stat.exists
+
+    - name: Leer contenido del archivo CSV
+      read_csv:
+        path: "{{ input_file }}"
+        delimiter: "{{ delimiter }}"
+      register: csv_data
+
+    - name: Agregar hosts al grupo correspondiente según la distribución
+      add_host:
+        name: "{{ item.IP }}"
+        groups: "{{ 'ubuntu_hosts' if ansible_distribution == 'Ubuntu' else 'rhel_hosts' }}"
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
+        ansible_connection: ssh
+        ansible_ssh_pass: "{{ item.Contraseña }}"
+      loop: "{{ csv_data.list }}"
+      loop_control:
+        label: "{{ item.IP }}"
+      delegate_to: localhost
+
+    - name: Mostrar hosts agregados
+      debug:
+        msg: "Host agregado: {{ item.IP }} al grupo {{ 'ubuntu_hosts' if ansible_distribution == 'Ubuntu' else 'rhel_hosts' }}"
+      loop: "{{ csv_data.list }}"
+      loop_control:
+        label: "{{ item.IP }}"
+
 - name: Instalar paquetes necesarios en Ubuntu/Debian
   hosts: ubuntu_hosts
+  gather_facts: yes
   become: yes
   tasks:
     - name: Habilitar repositorios universe
@@ -31,7 +78,7 @@
         msg: "oscap no se pudo instalar en {{ inventory_hostname }}"
       when: scap_installed.rc != 0
 
-    - name: Descargar y compilar SCAP Security Guide (si es necesario)
+    - name: Descargar SCAP Security Guide
       git:
         repo: https://github.com/ComplianceAsCode/content.git
         dest: /tmp/content
@@ -42,7 +89,11 @@
       command: ./build.sh
       args:
         chdir: /tmp/content
-      when: ansible_distribution == "Ubuntu"
+      when:
+        - ansible_distribution == "Ubuntu"
+        - not lookup('pipe', 'ls /tmp/content/build/content/ssg-ubuntu-*.xml 2>/dev/null')
+      register: compile_ssg
+      ignore_errors: yes
 
     - name: Copiar archivos XML de SCAP Security Guide para Ubuntu
       copy:
@@ -53,10 +104,24 @@
         mode: '0644'
       when:
         - ansible_distribution == "Ubuntu"
-        - ansible_distribution_version is version('20.04', '>=')
+        - compile_ssg is succeeded
+        - stat.path.exists("/tmp/content/build/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml")
+
+    - name: Verificar la copia de archivos XML
+      stat:
+        path: "/usr/share/xml/scap/ssg/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml"
+      register: xml_file_check
+
+    - name: Fallar si el archivo XML no se copió correctamente
+      fail:
+        msg: "No se pudo copiar el archivo XML de SCAP Security Guide para Ubuntu en {{ inventory_hostname }}"
+      when:
+        - ansible_distribution == "Ubuntu"
+        - not xml_file_check.stat.exists
 
 - name: Instalar paquetes necesarios en CentOS/RHEL
   hosts: rhel_hosts
+  gather_facts: yes
   become: yes
   tasks:
     - name: Instalar openscap-scanner y scap-security-guide
