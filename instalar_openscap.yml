@@ -82,19 +82,6 @@
         update_cache: yes
       when: ansible_distribution == "Ubuntu"
 
-    - name: Habilitar el repositorio EPEL (solo para CentOS y RHEL)
-      yum:
-        name: epel-release
-        state: present
-      when: ansible_distribution in ["CentOS", "RedHat"]
-
-    - name: Actualizar los repositorios (solo para CentOS y RHEL)
-      yum:
-        name: "*"
-        state: latest
-        update_cache: yes
-      when: ansible_distribution in ["CentOS", "RedHat"]
-
     - name: Definir paquetes necesarios para OpenSCAP
       set_fact:
         openscap_packages: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
