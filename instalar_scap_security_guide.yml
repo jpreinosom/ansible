@@ -62,7 +62,7 @@
       debug:
         var: csv_data
 
-- name: Instalar ssg-base y openscap-scanner en los hosts dinámicos
+- name: Instalar ssg-base, scap-security-guide y openscap-scanner en los hosts dinámicos
   hosts: dynamic_hosts_scap
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
@@ -78,15 +78,16 @@
         update_cache: yes
       when: ansible_distribution in ["Ubuntu", "Debian"]
 
-    - name: Instalar ssg-base y openscap-scanner en Ubuntu/Debian
+    - name: Instalar ssg-base, scap-security-guide y openscap-scanner en Ubuntu/Debian
       apt:
         name:
           - ssg-base
+          - scap-security-guide
           - openscap-scanner
         state: present
       when: ansible_distribution in ["Ubuntu", "Debian"]
 
-    - name: Instalar openscap-scanner y scap-security-guide en RHEL/CentOS
+    - name: Instalar openscap-scanner y scap-security-guide en CentOS/RHEL
       dnf:
         name:
           - openscap-scanner
@@ -94,16 +95,16 @@
         state: present
       when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
 
-    - name: Confirmar la instalación de ssg-base y openscap-scanner
+    - name: Confirmar la instalación de ssg-base, scap-security-guide y openscap-scanner
       command: which oscap
       register: scap_installed
       ignore_errors: yes
 
-    - name: Asegurarse de que ssg-base y openscap-scanner están instalados
+    - name: Asegurarse de que ssg-base, scap-security-guide y openscap-scanner están instalados
       fail:
-        msg: "ssg-base o openscap-scanner no se pudieron instalar en {{ inventory_hostname }}"
+        msg: "ssg-base, scap-security-guide o openscap-scanner no se pudieron instalar en {{ inventory_hostname }}"
       when: scap_installed.rc != 0
 
     - name: Mostrar mensaje de éxito
       debug:
-        msg: "ssg-base y openscap-scanner se instalaron correctamente en {{ inventory_hostname }}"
+        msg: "ssg-base, scap-security-guide y openscap-scanner se instalaron correctamente en {{ inventory_hostname }}"
