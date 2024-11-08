@@ -71,9 +71,9 @@
   tasks:
     - name: Depurar la distribución del sistema
       debug:
-        msg: "Distribución detectada: {{ ansible_distribution }}"
+        msg: "Distribución detectada: {{ ansible_distribution }} {{ ansible_distribution_version }}"
 
-    - name: Definir paquetes necesarios para instalar OpenSCAP
+    - name: Definir paquetes necesarios para OpenSCAP
       set_fact:
         openscap_packages: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
 
@@ -81,39 +81,79 @@
       debug:
         msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ openscap_packages }}"
 
-    - name: Actualizar caché de paquetes (apt)
-      apt:
-        update_cache: yes
-      when: ansible_pkg_mgr == "apt"
-
-    - name: Actualizar caché de paquetes (yum/dnf)
-      yum:
-        update_cache: yes
-      when: ansible_pkg_mgr in ["yum", "dnf"]
-
-    - name: Actualizar caché de paquetes (zypper)
-      zypper:
-        update_cache: yes
-      when: ansible_pkg_mgr == "zypper"
-
-    - name: Instalar paquetes necesarios para OpenSCAP (apt)
+    - name: Instalar paquetes necesarios para OpenSCAP (Ubuntu)
       apt:
         name: "{{ openscap_packages }}"
         state: present
-        update_cache: yes
-      when: ansible_pkg_mgr == "apt" and openscap_packages | length > 0
+      when: ansible_distribution == "Ubuntu" and openscap_packages | length > 0
 
-    - name: Instalar paquetes necesarios para OpenSCAP (yum/dnf)
+    - name: Instalar paquetes necesarios para OpenSCAP (Debian)
+      apt:
+        name: "{{ openscap_packages }}"
+        state: present
+      when: ansible_distribution == "Debian" and openscap_packages | length > 0
+
+    - name: Instalar paquetes necesarios para OpenSCAP (CentOS/RHEL)
       yum:
         name: "{{ openscap_packages }}"
         state: present
-      when: ansible_pkg_mgr in ["yum", "dnf"] and openscap_packages | length > 0
+      when: ansible_distribution in ["CentOS", "RedHat"] and openscap_packages | length > 0
 
-    - name: Instalar paquetes necesarios para OpenSCAP (zypper)
+    - name: Instalar paquetes necesarios para OpenSCAP (Fedora)
+      dnf:
+        name: "{{ openscap_packages }}"
+        state: present
+      when: ansible_distribution == "Fedora" and openscap_packages | length > 0
+
+    - name: Instalar paquetes necesarios para OpenSCAP (openSUSE)
       zypper:
         name: "{{ openscap_packages }}"
         state: present
-      when: ansible_pkg_mgr == "zypper" and openscap_packages | length > 0
+      when: ansible_distribution == "openSUSE" and openscap_packages | length > 0
+
+    - name: Instalar paquetes necesarios para OpenSCAP (SLES)
+      zypper:
+        name: "{{ openscap_packages }}"
+        state: present
+      when: ansible_distribution == "SLES" and openscap_packages | length > 0
+
+    - name: Instalar paquetes necesarios para OpenSCAP (AlpineLinux)
+      apk:
+        name: "{{ openscap_packages }}"
+        state: present
+      when: ansible_distribution == "AlpineLinux" and openscap_packages | length > 0
+
+    - name: Instalar paquetes necesarios para OpenSCAP (OracleLinux)
+      yum:
+        name: "{{ openscap_packages }}"
+        state: present
+      when: ansible_distribution == "OracleLinux" and openscap_packages | length > 0
+
+    - name: Instalar paquetes necesarios para OpenSCAP (AlmaLinux)
+      yum:
+        name: "{{ openscap_packages }}"
+        state: present
+      when: ansible_distribution == "AlmaLinux" and openscap_packages | length > 0
+
+    - name: Instalar paquetes necesarios para OpenSCAP (RockyLinux)
+      yum:
+        name: "{{ openscap_packages }}"
+        state: present
+      when: ansible_distribution == "RockyLinux" and openscap_packages | length > 0
+
+    - name: Instalar paquetes necesarios para OpenSCAP (AmazonLinux)
+      yum:
+        name: "{{ openscap_packages }}"
+        state: present
+      when: ansible_distribution == "AmazonLinux" and openscap_packages | length > 0
+
+    - name: Instalar paquetes necesarios para OpenSCAP (Mageia)
+      zypper:
+        name: "{{ openscap_packages }}"
+        state: present
+      when: ansible_distribution == "Mageia" and openscap_packages | length > 0
+
+    # Agrega más gestores de paquetes según sea necesario
 
     - name: Verificar instalación de OpenSCAP
       command: which oscap
@@ -125,11 +165,11 @@
         openscap_instalado: "{{ openscap_installed.rc == 0 }}"
       when: openscap_installed.rc is defined
 
-    - name: Asegurarse de que OpenSCAP ha sido instalado
+    - name: Asegurarse de que OpenSCAP está instalado
       fail:
         msg: "OpenSCAP no se pudo instalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
       when: not openscap_instalado
 
     - name: Mostrar mensaje de éxito
       debug:
-        msg: "OpenSCAP ha sido instalado correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+        msg: "OpenSCAP se instaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
