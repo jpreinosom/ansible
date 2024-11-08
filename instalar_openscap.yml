@@ -81,79 +81,11 @@
       debug:
         msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ openscap_packages }}"
 
-    - name: Instalar paquetes necesarios para OpenSCAP (Ubuntu)
-      apt:
+    - name: Instalar paquetes necesarios para OpenSCAP
+      package:
         name: "{{ openscap_packages }}"
         state: present
-      when: ansible_distribution == "Ubuntu" and openscap_packages | length > 0
-
-    - name: Instalar paquetes necesarios para OpenSCAP (Debian)
-      apt:
-        name: "{{ openscap_packages }}"
-        state: present
-      when: ansible_distribution == "Debian" and openscap_packages | length > 0
-
-    - name: Instalar paquetes necesarios para OpenSCAP (CentOS/RHEL)
-      yum:
-        name: "{{ openscap_packages }}"
-        state: present
-      when: ansible_distribution in ["CentOS", "RedHat"] and openscap_packages | length > 0
-
-    - name: Instalar paquetes necesarios para OpenSCAP (Fedora)
-      dnf:
-        name: "{{ openscap_packages }}"
-        state: present
-      when: ansible_distribution == "Fedora" and openscap_packages | length > 0
-
-    - name: Instalar paquetes necesarios para OpenSCAP (openSUSE)
-      zypper:
-        name: "{{ openscap_packages }}"
-        state: present
-      when: ansible_distribution == "openSUSE" and openscap_packages | length > 0
-
-    - name: Instalar paquetes necesarios para OpenSCAP (SLES)
-      zypper:
-        name: "{{ openscap_packages }}"
-        state: present
-      when: ansible_distribution == "SLES" and openscap_packages | length > 0
-
-    - name: Instalar paquetes necesarios para OpenSCAP (AlpineLinux)
-      apk:
-        name: "{{ openscap_packages }}"
-        state: present
-      when: ansible_distribution == "AlpineLinux" and openscap_packages | length > 0
-
-    - name: Instalar paquetes necesarios para OpenSCAP (OracleLinux)
-      yum:
-        name: "{{ openscap_packages }}"
-        state: present
-      when: ansible_distribution == "OracleLinux" and openscap_packages | length > 0
-
-    - name: Instalar paquetes necesarios para OpenSCAP (AlmaLinux)
-      yum:
-        name: "{{ openscap_packages }}"
-        state: present
-      when: ansible_distribution == "AlmaLinux" and openscap_packages | length > 0
-
-    - name: Instalar paquetes necesarios para OpenSCAP (RockyLinux)
-      yum:
-        name: "{{ openscap_packages }}"
-        state: present
-      when: ansible_distribution == "RockyLinux" and openscap_packages | length > 0
-
-    - name: Instalar paquetes necesarios para OpenSCAP (AmazonLinux)
-      yum:
-        name: "{{ openscap_packages }}"
-        state: present
-      when: ansible_distribution == "AmazonLinux" and openscap_packages | length > 0
-
-    - name: Instalar paquetes necesarios para OpenSCAP (Mageia)
-      zypper:
-        name: "{{ openscap_packages }}"
-        state: present
-      when: ansible_distribution == "Mageia" and openscap_packages | length > 0
-
-    # Agrega más gestores de paquetes según sea necesario
+      when: openscap_packages | length > 0
 
     - name: Verificar instalación de OpenSCAP
       command: which oscap
