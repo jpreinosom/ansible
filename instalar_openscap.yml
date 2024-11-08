@@ -62,51 +62,58 @@
       debug:
         var: csv_data
 
-- name: Definir diccionario de distribuciones y paquetes
-  hosts: localhost
-  gather_facts: no
-  tasks:
-    - name: Definir diccionario de distribuciones y paquetes
-      set_fact:
-        distribuciones_paquetes:
-          Ubuntu: ["openscap-tools"]
-          Debian: ["openscap-tools"]
-          RedHat: ["openscap-scanner", "openscap-utils"]
-          CentOS: ["openscap-scanner", "openscap-utils"]
-          Fedora: ["openscap-scanner", "openscap-utils"]
-          openSUSE: ["openscap"]
-          SLES: ["openscap"]
-          AlpineLinux: ["openscap-tools"]
-          OracleLinux: ["openscap-scanner", "openscap-utils"]
-          AlmaLinux: ["openscap-scanner", "openscap-utils"]
-          RockyLinux: ["openscap-scanner", "openscap-utils"]
-          AmazonLinux: ["openscap-scanner", "openscap-utils"]
-          Mageia: ["openscap"]
-
 - name: Instalar OpenSCAP en los hosts dinámicos
   hosts: dynamic_hosts_openscap
   gather_facts: yes
-  become: yes  
+  become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
   tasks:
-    - name: Verificar si el usuario puede ejecutar sudo sin contraseña
-      command: sudo whoami
-      register: sudo_check
-      ignore_errors: yes
-
-    - name: Mostrar resultado de sudo
+    - name: Depurar la distribución del sistema
       debug:
-        msg: "Sudo check: {{ sudo_check.stdout }}"
-      when: sudo_check.rc == 0
+        msg: "Distribución detectada: {{ ansible_distribution }}"
+
+    - name: Habilitar el repositorio "universe" (solo para Ubuntu)
+      apt_repository:
+        repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} universe"
+        state: present
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Actualizar la lista de paquetes (solo para Ubuntu)
+      apt:
+        update_cache: yes
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Habilitar el repositorio EPEL (solo para CentOS y RHEL)
+      yum:
+        name: epel-release
+        state: present
+      when: ansible_distribution in ["CentOS", "Red Hat Enterprise Linux"]
+
+    - name: Actualizar los repositorios (solo para CentOS y RHEL)
+      yum:
+        name: "*"
+        state: latest
+        update_cache: yes
+      when: ansible_distribution in ["CentOS", "Red Hat Enterprise Linux"]
 
     - name: Definir paquetes necesarios para OpenSCAP
       set_fact:
-        openscap_packages: "{{ distribuciones_paquetes[ansible_distribution | replace(' ', '')] | default([]) }}"
+        openscap_packages: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
 
-    - name: Instalar paquetes necesarios para OpenSCAP
-      package:
+    - name: Mostrar paquetes a instalar para OpenSCAP
+      debug:
+        msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ openscap_packages }}"
+
+    - name: Instalar paquetes necesarios para OpenSCAP (Ubuntu)
+      apt:
         name: "{{ openscap_packages }}"
         state: present
-      when: openscap_packages | length > 0
+      when: ansible_distribution == "Ubuntu" and openscap_packages | length > 0
+
+    - name: Instalar paquetes necesarios para OpenSCAP (CentOS/RHEL)
+      yum:
+        name: "{{ openscap_packages }}"
+        state: present
+      when: ansible_distribution in ["CentOS", "Red Hat Enterprise Linux"] and openscap_packages | length > 0
 
     - name: Verificar instalación de OpenSCAP
       command: which oscap
