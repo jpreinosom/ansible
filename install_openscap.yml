@@ -69,7 +69,7 @@
   tasks:
     - name: Depurar la distribución del sistema
       debug:
-        msg: "Distribución detectada: {{ ansible_distribution }}"
+        msg: "Distribución detectada: {{ ansible_distribution }} {{ ansible_distribution_version }}"
 
     - name: Habilitar el repositorio "universe" (solo para Ubuntu)
       apt_repository:

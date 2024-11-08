@@ -1,7 +1,7 @@
 ---
-# playbooks/instalar_openscap.yml
+# playbooks/instalar_scap_security_guide.yml
 
-- name: Leer y procesar el inventario CSV para instalar OpenSCAP
+- name: Leer y procesar el inventario CSV para instalar scap-security-guide
   hosts: localhost
   gather_facts: no
   vars:
@@ -45,10 +45,10 @@
       loop_control:
         loop_var: row
 
-    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts_openscap'
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts_scap'
       add_host:
         name: "{{ item.IP }}"
-        groups: dynamic_hosts_openscap
+        groups: dynamic_hosts_scap
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_password: "{{ item.Contraseña }}"
@@ -62,62 +62,51 @@
       debug:
         var: csv_data
 
-- name: Instalar OpenSCAP en los hosts dinámicos
-  hosts: dynamic_hosts_openscap
+- name: Instalar scap-security-guide en los hosts dinámicos
+  hosts: dynamic_hosts_scap
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
   tasks:
-    - name: Depurar la distribución del sistema
-      debug:
-        msg: "Distribución detectada: {{ ansible_distribution }} {{ ansible_distribution_version }}"
-
-    - name: Habilitar el repositorio "universe" (solo para Ubuntu)
-      apt_repository:
-        repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} universe"
+    - name: Instalar scap-security-guide (Ubuntu)
+      apt:
+        name: scap-security-guide
         state: present
       when: ansible_distribution == "Ubuntu"
 
-    - name: Actualizar la lista de paquetes (solo para Ubuntu)
+    - name: Instalar scap-security-guide (Debian)
       apt:
-        update_cache: yes
-      when: ansible_distribution == "Ubuntu"
-
-    - name: Definir paquetes necesarios para OpenSCAP
-      set_fact:
-        openscap_packages: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
-
-    - name: Mostrar paquetes a instalar para OpenSCAP
-      debug:
-        msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ openscap_packages }}"
-
-    - name: Instalar paquetes necesarios para OpenSCAP (Ubuntu)
-      apt:
-        name: "{{ openscap_packages }}"
+        name: scap-security-guide
         state: present
-      when: ansible_distribution == "Ubuntu" and openscap_packages | length > 0
+      when: ansible_distribution == "Debian"
 
-    - name: Instalar paquetes necesarios para OpenSCAP (CentOS/RHEL)
+    - name: Instalar scap-security-guide (CentOS/RHEL)
       yum:
-        name: "{{ openscap_packages }}"
+        name: scap-security-guide
         state: present
-      when: ansible_distribution in ["CentOS", "RedHat"] and openscap_packages | length > 0
+      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
 
-    - name: Verificar instalación de OpenSCAP
-      command: which oscap
-      register: openscap_installed
+    - name: Instalar scap-security-guide (Fedora)
+      dnf:
+        name: scap-security-guide
+        state: present
+      when: ansible_distribution == "Fedora"
+
+    - name: Instalar scap-security-guide (openSUSE)
+      zypper:
+        name: scap-security-guide
+        state: present
+      when: ansible_distribution == "openSUSE"
+
+    - name: Confirmar la instalación de scap-security-guide
+      command: which scap
+      register: scap_installed
       ignore_errors: yes
 
-    - name: Establecer el estado de instalación
-      set_fact:
-        openscap_instalado: "{{ openscap_installed.rc == 0 }}"
-      when: openscap_installed.rc is defined
-
-    - name: Asegurarse de que OpenSCAP está instalado
+    - name: Asegurarse de que scap-security-guide está instalado
       fail:
-        msg: "OpenSCAP no se pudo instalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-      when: not openscap_instalado
+        msg: "scap-security-guide no se pudo instalar en {{ inventory_hostname }}"
+      when: scap_installed.rc != 0
 
     - name: Mostrar mensaje de éxito
       debug:
-        msg: "OpenSCAP se instaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-...
+        msg: "scap-security-guide se instaló correctamente en {{ inventory_hostname }}"
