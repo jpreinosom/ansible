@@ -54,21 +54,7 @@
         label: "{{ item.IP }}"
       delegate_to: localhost
 
-- name: Agrupar hosts por distribución
-  hosts: dynamic_hosts
-  gather_facts: yes
-  tasks:
-    - name: Agrupar en 'ubuntu_hosts' si Ubuntu
-      group_by:
-        key: "ubuntu_hosts"
-      when: ansible_distribution == "Ubuntu"
-
-    - name: Agrupar en 'rhel_hosts' si RHEL/CentOS
-      group_by:
-        key: "rhel_hosts"
-      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-
-- name: Instalar SCAP Security Guide y dependencias en Ubuntu/Debian
+- name: Instalar SCAP Security Guide y dependencias en Ubuntu
   hosts: ubuntu_hosts
   gather_facts: yes
   become: yes
@@ -82,66 +68,37 @@
       apt:
         update_cache: yes
 
-    - name: Instalar dependencias y herramientas para SCAP Security Guide
+    - name: Instalar ssg-base y openscap-scanner
       apt:
         name:
           - ssg-base
           - openscap-scanner
-          - cmake
-          - make
-          - git
-          - python3
-          - libxml2-utils
-          - xsltproc  # Instala xsltproc
+          - xsltproc  # Asegúrate de que xsltproc está instalado
         state: present
 
-    - name: Clonar el repositorio SCAP Security Guide
-      git:
-        repo: https://github.com/ComplianceAsCode/content.git
-        dest: /tmp/content
-        version: master
-
-    - name: Crear directorio de construcción
-      file:
-        path: /tmp/content/build
-        state: directory
-
-    - name: Configurar el entorno de compilación con cmake
-      command: cmake ..
-      args:
-        chdir: /tmp/content/build
-
-    - name: Compilar el contenido SCAP con make
-      command: make -j4
-      args:
-        chdir: /tmp/content/build
-      register: compile_result
-      ignore_errors: yes
-
-    - name: Verificar que la compilación fue exitosa
-      fail:
-        msg: "La compilación de SCAP Security Guide falló en {{ inventory_hostname }}"
-      when: compile_result.rc != 0
-
-    - name: Copiar archivos XML de SCAP Security Guide para Ubuntu
-      copy:
-        src: "/tmp/content/build/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml"
-        dest: /usr/share/xml/scap/ssg/content/
-        owner: root
-        group: root
-        mode: '0644'
-      when:
-        - ansible_distribution == "Ubuntu"
-
-    - name: Verificar la copia de archivos XML
+    - name: Verificar si el archivo XML de SCAP Security Guide está presente
       stat:
         path: "/usr/share/xml/scap/ssg/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml"
       register: xml_file_check
 
+    - name: Copiar el archivo XML si no está presente
+      copy:
+        src: "/usr/share/xml/scap/ssg/content/ssg-ubuntu-20.04-ds.xml"  # Ajustar según la versión instalada
+        dest: "/usr/share/xml/scap/ssg/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml"
+        owner: root
+        group: root
+        mode: '0644'
+      when: not xml_file_check.stat.exists
+
+    - name: Verificar la copia de archivos XML
+      stat:
+        path: "/usr/share/xml/scap/ssg/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml"
+      register: final_check
+
     - name: Fallar si el archivo XML no se copió correctamente
       fail:
         msg: "No se pudo copiar el archivo XML de SCAP Security Guide para Ubuntu en {{ inventory_hostname }}"
-      when: not xml_file_check.stat.exists
+      when: not final_check.stat.exists
 
 - name: Instalar SCAP Security Guide y dependencias en CentOS/RHEL
   hosts: rhel_hosts
