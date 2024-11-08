@@ -54,9 +54,6 @@
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
-        become: yes
-        become_method: sudo
-        become_pass: "{{ item.Contraseña }}"
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
@@ -68,7 +65,7 @@
 - name: Desinstalar OpenSCAP en los hosts dinámicos
   hosts: dynamic_hosts_desinstalar_openscap
   gather_facts: yes
-  become: yes  # Si se requieren privilegios de superusuario
+  become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
   tasks:
     - name: Definir paquetes necesarios para desinstalar OpenSCAP
       set_fact:
@@ -116,3 +113,22 @@
     - name: Mostrar mensaje de éxito
       debug:
         msg: "OpenSCAP se desinstaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+- name: Generar archivo resultado_desinstalar_openscap.csv
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Asegurar que el directorio /home/ansible/resultado existe
+      file:
+        path: /home/ansible/resultado
+        state: directory
+        mode: '0755'
+
+    - name: Crear archivo resultado_desinstalar_openscap.csv
+      copy:
+        dest: /home/ansible/resultado/resultado_desinstalar_openscap.csv
+        content: |
+          IP;Usuario;Contraseña;Distribucion;Version;OpenSCAP_Desinstalado
+          {% for entry in hostvars['localhost']['csv_data'] %}
+          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['openscap_desinstalado'] | default(False) | ternary('Sí', 'No') }}
+          {% endfor %}

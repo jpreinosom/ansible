@@ -136,7 +136,7 @@
 
     - name: Crear archivo resultado_eol.csv
       copy:
-        dest: /home/ansible/resultado/resultado_eol.csv
+        dest: /home/ansible/resultado/resultado.csv
         content: |
           IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion
           {% for entry in hostvars['localhost']['csv_data'] %}
