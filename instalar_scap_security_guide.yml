@@ -62,7 +62,7 @@
       debug:
         var: csv_data
 
-- name: Instalar scap-security-guide en los hosts dinámicos
+- name: Instalar ssg-base y scap-security-guide en los hosts dinámicos
   hosts: dynamic_hosts_scap
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
@@ -78,15 +78,15 @@
         update_cache: yes
       when: ansible_distribution in ["Ubuntu", "Debian"]
 
-    - name: Instalar openscap-scanner y scap-security-guide en Ubuntu/Debian
+    - name: Instalar ssg-base y scap-security-guide en Ubuntu/Debian
       apt:
         name:
-          - openscap-scanner
+          - ssg-base
           - scap-security-guide
         state: present
       when: ansible_distribution in ["Ubuntu", "Debian"]
 
-    - name: Instalar openscap-scanner y scap-security-guide en RHEL/CentOS
+    - name: Instalar openscap-scanner en RHEL/CentOS
       dnf:
         name:
           - openscap-scanner
