@@ -96,16 +96,12 @@
       apt:
         update_cache: yes
 
-    - name: Instalar ssg-base y openscap-scanner
+    - name: Instalar ssg-base, openscap-scanner y git
       apt:
         name:
           - ssg-base
           - openscap-scanner
-        state: present
-
-    - name: Instalar git (si es necesario para Ubuntu)
-      apt:
-        name: git
+          - git
         state: present
 
     - name: Verificar la instalación de git
@@ -122,7 +118,7 @@
       git:
         repo: https://github.com/ComplianceAsCode/content.git
         dest: /tmp/content
-        version: master  # Asegúrate de que la rama sea correcta
+        version: master  # Cambio de 'main' a 'master'
       when: ansible_distribution == "Ubuntu"
 
     - name: Verificar que el repositorio se clonó correctamente
