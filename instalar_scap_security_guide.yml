@@ -1,109 +1,77 @@
 ---
 # playbooks/instalar_scap_security_guide.yml
 
-- name: Leer y procesar el inventario CSV para instalar ssg-base y openscap-scanner
-  hosts: localhost
-  gather_facts: no
-  vars:
-    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
-    delimiter: ";"
+- name: Instalar paquetes necesarios en Ubuntu/Debian
+  hosts: ubuntu_hosts
+  become: yes
   tasks:
-    - name: Verificar que el archivo existe
-      stat:
-        path: "{{ input_file }}"
-      register: file_check
-
-    - name: Fallar si el archivo de inventario no existe
-      fail:
-        msg: "El archivo de inventario {{ input_file }} no existe."
-      when: not file_check.stat.exists
-
-    - name: Leer contenido del archivo CSV
-      set_fact:
-        csv_content: "{{ lookup('file', input_file) }}"
-
-    - name: Extraer encabezados del CSV
-      set_fact:
-        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
-
-    - name: Extraer filas del CSV
-      set_fact:
-        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^#|^$') | list | map('split', delimiter) | list }}"
-
-    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
-      fail:
-        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
-      when: row | length != headers | length
-      loop: "{{ rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Combinar encabezados con filas para crear diccionarios
-      set_fact:
-        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
-      loop: "{{ rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts_scap'
-      add_host:
-        name: "{{ item.IP }}"
-        groups: dynamic_hosts_scap
-        ansible_host: "{{ item.IP }}"
-        ansible_user: "{{ item.Usuario }}"
-        ansible_password: "{{ item.Contraseña }}"
-        ansible_connection: ssh
-        ansible_ssh_pass: "{{ item.Contraseña }}"
-      loop: "{{ csv_data }}"
-      loop_control:
-        loop_var: item
-
-    - name: Mostrar estructura completa de csv_data
-      debug:
-        var: csv_data
-
-- name: Instalar ssg-base y openscap-scanner en los hosts dinámicos
-  hosts: dynamic_hosts_scap
-  gather_facts: yes
-  become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
-  tasks:
-    - name: Habilitar repositorios universe en Ubuntu/Debian
+    - name: Habilitar repositorios universe
       apt_repository:
         repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} universe"
         state: present
-      when: ansible_distribution in ["Ubuntu", "Debian"]
 
-    - name: Actualizar la lista de paquetes en Ubuntu/Debian
+    - name: Actualizar la lista de paquetes
       apt:
         update_cache: yes
-      when: ansible_distribution in ["Ubuntu", "Debian"]
 
-    - name: Instalar ssg-base y openscap-scanner en Ubuntu/Debian
+    - name: Instalar ssg-base y openscap-scanner
       apt:
         name:
           - ssg-base
           - openscap-scanner
         state: present
-      when: ansible_distribution in ["Ubuntu", "Debian"]
 
-    - name: Instalar openscap-scanner y scap-security-guide en RHEL/CentOS
+    - name: Verificar la instalación de oscap
+      command: which oscap
+      register: scap_installed
+      ignore_errors: yes
+
+    - name: Asegurarse de que oscap está instalado
+      fail:
+        msg: "oscap no se pudo instalar en {{ inventory_hostname }}"
+      when: scap_installed.rc != 0
+
+    - name: Descargar y compilar SCAP Security Guide (si es necesario)
+      git:
+        repo: https://github.com/ComplianceAsCode/content.git
+        dest: /tmp/content
+        version: main
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Compilar el contenido SCAP (Ubuntu)
+      command: ./build.sh
+      args:
+        chdir: /tmp/content
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Copiar archivos XML de SCAP Security Guide para Ubuntu
+      copy:
+        src: "/tmp/content/build/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml"  # Ajusta según la versión
+        dest: /usr/share/xml/scap/ssg/content/
+        owner: root
+        group: root
+        mode: '0644'
+      when:
+        - ansible_distribution == "Ubuntu"
+        - ansible_distribution_version is version('20.04', '>=')
+
+- name: Instalar paquetes necesarios en CentOS/RHEL
+  hosts: rhel_hosts
+  become: yes
+  tasks:
+    - name: Instalar openscap-scanner y scap-security-guide
       dnf:
         name:
           - openscap-scanner
           - scap-security-guide
         state: present
-      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
 
-    - name: Confirmar la instalación de ssg-base y openscap-scanner
+    - name: Verificar la instalación de oscap
       command: which oscap
       register: scap_installed
       ignore_errors: yes
 
-    - name: Asegurarse de que ssg-base y openscap-scanner están instalados
+    - name: Asegurarse de que oscap está instalado
       fail:
-        msg: "ssg-base o openscap-scanner no se pudieron instalar en {{ inventory_hostname }}"
+        msg: "oscap no se pudo instalar en {{ inventory_hostname }}"
       when: scap_installed.rc != 0
-
-    - name: Mostrar mensaje de éxito
-      debug:
-        msg: "ssg-base y openscap-scanner se instalaron correctamente en {{ inventory_hostname }}"

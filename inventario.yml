@@ -8,7 +8,7 @@
     input_file: "{{ playbook_dir }}/inventory/inventario.csv"
     delimiter: ";"
   vars_files:
-    - vars/eol_map.yml  # Ruta relativa al playbook
+    - vars/eol_map.yml  # Asegúrate de que este archivo existe y está correctamente configurado
   tasks:
     - name: Verificar que el archivo existe
       stat:
@@ -67,7 +67,9 @@
 - name: Clasificar EoL y ejecutar análisis de vulnerabilidades en los hosts dinámicos
   hosts: dynamic_hosts_eol_vuln
   gather_facts: yes
-  become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
+  become: yes
+  collections:
+    - community.general
   vars_files:
     - ../vars/eol_map.yml
   tasks:
@@ -75,59 +77,31 @@
       debug:
         msg: "Distribución detectada: {{ ansible_distribution }} {{ ansible_distribution_version }}"
 
-    - name: Encontrar el archivo XML de SCAP Security Guide en Ubuntu/Debian
+    - name: Encontrar el archivo XML de SCAP Security Guide
       find:
         paths: /usr/share/xml/scap/ssg/content/
-        patterns: "ssg-ubuntu-*-ds.xml"
+        patterns: >
+          {% if ansible_distribution in ["Ubuntu", "Debian"] %}
+            ssg-ubuntu-*-ds.xml
+          {% elif ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"] %}
+            ssg-rhel*-ds.xml
+          {% endif %}
         file_type: file
-      register: xml_files_ubuntu
-      when: ansible_distribution in ["Ubuntu", "Debian"]
+      register: xml_files
 
-    - name: Mostrar los archivos XML encontrados en Ubuntu/Debian
+    - name: Mostrar los archivos XML encontrados
       debug:
-        var: xml_files_ubuntu.files
-      when: ansible_distribution in ["Ubuntu", "Debian"]
+        var: xml_files.files
 
-    - name: Establecer la ruta del archivo XML de SCAP Security Guide para Ubuntu/Debian
+    - name: Establecer la ruta del archivo XML de SCAP Security Guide
       set_fact:
-        ssg_xml_path: "{{ xml_files_ubuntu.files[0].path }}"
-      when:
-        - ansible_distribution in ["Ubuntu", "Debian"]
-        - xml_files_ubuntu.matched > 0
+        ssg_xml_path: "{{ xml_files.files[0].path }}"
+      when: xml_files.matched > 0
 
-    - name: Fallar si no se encontró el archivo XML en Ubuntu/Debian
+    - name: Fallar si no se encontró el archivo XML de SCAP Security Guide
       fail:
-        msg: "No se encontró el archivo XML de SCAP Security Guide para Ubuntu/Debian en {{ inventory_hostname }}"
-      when:
-        - ansible_distribution in ["Ubuntu", "Debian"]
-        - xml_files_ubuntu.matched == 0
-
-    - name: Encontrar el archivo XML de SCAP Security Guide en CentOS/RHEL
-      find:
-        paths: /usr/share/xml/scap/ssg/content/
-        patterns: "ssg-rhel*-ds.xml"
-        file_type: file
-      register: xml_files_rhel
-      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-
-    - name: Mostrar los archivos XML encontrados en CentOS/RHEL
-      debug:
-        var: xml_files_rhel.files
-      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-
-    - name: Establecer la ruta del archivo XML de SCAP Security Guide para CentOS/RHEL
-      set_fact:
-        ssg_xml_path: "{{ xml_files_rhel.files[0].path }}"
-      when:
-        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - xml_files_rhel.matched > 0
-
-    - name: Fallar si no se encontró el archivo XML en CentOS/RHEL
-      fail:
-        msg: "No se encontró el archivo XML de SCAP Security Guide para CentOS/RHEL en {{ inventory_hostname }}"
-      when:
-        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - xml_files_rhel.matched == 0
+        msg: "No se encontró el archivo XML de SCAP Security Guide para {{ ansible_distribution }} en {{ inventory_hostname }}"
+      when: xml_files.matched == 0
 
     - name: Ejecutar análisis de vulnerabilidades con OpenSCAP
       command: >
