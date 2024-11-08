@@ -69,84 +69,38 @@
   tasks:
     - name: Depurar la distribución del sistema
       debug:
-        msg: "Distribución detectada: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+        msg: "Distribución detectada: {{ ansible_distribution }}"
 
-    - name: Habilitar el repositorio AppStream en CentOS/RHEL 9
-      yum_repository:
-        name: AppStream
-        description: CentOS/RHEL 9 AppStream Repository
-        baseurl: "https://mirror.centos.org/centos/9-stream/AppStream/x86_64/os/"
-        enabled: yes
-        gpgcheck: yes
-        repo_gpgcheck: yes
-        gpgkey: "https://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-9-Stream"
-      when:
-        - ansible_distribution in ["CentOS", "RedHat"]
-        - ansible_distribution_major_version | int == 9
+    - name: Habilitar el repositorio "universe" (solo para Ubuntu)
+      apt_repository:
+        repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} universe"
+        state: present
+      when: ansible_distribution == "Ubuntu"
 
-    - name: Actualizar la lista de paquetes (solo para CentOS/RHEL/Fedora)
-      yum:
-        name: "*"
-        state: latest
+    - name: Actualizar la lista de paquetes (solo para Ubuntu)
+      apt:
         update_cache: yes
-      when: ansible_distribution in ["CentOS", "RedHat"]
+      when: ansible_distribution == "Ubuntu"
 
-    - name: Verificar disponibilidad de 'scap-security-guide' en RHEL/CentOS
-      when: ansible_distribution in ["CentOS", "RedHat"]
-      command: yum list available scap-security-guide
-      register: scap_check_rhel
-      ignore_errors: yes
-
-    - name: Mostrar estado del paquete 'scap-security-guide' en RHEL/CentOS
-      debug:
-        msg: "Estado de 'scap-security-guide': {{ scap_check_rhel.stdout }}"
-      when: ansible_distribution in ["CentOS", "RedHat"]
-
-    - name: Fallar si 'scap-security-guide' no está disponible en RHEL/CentOS
-      fail:
-        msg: "El paquete 'scap-security-guide' no está disponible en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-      when:
-        - ansible_distribution in ["CentOS", "RedHat"]
-        - scap_check_rhel.rc != 0
-
-    - name: Definir paquetes necesarios para OpenSCAP y scap-security-guide
+    - name: Definir paquetes necesarios para OpenSCAP
       set_fact:
         openscap_packages: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
-        # Para Ubuntu, usar 'ssg-base' en lugar de 'scap-security-guide'
-        scap_security_guide: "{{ 'ssg-base' if ansible_distribution == 'Ubuntu' else 'scap-security-guide' }}"
 
-    - name: Mostrar paquetes a instalar para OpenSCAP y scap-security-guide
+    - name: Mostrar paquetes a instalar para OpenSCAP
       debug:
-        msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ openscap_packages }} y {{ scap_security_guide }}"
+        msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ openscap_packages }}"
 
-    - name: Instalar paquetes necesarios para OpenSCAP y scap-security-guide (Ubuntu/Debian)
+    - name: Instalar paquetes necesarios para OpenSCAP (Ubuntu)
       apt:
-        name: "{{ openscap_packages + [scap_security_guide] }}"
+        name: "{{ openscap_packages }}"
         state: present
-      when: 
-        - (ansible_distribution == "Ubuntu" or ansible_os_family == "Debian")
-        - openscap_packages | length > 0
-      ignore_errors: yes
+      when: ansible_distribution == "Ubuntu" and openscap_packages | length > 0
 
-    - name: Fallar si 'ssg-base' no está disponible en Ubuntu
-      fail:
-        msg: "El paquete '{{ scap_security_guide }}' no está disponible en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-      when:
-        - (ansible_distribution == "Ubuntu" or ansible_os_family == "Debian")
-        - scap_security_guide == 'ssg-base'
-        - "'ssg-base' not in ansible_facts.packages"
-
-    - name: Instalar paquetes necesarios para OpenSCAP y scap-security-guide (CentOS/RHEL)
+    - name: Instalar paquetes necesarios para OpenSCAP (CentOS/RHEL)
       yum:
-        name: "{{ openscap_packages + [scap_security_guide] }}"
+        name: "{{ openscap_packages }}"
         state: present
       when: ansible_distribution in ["CentOS", "RedHat"] and openscap_packages | length > 0
-
-    - name: Instalar paquetes necesarios para OpenSCAP y scap-security-guide (Fedora)
-      dnf:
-        name: "{{ openscap_packages + [scap_security_guide] }}"
-        state: present
-      when: ansible_distribution == "Fedora" and openscap_packages | length > 0
 
     - name: Verificar instalación de OpenSCAP
       command: which oscap
@@ -165,4 +119,5 @@
 
     - name: Mostrar mensaje de éxito
       debug:
-        msg: "OpenSCAP y scap-security-guide se instalaron correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+        msg: "OpenSCAP se instaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+        
