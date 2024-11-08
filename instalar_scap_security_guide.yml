@@ -67,14 +67,6 @@
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
   tasks:
-    - name: Instalar openscap-scanner y scap-security-guide en RHEL/CentOS
-      dnf:
-        name:
-          - openscap-scanner
-          - scap-security-guide
-        state: present
-      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-
     - name: Habilitar repositorios universe en Ubuntu/Debian
       apt_repository:
         repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} universe"
@@ -93,6 +85,14 @@
           - scap-security-guide
         state: present
       when: ansible_distribution in ["Ubuntu", "Debian"]
+
+    - name: Instalar openscap-scanner y scap-security-guide en RHEL/CentOS
+      dnf:
+        name:
+          - openscap-scanner
+          - scap-security-guide
+        state: present
+      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
 
     - name: Confirmar la instalación de scap-security-guide y openscap-scanner
       command: which oscap
