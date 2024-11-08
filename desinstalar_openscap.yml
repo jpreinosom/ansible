@@ -54,6 +54,9 @@
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
+        become: yes
+        become_method: sudo
+        become_pass: "{{ item.Contraseña }}"
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
@@ -97,15 +100,19 @@
 
     - name: Verificar desinstalación de OpenSCAP
       command: which oscap
-      register: oscap_removed
+      register: openscap_removed
       ignore_errors: yes
+
+    - name: Establecer el estado de desinstalación
+      set_fact:
+        openscap_desinstalado: "{{ openscap_removed.rc != 0 }}"
+      when: openscap_removed.rc is defined
 
     - name: Asegurarse de que OpenSCAP está desinstalado
       fail:
         msg: "OpenSCAP no se pudo desinstalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-      when: oscap_removed.rc == 0
+      when: not openscap_desinstalado
 
     - name: Mostrar mensaje de éxito
       debug:
         msg: "OpenSCAP se desinstaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-...

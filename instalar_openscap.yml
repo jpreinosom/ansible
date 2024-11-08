@@ -54,6 +54,9 @@
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
+        become: yes
+        become_method: sudo
+        become_pass: "{{ item.Contraseña }}"
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
@@ -97,13 +100,18 @@
 
     - name: Verificar instalación de OpenSCAP
       command: which oscap
-      register: oscap_installed
+      register: openscap_installed
       ignore_errors: yes
+
+    - name: Establecer el estado de instalación
+      set_fact:
+        openscap_instalado: "{{ openscap_installed.rc == 0 }}"
+      when: openscap_installed.rc is defined
 
     - name: Asegurarse de que OpenSCAP está instalado
       fail:
         msg: "OpenSCAP no se pudo instalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-      when: oscap_installed.rc != 0
+      when: not openscap_instalado
 
     - name: Mostrar mensaje de éxito
       debug:
