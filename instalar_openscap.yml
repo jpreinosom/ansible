@@ -62,7 +62,7 @@
       debug:
         var: csv_data
 
-- name: Instalar OpenSCAP y scap-security-guide en los hosts dinámicos
+- name: Instalar OpenSCAP en los hosts dinámicos
   hosts: dynamic_hosts_openscap
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
@@ -77,28 +77,15 @@
         state: present
       when: ansible_distribution == "Ubuntu"
 
-    - name: Habilitar el repositorio "main" (solo para Ubuntu)
-      apt_repository:
-        repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} main"
-        state: present
-      when: ansible_distribution == "Ubuntu"
-
     - name: Actualizar la lista de paquetes (solo para Ubuntu)
       apt:
         update_cache: yes
       when: ansible_distribution == "Ubuntu"
 
-    - name: Habilitar el repositorio EPEL en CentOS/RHEL
-      yum:
-        name: epel-release
-        state: present
+    - name: Instalar EPEL si es necesario (CentOS/RHEL)
+      shell: |
+        yum install -y epel-release || (rpm -Uvh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm)
       when: ansible_distribution in ["CentOS", "RedHat"]
-
-    - name: Habilitar el repositorio EPEL en Fedora
-      dnf:
-        name: epel-release
-        state: present
-      when: ansible_distribution == "Fedora"
 
     - name: Definir paquetes necesarios para OpenSCAP y scap-security-guide
       set_fact:
@@ -121,27 +108,4 @@
         state: present
       when: ansible_distribution in ["CentOS", "RedHat"] and openscap_packages | length > 0
 
-    - name: Instalar paquetes necesarios para OpenSCAP y scap-security-guide (Fedora)
-      dnf:
-        name: "{{ openscap_packages + [scap_security_guide] }}"
-        state: present
-      when: ansible_distribution == "Fedora" and openscap_packages | length > 0
-
-    - name: Verificar instalación de OpenSCAP
-      command: which oscap
-      register: openscap_installed
-      ignore_errors: yes
-
-    - name: Establecer el estado de instalación
-      set_fact:
-        openscap_instalado: "{{ openscap_installed.rc == 0 }}"
-      when: openscap_installed.rc is defined
-
-    - name: Asegurarse de que OpenSCAP está instalado
-      fail:
-        msg: "OpenSCAP no se pudo instalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-      when: not openscap_instalado
-
-    - name: Mostrar mensaje de éxito
-      debug:
-        msg: "OpenSCAP y scap-security-guide se instalaron correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+    - name:
