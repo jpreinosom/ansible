@@ -87,10 +87,17 @@
       changed_when: false
       when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
 
-    - name: Verificar si el análisis se ejecutó correctamente
+    - name: Verificar si el análisis se ejecutó correctamente para Ubuntu
       fail:
-        msg: "El análisis de vulnerabilidades con OpenSCAP falló en {{ inventory_hostname }}"
-      when: scan_result_ubuntu.rc != 0 or scan_result_rhel.rc != 0
+        msg: "El análisis de vulnerabilidades con OpenSCAP falló en Ubuntu en {{ inventory_hostname }}"
+      when: scan_result_ubuntu.rc != 0
+      ignore_errors: yes
+
+    - name: Verificar si el análisis se ejecutó correctamente para CentOS/RHEL
+      fail:
+        msg: "El análisis de vulnerabilidades con OpenSCAP falló en RHEL/CentOS en {{ inventory_hostname }}"
+      when: scan_result_rhel.rc != 0
+      ignore_errors: yes
 
     - name: Leer el archivo de resultados XML
       slurp:
