@@ -54,6 +54,13 @@
         label: "{{ item.IP }}"
       delegate_to: localhost
 
+    - name: Mostrar hosts agregados
+      debug:
+        msg: "Host agregado: {{ item.IP }} al grupo dynamic_hosts"
+      with_items: "{{ csv_hosts }}"
+      loop_control:
+        label: "{{ item.IP }}"
+
 - name: Agrupar hosts por distribución
   hosts: dynamic_hosts
   gather_facts: yes
@@ -75,7 +82,7 @@
           Grupo 'rhel_hosts' contiene: {{ groups['rhel_hosts'] }}
       run_once: true
 
-- name: Instalar SCAP Security Guide y dependencias en Ubuntu
+- name: Instalar paquetes necesarios en Ubuntu/Debian
   hosts: ubuntu_hosts
   gather_facts: yes
   become: yes
@@ -95,7 +102,6 @@
           - ssg-base
           - openscap-scanner
           - git
-          - xsltproc  # Asegúrate de que xsltproc está instalado
         state: present
 
     - name: Verificar la instalación de git
@@ -112,7 +118,7 @@
       git:
         repo: https://github.com/ComplianceAsCode/content.git
         dest: /tmp/content
-        version: master
+        version: master  # Cambio de 'main' a 'master'
       when: ansible_distribution == "Ubuntu"
 
     - name: Verificar que el repositorio se clonó correctamente
@@ -126,17 +132,69 @@
         msg: "El repositorio de SCAP Security Guide no se clonó correctamente en {{ inventory_hostname }}"
       when: ansible_distribution == "Ubuntu" and not git_repo_check.stat.exists
 
+    - name: Listar el contenido de /tmp/content para verificar build.sh
+      command: ls -l /tmp/content
+      register: content_listing
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Mostrar el contenido de /tmp/content
+      debug:
+        var: content_listing.stdout_lines
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Verificar la existencia de build.sh
+      stat:
+        path: /tmp/content/build.sh
+      register: build_sh_check
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Fallar si build.sh no existe
+      fail:
+        msg: "El script build.sh no se encontró en /tmp/content en {{ inventory_hostname }}"
+      when:
+        - ansible_distribution == "Ubuntu"
+        - not build_sh_check.stat.exists
+
+    - name: Asegurar que build.sh es ejecutable
+      file:
+        path: /tmp/content/build.sh
+        mode: '0755'
+        state: file
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Verificar existencia de archivos XML compilados
+      stat:
+        path: "/tmp/content/build/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml"
+      register: ssg_compiled
+      when: ansible_distribution == "Ubuntu"
+
     - name: Compilar el contenido SCAP (Ubuntu)
-      command: make -j4
+      command: ./build.sh
       args:
-        chdir: /tmp/content/build
+        chdir: /tmp/content
+      when:
+        - ansible_distribution == "Ubuntu"
+        - not ssg_compiled.stat.exists
       register: compile_ssg
-      when: ansible_distribution == "Ubuntu" and git_repo_check.stat.exists
+      ignore_errors: yes
 
     - name: Verificar que la compilación se ejecutó correctamente
+      debug:
+        msg: "Compilación de SCAP Security Guide completada en {{ inventory_hostname }}"
+      when: compile_ssg.rc == 0 and ansible_distribution == "Ubuntu"
+
+    - name: Verificar existencia de archivos XML compilados después de compilación
+      stat:
+        path: "/tmp/content/build/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml"
+      register: ssg_compiled_post
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Fallar si la compilación no generó los archivos XML esperados
       fail:
-        msg: "La compilación de SCAP Security Guide falló en {{ inventory_hostname }}"
-      when: compile_ssg.rc != 0
+        msg: "La compilación de SCAP Security Guide no generó los archivos XML en {{ inventory_hostname }}"
+      when:
+        - ansible_distribution == "Ubuntu"
+        - not ssg_compiled_post.stat.exists
 
     - name: Copiar archivos XML de SCAP Security Guide para Ubuntu
       copy:
@@ -145,19 +203,24 @@
         owner: root
         group: root
         mode: '0644'
-      when: ansible_distribution == "Ubuntu"
+      when:
+        - ansible_distribution == "Ubuntu"
+        - ssg_compiled_post.stat.exists
 
     - name: Verificar la copia de archivos XML
       stat:
         path: "/usr/share/xml/scap/ssg/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml"
       register: xml_file_check
+      when: ansible_distribution == "Ubuntu"
 
     - name: Fallar si el archivo XML no se copió correctamente
       fail:
         msg: "No se pudo copiar el archivo XML de SCAP Security Guide para Ubuntu en {{ inventory_hostname }}"
-      when: not xml_file_check.stat.exists
+      when:
+        - ansible_distribution == "Ubuntu"
+        - not xml_file_check.stat.exists
 
-- name: Instalar SCAP Security Guide y dependencias en CentOS/RHEL
+- name: Instalar paquetes necesarios en CentOS/RHEL
   hosts: rhel_hosts
   gather_facts: yes
   become: yes
