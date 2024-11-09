@@ -87,41 +87,41 @@
       changed_when: false
       when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
 
-    - name: Verificar si el análisis se ejecutó correctamente para Ubuntu
-      fail:
-        msg: "El análisis de vulnerabilidades con OpenSCAP falló en Ubuntu en {{ inventory_hostname }}"
-      when: scan_result_ubuntu is defined and 'rc' in scan_result_ubuntu and scan_result_ubuntu.rc != 0
+    - name: Verificar si el archivo de resultados existe
+      stat:
+        path: /tmp/openscap-results.xml
+      register: results_file_check
 
-    - name: Verificar si el análisis se ejecutó correctamente para CentOS/RHEL
+    - name: Fallar si el análisis no generó el archivo de resultados
       fail:
-        msg: "El análisis de vulnerabilidades con OpenSCAP falló en RHEL/CentOS en {{ inventory_hostname }}"
-      when: scan_result_rhel is defined and 'rc' in scan_result_rhel and scan_result_rhel.rc != 0
+        msg: "El archivo de resultados de OpenSCAP no se generó en {{ inventory_hostname }}."
+      when: not results_file_check.stat.exists
 
     - name: Leer el archivo de resultados XML
       slurp:
         src: /tmp/openscap-results.xml
       register: slurped_xml
-      when: scan_result_ubuntu is defined or scan_result_rhel is defined
+      when: results_file_check.stat.exists
 
     - name: Decodificar el contenido del archivo XML
       set_fact:
         openscap_results: "{{ slurped_xml.content | b64decode }}"
-      when: slurped_xml is defined
+      when: slurped_xml is defined and slurped_xml is not none
 
     - name: Parsear XML y contar vulnerabilidades altas
       set_fact:
-        vulnerabilities_high: "{{ (openscap_results | from_xml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'high') | list | length }}"
-      when: openscap_results is defined
+        vulnerabilities_high: "{{ (openscap_results | from_yaml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'high') | list | length }}"
+      when: openscap_results is defined and openscap_results | length > 0
 
     - name: Parsear XML y contar vulnerabilidades medias
       set_fact:
-        vulnerabilities_medium: "{{ (openscap_results | from_xml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'medium') | list | length }}"
-      when: openscap_results is defined
+        vulnerabilities_medium: "{{ (openscap_results | from_yaml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'medium') | list | length }}"
+      when: openscap_results is defined and openscap_results | length > 0
 
     - name: Parsear XML y contar vulnerabilidades bajas
       set_fact:
-        vulnerabilities_low: "{{ (openscap_results | from_xml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'low') | list | length }}"
-      when: openscap_results is defined
+        vulnerabilities_low: "{{ (openscap_results | from_yaml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'low') | list | length }}"
+      when: openscap_results is defined and openscap_results | length > 0
 
     - name: Determinar la clasificación de vulnerabilidades
       set_fact:
