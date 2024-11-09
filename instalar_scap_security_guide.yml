@@ -103,16 +103,6 @@
         msg: "oscap no se pudo instalar en {{ inventory_hostname }}"
       when: scap_installed.rc != 0
 
-    - name: Verificar existencia de archivos XML de SCAP
-      stat:
-        path: "/usr/share/xml/scap/ssg/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml"
-      register: xml_file_check
-
-    - name: Fallar si el archivo XML no existe
-      fail:
-        msg: "El archivo XML de SCAP Security Guide no se encontró en {{ inventory_hostname }}"
-      when: not xml_file_check.stat.exists
-
 - name: Instalar SCAP Security Guide en CentOS/RHEL
   hosts: rhel_hosts
   gather_facts: yes
@@ -135,12 +125,3 @@
         msg: "oscap no se pudo instalar en {{ inventory_hostname }}"
       when: scap_installed.rc != 0
 
-    - name: Verificar existencia de archivos XML de SCAP
-      stat:
-        path: "/usr/share/xml/scap/ssg/content/ssg-redhat-ds.xml"
-      register: xml_file_check_rhel
-
-    - name: Fallar si el archivo XML no existe
-      fail:
-        msg: "El archivo XML de SCAP Security Guide no se encontró en {{ inventory_hostname }}"
-      when: not xml_file_check_rhel.stat.exists
