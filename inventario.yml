@@ -5,7 +5,7 @@
   hosts: localhost
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventario.csv"
+    input_file: "{{ playbook_dir }}/inventario.csv"  # Asegúrate de que esta ruta sea correcta
     delimiter: ";"
   vars_files:
     - vars/eol_map.yml  # Asegúrate de que esta ruta sea correcta
@@ -113,7 +113,7 @@
               Soportada
             {% endif %}
           {% else %}
-            version sin fecha establecida de EOL
+            versión sin fecha establecida de EOL
           {% endif %}
 
     - name: Mostrar subscription_status
@@ -129,7 +129,7 @@
       command: >
         oscap oval eval
         --results /tmp/openscap-results.xml
-        /usr/share/xml/scap/ssg/content/ssg-{{ ansible_distribution | lower }}-ds.xml
+        /usr/share/xml/scap/ssg/content/ssg-ubuntu{{ ansible_distribution_version.split('.')[0] }}04-ds.xml
       register: scan_result
       changed_when: false
       when: ansible_distribution == "Ubuntu"
@@ -138,7 +138,7 @@
       command: >
         oscap oval eval
         --results /tmp/openscap-results.xml
-        /usr/share/xml/scap/ssg/content/ssg-redhat-ds.xml
+        /usr/share/xml/scap/ssg/content/ssg-rhel{{ ansible_distribution_version.split('.')[0] }}-ds.xml
       register: scan_result
       changed_when: false
       when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
@@ -200,4 +200,5 @@
         content: |
           IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion;Clasificacion_Vulnerabilidades;Vulnerabilidades_Altas;Vulnerabilidades_Medias;Vulnerabilidades_Bajas
           {% for entry in hostvars['localhost']['csv_data'] %}
-          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_classification'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_high'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'] | default(0)
+          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_classification'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_high'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'] | default(0) }}
+          {% endfor %}
