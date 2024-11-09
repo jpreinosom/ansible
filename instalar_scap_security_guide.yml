@@ -82,7 +82,7 @@
       apt:
         update_cache: yes
 
-    - name: Instalar ssg-base, openscap-scanner
+    - name: Instalar ssg-base, openscap-scanner y git
       apt:
         name:
           - ssg-base
@@ -134,3 +134,13 @@
       fail:
         msg: "oscap no se pudo instalar en {{ inventory_hostname }}"
       when: scap_installed.rc != 0
+
+    - name: Verificar existencia de archivos XML de SCAP
+      stat:
+        path: "/usr/share/xml/scap/ssg/content/ssg-redhat-ds.xml"
+      register: xml_file_check_rhel
+
+    - name: Fallar si el archivo XML no existe
+      fail:
+        msg: "El archivo XML de SCAP Security Guide no se encontró en {{ inventory_hostname }}"
+      when: not xml_file_check_rhel.stat.exists
