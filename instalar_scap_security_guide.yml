@@ -82,7 +82,7 @@
       apt:
         update_cache: yes
 
-    - name: Instalar ssg-base, openscap-scanner y git
+    - name: Instalar ssg-base, openscap-scanner
       apt:
         name:
           - ssg-base
@@ -91,20 +91,19 @@
           - ssg-nondebian
           - ssg-applications
           - openscap-scanner
-          - git
         state: present
 
-    - name: Verificar la instalación de git
-      command: which git
-      register: git_installed
+    - name: Verificar la instalación de oscap
+      command: which oscap
+      register: scap_installed
       ignore_errors: yes
 
-    - name: Asegurarse de que git está instalado
+    - name: Asegurarse de que oscap está instalado
       fail:
-        msg: "git no se pudo instalar en {{ inventory_hostname }}"
-      when: git_installed.rc != 0
+        msg: "oscap no se pudo instalar en {{ inventory_hostname }}"
+      when: scap_installed.rc != 0
 
-    - name: Verificar que los archivos XML estén disponibles después de la instalación
+    - name: Verificar existencia de archivos XML de SCAP
       stat:
         path: "/usr/share/xml/scap/ssg/content/ssg-ubuntu-{{ ansible_distribution_version.split('.')[0] }}.04-ds.xml"
       register: xml_file_check
