@@ -1,11 +1,11 @@
 ---
-# playbooks/instalar_scap_security_guide.yml
+# playbooks/clasificar_eol_y_vulnerabilidades.yml
 
 - name: Leer y procesar el inventario CSV
   hosts: localhost
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventario.csv"  # Asegúrate de que esta ruta sea correcta
+    input_file: "{{ playbook_dir }}/inventario.csv"
     delimiter: ";"
   vars_files:
     - vars/eol_map.yml  # Asegúrate de que esta ruta sea correcta
@@ -60,6 +60,10 @@
       loop_control:
         loop_var: item
 
+    - name: Mostrar estructura completa de csv_data
+      debug:
+        var: csv_data
+
 - name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
   gather_facts: yes
@@ -113,14 +117,14 @@
               Soportada
             {% endif %}
           {% else %}
-            versión sin fecha establecida de EOL
+            version sin fecha establecida de EOL
           {% endif %}
 
     - name: Mostrar subscription_status
       debug:
         var: subscription_status
 
-- name: Ejecutar análisis de vulnerabilidades con OpenSCAP y cuantificar
+- name: Ejecutar análisis de vulnerabilidades con OpenSCAP
   hosts: dynamic_hosts
   gather_facts: yes
   become: yes
@@ -130,7 +134,7 @@
         oscap oval eval
         --results /tmp/openscap-results.xml
         /usr/share/xml/scap/ssg/content/ssg-ubuntu{{ ansible_distribution_version.split('.')[0] }}04-ds.xml
-      register: scan_result
+      register: scan_result_ubuntu
       changed_when: false
       when: ansible_distribution == "Ubuntu"
 
@@ -139,15 +143,19 @@
         oscap oval eval
         --results /tmp/openscap-results.xml
         /usr/share/xml/scap/ssg/content/ssg-rhel{{ ansible_distribution_version.split('.')[0] }}-ds.xml
-      register: scan_result
+      register: scan_result_rhel
       changed_when: false
       when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
 
     - name: Verificar si el análisis se ejecutó correctamente
       fail:
         msg: "El análisis de vulnerabilidades con OpenSCAP falló en {{ inventory_hostname }}"
-      when: scan_result.rc != 0
+      when: scan_result_ubuntu.rc != 0 or scan_result_rhel.rc != 0
 
+- name: Leer el archivo de resultados XML
+  hosts: dynamic_hosts
+  gather_facts: no
+  tasks:
     - name: Leer el archivo de resultados XML
       slurp:
         src: /tmp/openscap-results.xml
@@ -185,7 +193,7 @@
         msg: "Clasificación de Vulnerabilidades: {{ vulnerabilities_classification }} (Altas: {{ vulnerabilities_high }}, Medias: {{ vulnerabilities_medium }}, Bajas: {{ vulnerabilities_low }})"
 
 - name: Generar archivo resultado.csv
-  hosts: local
+  hosts: localhost
   gather_facts: no
   tasks:
     - name: Asegurar que el directorio /home/ansible/resultado existe
