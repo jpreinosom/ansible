@@ -126,9 +126,9 @@
     - name: Determinar la clasificación de vulnerabilidades
       set_fact:
         vulnerabilities_classification: >-
-          {% if vulnerabilities_high > 10 %}
+          {% if (vulnerabilities_high | int) > 10 %}
             Alta
-          {% elif vulnerabilities_medium > 5 %}
+          {% elif (vulnerabilities_medium | int) > 5 %}
             Media
           {% else %}
             Baja
