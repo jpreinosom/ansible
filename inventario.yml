@@ -141,7 +141,7 @@
       when: vulnerabilities_classification is defined
 
 - name: Generar archivo resultado.csv
-  hosts: localhost
+  hosts: local
   gather_facts: no
   tasks:
     - name: Asegurar que el directorio /home/ansible/resultado existe
