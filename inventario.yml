@@ -110,17 +110,17 @@
 
     - name: Parsear XML y contar vulnerabilidades altas
       set_fact:
-        vulnerabilities_high: "{{ (openscap_results | from_yaml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'high') | list | length }}"
+        vulnerabilities_high: "{{ (openscap_results | from_xml).oval_results.definitions.definition | selectattr('severity', 'equalto', 'high') | list | length }}"
       when: openscap_results is defined and openscap_results | length > 0
 
     - name: Parsear XML y contar vulnerabilidades medias
       set_fact:
-        vulnerabilities_medium: "{{ (openscap_results | from_yaml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'medium') | list | length }}"
+        vulnerabilities_medium: "{{ (openscap_results | from_xml).oval_results.definitions.definition | selectattr('severity', 'equalto', 'medium') | list | length }}"
       when: openscap_results is defined and openscap_results | length > 0
 
     - name: Parsear XML y contar vulnerabilidades bajas
       set_fact:
-        vulnerabilities_low: "{{ (openscap_results | from_yaml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'low') | list | length }}"
+        vulnerabilities_low: "{{ (openscap_results | from_xml).oval_results.definitions.definition | selectattr('severity', 'equalto', 'low') | list | length }}"
       when: openscap_results is defined and openscap_results | length > 0
 
     - name: Determinar la clasificación de vulnerabilidades
