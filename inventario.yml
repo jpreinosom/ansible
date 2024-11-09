@@ -109,22 +109,22 @@
       when: slurped_xml is defined and slurped_xml is not none
 
     - name: Parsear XML y contar vulnerabilidades altas
-      xml:
-        content: "{{ openscap_results }}"
+      community.general.xml:
+        xmlstring: "{{ openscap_results }}"
         xpath: "//definition[@severity='high']"
       register: vulnerabilities_high
       when: openscap_results is defined and openscap_results | length > 0
 
     - name: Parsear XML y contar vulnerabilidades medias
-      xml:
-        content: "{{ openscap_results }}"
+      community.general.xml:
+        xmlstring: "{{ openscap_results }}"
         xpath: "//definition[@severity='medium']"
       register: vulnerabilities_medium
       when: openscap_results is defined and openscap_results | length > 0
 
     - name: Parsear XML y contar vulnerabilidades bajas
-      xml:
-        content: "{{ openscap_results }}"
+      community.general.xml:
+        xmlstring: "{{ openscap_results }}"
         xpath: "//definition[@severity='low']"
       register: vulnerabilities_low
       when: openscap_results is defined and openscap_results | length > 0
