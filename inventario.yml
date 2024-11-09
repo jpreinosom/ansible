@@ -109,32 +109,29 @@
       when: slurped_xml is defined and slurped_xml is not none
 
     - name: Parsear XML y contar vulnerabilidades altas
-      community.general.xml:
-        xmlstring: "{{ openscap_results }}"
-        xpath: "//definition[@severity='high']"
+      ansible.builtin.shell: |
+        echo "{{ openscap_results }}" | xmllint --xpath "count(//definition[@severity='high'])" -
       register: vulnerabilities_high
       when: openscap_results is defined and openscap_results | length > 0
 
     - name: Parsear XML y contar vulnerabilidades medias
-      community.general.xml:
-        xmlstring: "{{ openscap_results }}"
-        xpath: "//definition[@severity='medium']"
+      ansible.builtin.shell: |
+        echo "{{ openscap_results }}" | xmllint --xpath "count(//definition[@severity='medium'])" -
       register: vulnerabilities_medium
       when: openscap_results is defined and openscap_results | length > 0
 
     - name: Parsear XML y contar vulnerabilidades bajas
-      community.general.xml:
-        xmlstring: "{{ openscap_results }}"
-        xpath: "//definition[@severity='low']"
+      ansible.builtin.shell: |
+        echo "{{ openscap_results }}" | xmllint --xpath "count(//definition[@severity='low'])" -
       register: vulnerabilities_low
       when: openscap_results is defined and openscap_results | length > 0
 
     - name: Determinar la clasificación de vulnerabilidades
       set_fact:
         vulnerabilities_classification: >-
-          {% if (vulnerabilities_high.matched | int) > 10 %}
+          {% if (vulnerabilities_high.stdout | int) > 10 %}
             Alta
-          {% elif (vulnerabilities_medium.matched | int) > 5 %}
+          {% elif (vulnerabilities_medium.stdout | int) > 5 %}
             Media
           {% else %}
             Baja
@@ -143,7 +140,7 @@
 
     - name: Mostrar la clasificación de vulnerabilidades
       debug:
-        msg: "Clasificación de Vulnerabilidades: {{ vulnerabilities_classification }} (Altas: {{ vulnerabilities_high.matched }}, Medias: {{ vulnerabilities_medium.matched }}, Bajas: {{ vulnerabilities_low.matched }})"
+        msg: "Clasificación de Vulnerabilidades: {{ vulnerabilities_classification }} (Altas: {{ vulnerabilities_high.stdout }}, Medias: {{ vulnerabilities_medium.stdout }}, Bajas: {{ vulnerabilities_low.stdout }})"
       when: vulnerabilities_classification is defined
 
 - name: Generar archivo resultado.csv
@@ -162,5 +159,5 @@
         content: |
           IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion;Clasificacion_Vulnerabilidades;Vulnerabilidades_Altas;Vulnerabilidades_Medias;Vulnerabilidades_Bajas
           {% for entry in hostvars['localhost']['csv_data'] %}
-          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_classification'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_high'].matched | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'].matched | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'].matched | default(0) }}
+          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_classification'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_high'].stdout | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'].stdout | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'].stdout | default(0) }}
           {% endfor %}
