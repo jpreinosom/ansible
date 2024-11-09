@@ -140,6 +140,66 @@
         msg: "Clasificación de Vulnerabilidades: {{ vulnerabilities_classification }} (Altas: {{ vulnerabilities_high }}, Medias: {{ vulnerabilities_medium }}, Bajas: {{ vulnerabilities_low }})"
       when: vulnerabilities_classification is defined
 
+- name: Obtener información y verificar EoL de los servidores
+  hosts: dynamic_hosts
+  gather_facts: yes
+  vars_files:
+    - vars/eol_map.yml
+  tasks:
+    - name: Mostrar distribución y versión de Linux
+      debug:
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
+
+    - name: Obtener la fecha actual del sistema
+      set_fact:
+        current_date: "{{ ansible_date_time.iso8601_basic[:8] }}"  # YYYYMMDD
+
+    - name: Determinar la fecha de EoL para la distribución y versión
+      set_fact:
+        eol_date: >-
+          {{
+            (eol_map[ansible_distribution]
+            | default({})
+            | dict2items
+            | selectattr('key', '==', ansible_distribution_version)
+            | map(attribute='value')
+            | list
+            | first)
+            | default(
+              (eol_map[ansible_distribution]
+              | default({})
+              | dict2items
+              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
+              | map(attribute='value')
+              | list
+              | first),
+              None
+            )
+          }}
+
+    - name: Mostrar eol_date
+      debug:
+        var: eol_date
+
+    - name: Establecer el estado de suscripción
+      set_fact:
+        subscription_status: >-
+          {% if eol_date is defined %}
+            {% if eol_date == "rolling" %}
+              Rolling Release
+            {% elif current_date | int > (eol_date | regex_replace('-', '') | int) %}
+              Deprecado
+            {% else %}
+              Soportada
+            {% endif %}
+          {% else %}
+            version sin fecha establecida de EOL
+          {% endif %}
+
+    - name: Mostrar subscription_status
+      debug:
+        var: subscription_status
+
 - name: Generar archivo resultado.csv
   hosts: local
   gather_facts: no
