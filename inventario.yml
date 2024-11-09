@@ -1,4 +1,6 @@
 ---
+# playbooks/instalar_scap_security_guide.yml
+
 - name: Leer y procesar el inventario CSV
   hosts: localhost
   gather_facts: no
@@ -48,7 +50,7 @@
     - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
       add_host:
         name: "{{ item.IP }}"
-        groups: dynamic_hosts
+        groups: "dynamic_hosts"
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_password: "{{ item.Contraseña }}"
@@ -57,10 +59,6 @@
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
-
-    - name: Mostrar estructura completa de csv_data
-      debug:
-        var: csv_data
 
 - name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
@@ -122,6 +120,70 @@
       debug:
         var: subscription_status
 
+- name: Ejecutar análisis de vulnerabilidades con OpenSCAP y cuantificar
+  hosts: dynamic_hosts
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (Ubuntu)
+      command: >
+        oscap oval eval
+        --results /tmp/openscap-results.xml
+        /usr/share/xml/scap/ssg/content/ssg-{{ ansible_distribution | lower }}-ds.xml
+      register: scan_result
+      changed_when: false
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS/RHEL)
+      command: >
+        oscap oval eval
+        --results /tmp/openscap-results.xml
+        /usr/share/xml/scap/ssg/content/ssg-redhat-ds.xml
+      register: scan_result
+      changed_when: false
+      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+
+    - name: Verificar si el análisis se ejecutó correctamente
+      fail:
+        msg: "El análisis de vulnerabilidades con OpenSCAP falló en {{ inventory_hostname }}"
+      when: scan_result.rc != 0
+
+    - name: Leer el archivo de resultados XML
+      slurp:
+        src: /tmp/openscap-results.xml
+      register: slurped_xml
+
+    - name: Decodificar el contenido del archivo XML
+      set_fact:
+        openscap_results: "{{ slurped_xml.content | b64decode }}"
+
+    - name: Parsear XML y contar vulnerabilidades altas
+      set_fact:
+        vulnerabilities_high: "{{ (openscap_results | from_xml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'high') | list | length }}"
+
+    - name: Parsear XML y contar vulnerabilidades medias
+      set_fact:
+        vulnerabilities_medium: "{{ (openscap_results | from_xml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'medium') | list | length }}"
+
+    - name: Parsear XML y contar vulnerabilidades bajas
+      set_fact:
+        vulnerabilities_low: "{{ (openscap_results | from_xml).oval_results.definitions.definition | selectattr('vuln_severity', 'equalto', 'low') | list | length }}"
+
+    - name: Determinar la clasificación de vulnerabilidades
+      set_fact:
+        vulnerabilities_classification: >-
+          {% if vulnerabilities_high > 10 %}
+            Alta
+          {% elif vulnerabilities_medium > 5 %}
+            Media
+          {% else %}
+            Baja
+          {% endif %}
+
+    - name: Mostrar la clasificación de vulnerabilidades
+      debug:
+        msg: "Clasificación de Vulnerabilidades: {{ vulnerabilities_classification }} (Altas: {{ vulnerabilities_high }}, Medias: {{ vulnerabilities_medium }}, Bajas: {{ vulnerabilities_low }})"
+
 - name: Generar archivo resultado.csv
   hosts: local
   gather_facts: no
@@ -136,7 +198,6 @@
       copy:
         dest: /home/ansible/resultado/resultado.csv
         content: |
-          IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion
+          IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion;Clasificacion_Vulnerabilidades;Vulnerabilidades_Altas;Vulnerabilidades_Medias;Vulnerabilidades_Bajas
           {% for entry in hostvars['localhost']['csv_data'] %}
-          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') }}
-          {% endfor %}
+          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_classification'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_high'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'] | default(0)
