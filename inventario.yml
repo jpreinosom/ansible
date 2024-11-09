@@ -90,14 +90,12 @@
     - name: Verificar si el análisis se ejecutó correctamente para Ubuntu
       fail:
         msg: "El análisis de vulnerabilidades con OpenSCAP falló en Ubuntu en {{ inventory_hostname }}"
-      when: scan_result_ubuntu.rc != 0
-      ignore_errors: yes
+      when: scan_result_ubuntu is defined and scan_result_ubuntu.rc != 0
 
     - name: Verificar si el análisis se ejecutó correctamente para CentOS/RHEL
       fail:
         msg: "El análisis de vulnerabilidades con OpenSCAP falló en RHEL/CentOS en {{ inventory_hostname }}"
-      when: scan_result_rhel.rc != 0
-      ignore_errors: yes
+      when: scan_result_rhel is defined and scan_result_rhel.rc != 0
 
     - name: Leer el archivo de resultados XML
       slurp:
@@ -153,4 +151,3 @@
           {% for entry in hostvars['localhost']['csv_data'] %}
           {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_classification'] | default('No definido') }};{{ hostvars[entry.IP]['vulnerabilities_high'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'] | default(0) }}
           {% endfor %}
-...
