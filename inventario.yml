@@ -1,207 +1,205 @@
 ---
-# playbooks/analizar_vulnerabilidades.yml
-
-- name: Leer y procesar el inventario CSV
-  hosts: localhost
-  gather_facts: no
-  vars:
-    input_file: "{{ playbook_dir }}/inventario.csv"  # Asegúrate de que esta ruta sea correcta
-    delimiter: ";"
-  vars_files:
-    - vars/eol_map.yml  # Asegúrate de que esta ruta sea correcta
-  tasks:
-    - name: Verificar que el archivo CSV existe
-      stat:
-        path: "{{ input_file }}"
-      register: file_check
-
-    - name: Fallar si el archivo de inventario no existe
-      fail:
-        msg: "El archivo de inventario {{ input_file }} no existe."
-      when: not file_check.stat.exists
-
-    - name: Leer contenido del archivo CSV
-      set_fact:
-        csv_content: "{{ lookup('file', input_file) }}"
-
-    - name: Extraer encabezados del CSV
-      set_fact:
-        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
-
-    - name: Extraer filas del CSV
-      set_fact:
-        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
-
-    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
-      fail:
-        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
-      when: row | length != headers | length
-      loop: "{{ rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Combinar encabezados con filas para crear diccionarios
-      set_fact:
-        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
-      loop: "{{ rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
-      add_host:
-        name: "{{ item.IP }}"
-        groups: dynamic_hosts
-        ansible_host: "{{ item.IP }}"
-        ansible_user: "{{ item.Usuario }}"
-        ansible_password: "{{ item.Contraseña }}"
-        ansible_connection: ssh
-        ansible_ssh_pass: "{{ item.Contraseña }}"
-      loop: "{{ csv_data }}"
-      loop_control:
-        loop_var: item
-
-    - name: Mostrar estructura completa de csv_data
-      debug:
-        var: csv_data
-
-- name: Ejecutar análisis de vulnerabilidades con OpenSCAP
-  hosts: dynamic_hosts
-  gather_facts: yes
-  become: yes
-  tasks:
-    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (Ubuntu 22.04)
-      command: >
-        oscap oval eval
-        --results /tmp/openscap-results.xml
-        /usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds.xml
-      register: scan_result_ubuntu
-      changed_when: false
-      when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04"
-
-    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS/RHEL)
-      command: >
-        oscap oval eval
-        --results /tmp/openscap-results.xml
-        /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
-      register: scan_result_rhel
-      changed_when: false
-      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-
-    - name: Verificar si el archivo de resultados existe
-      stat:
-        path: /tmp/openscap-results.xml
-      register: results_file_check
-
-    - name: Fallar si el análisis no generó el archivo de resultados
-      fail:
-        msg: "El archivo de resultados de OpenSCAP no se generó en {{ inventory_hostname }}."
-      when: not results_file_check.stat.exists
-
-    - name: Leer el archivo de resultados XML
-      slurp:
-        src: /tmp/openscap-results.xml
-      register: slurped_xml
-      when: results_file_check.stat.exists
-
-    - name: Decodificar el contenido del archivo XML
-      set_fact:
-        openscap_results: "{{ slurped_xml.content | b64decode }}"
-      when: slurped_xml is defined and slurped_xml is not none
-
-    - name: Parsear XML y contar vulnerabilidades altas
-      set_fact:
-        vulnerabilities_high: "{{ openscap_results | regex_findall('severity=\"high\"') | length }}"
-      when: openscap_results is defined and openscap_results | length > 0
-
-    - name: Parsear XML y contar vulnerabilidades medias
-      set_fact:
-        vulnerabilities_medium: "{{ openscap_results | regex_findall('severity=\"medium\"') | length }}"
-      when: openscap_results is defined and openscap_results | length > 0
-
-    - name: Parsear XML y contar vulnerabilidades bajas
-      set_fact:
-        vulnerabilities_low: "{{ openscap_results | regex_findall('severity=\"low\"') | length }}"
-      when: openscap_results is defined and openscap_results | length > 0
-
-    - name: Determinar la clasificación de vulnerabilidades
-      set_fact:
-        vulnerabilities_classification: >-
-          {% if (vulnerabilities_high | int) > 10 %}
-            Alta
-          {% elif (vulnerabilities_medium | int) > 5 %}
-            Media
-          {% else %}
-            Baja
-          {% endif %}
-      when: vulnerabilities_high is defined and vulnerabilities_medium is defined and vulnerabilities_low is defined
-
-    - name: Mostrar la clasificación de vulnerabilidades
-      debug:
-        msg: "Clasificación de Vulnerabilidades: {{ vulnerabilities_classification }} (Altas: {{ vulnerabilities_high }}, Medias: {{ vulnerabilities_medium }}, Bajas: {{ vulnerabilities_low }})"
-      when: vulnerabilities_classification is defined
-
-- name: Obtener información y verificar EoL de los servidores
-  hosts: dynamic_hosts
-  gather_facts: yes
-  vars_files:
-    - vars/eol_map.yml
-  tasks:
-    - name: Mostrar distribución y versión de Linux
-      debug:
-        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
-
-    - name: Obtener la fecha actual del sistema
-      set_fact:
-        current_date: "{{ ansible_date_time.iso8601_basic[:8] }}"  # YYYYMMDD
-
-    - name: Determinar la fecha de EoL para la distribución y versión
-      set_fact:
-        eol_date: >-
-          {{
-            (eol_map[ansible_distribution]
-            | default({})
-            | dict2items
-            | selectattr('key', '==', ansible_distribution_version)
-            | map(attribute='value')
-            | list
-            | first)
-            | default(
+  # playbooks/analizar_vulnerabilidades.yml
+  
+  - name: Leer y procesar el inventario CSV
+    hosts: localhost
+    gather_facts: no
+    vars:
+      input_file: "{{ playbook_dir }}/inventario.csv"  # Asegúrate de que esta ruta sea correcta
+      delimiter: ";"
+    vars_files:
+      - vars/eol_map.yml  # Asegúrate de que esta ruta sea correcta
+    tasks:
+      - name: Verificar que el archivo CSV existe
+        stat:
+          path: "{{ input_file }}"
+        register: file_check
+  
+      - name: Fallar si el archivo de inventario no existe
+        fail:
+          msg: "El archivo de inventario {{ input_file }} no existe."
+        when: not file_check.stat.exists
+  
+      - name: Leer contenido del archivo CSV
+        set_fact:
+          csv_content: "{{ lookup('file', input_file) }}"
+  
+      - name: Extraer encabezados del CSV
+        set_fact:
+          headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+  
+      - name: Extraer filas del CSV
+        set_fact:
+          rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+  
+      - name: Validar que cada fila tenga el mismo número de campos que los encabezados
+        fail:
+          msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+        when: row | length != headers | length
+        loop: "{{ rows }}"
+        loop_control:
+          loop_var: row
+  
+      - name: Combinar encabezados con filas para crear diccionarios
+        set_fact:
+          csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
+        loop: "{{ rows }}"
+        loop_control:
+          loop_var: row
+  
+      - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
+        add_host:
+          name: "{{ item.IP }}"
+          groups: dynamic_hosts
+          ansible_host: "{{ item.IP }}"
+          ansible_user: "{{ item.Usuario }}"
+          ansible_password: "{{ item.Contraseña }}"
+          ansible_connection: ssh
+          ansible_ssh_pass: "{{ item.Contraseña }}"
+        loop: "{{ csv_data }}"
+        loop_control:
+          loop_var: item
+  
+      - name: Mostrar estructura completa de csv_data
+        debug:
+          var: csv_data
+  
+  - name: Ejecutar análisis de vulnerabilidades con OpenSCAP
+    hosts: dynamic_hosts
+    gather_facts: yes
+    become: yes
+    tasks:
+      - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (Ubuntu 22.04)
+        command: >
+          oscap oval eval
+          --results /tmp/openscap-results.xml
+          /usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds.xml
+        register: scan_result_ubuntu
+        changed_when: false
+        when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04"
+  
+      - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS/RHEL)
+        command: >
+          oscap oval eval
+          --results /tmp/openscap-results.xml
+          /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
+        register: scan_result_rhel
+        changed_when: false
+        when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+  
+      - name: Verificar si el archivo de resultados existe
+        stat:
+          path: /tmp/openscap-results.xml
+        register: results_file_check
+  
+      - name: Fallar si el análisis no generó el archivo de resultados
+        fail:
+          msg: "El archivo de resultados de OpenSCAP no se generó en {{ inventory_hostname }}."
+        when: not results_file_check.stat.exists
+  
+      - name: Leer el archivo de resultados XML
+        slurp:
+          src: /tmp/openscap-results.xml
+        register: slurped_xml
+        when: results_file_check.stat.exists
+  
+      - name: Decodificar el contenido del archivo XML
+        set_fact:
+          openscap_results: "{{ slurped_xml.content | b64decode }}"
+        when: slurped_xml is defined and slurped_xml is not none
+  
+      - name: Parsear XML y contar vulnerabilidades altas
+        set_fact:
+          vulnerabilities_high: "{{ openscap_results | regex_findall('severity=\"high\"') | length }}"
+        when: openscap_results is defined and openscap_results | length > 0
+  
+      - name: Parsear XML y contar vulnerabilidades medias
+        set_fact:
+          vulnerabilities_medium: "{{ openscap_results | regex_findall('severity=\"medium\"') | length }}"
+        when: openscap_results is defined and openscap_results | length > 0
+  
+      - name: Parsear XML y contar vulnerabilidades bajas
+        set_fact:
+          vulnerabilities_low: "{{ openscap_results | regex_findall('severity=\"low\"') | length }}"
+        when: openscap_results is defined and openscap_results | length > 0
+  
+      - name: Determinar la clasificación de vulnerabilidades
+        set_fact:
+          vulnerabilities_classification: >-
+            {% if (vulnerabilities_high | int) > 10 %}
+              Alta
+            {% elif (vulnerabilities_medium | int) > 5 %}
+              Media
+            {% else %}
+              Baja
+            {% endif %}
+        when: vulnerabilities_high is defined and vulnerabilities_medium is defined and vulnerabilities_low is defined
+  
+      - name: Mostrar la clasificación de vulnerabilidades
+        debug:
+          msg: "Clasificación de Vulnerabilidades: {{ vulnerabilities_classification }} (Altas: {{ vulnerabilities_high }}, Medias: {{ vulnerabilities_medium }}, Bajas: {{ vulnerabilities_low }})"
+        when: vulnerabilities_classification is defined
+  
+  - name: Obtener información y verificar EoL de los servidores
+    hosts: dynamic_hosts
+    gather_facts: yes
+    vars_files:
+      - vars/eol_map.yml
+    tasks:
+      - name: Mostrar distribución y versión de Linux
+        debug:
+          msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
+  
+      - name: Obtener la fecha actual del sistema
+        set_fact:
+          current_date: "{{ ansible_date_time.iso8601_basic[:8] }}"  # YYYYMMDD
+  
+      - name: Determinar la fecha de EoL para la distribución y versión
+        set_fact:
+          eol_date: >-
+            {{
               (eol_map[ansible_distribution]
               | default({})
               | dict2items
-              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
+              | selectattr('key', '==', ansible_distribution_version)
               | map(attribute='value')
               | list
-              | first),
-              None
-            )
-          }}
-
-    - name: Mostrar eol_date
-      debug:
-        var: eol_date
-
-    - name: Establecer el estado de suscripción
-      set_fact:
-        subscription_status: >-
-          {% if eol_date is defined %}
-            {% if eol_date == "rolling" %}
-              Rolling Release
-            {% elif current_date | int > (eol_date | regex_replace('-', '') | int) %}
-              Deprecado
+              | first)
+              | default(
+                (eol_map[ansible_distribution]
+                | default({})
+                | dict2items
+                | selectattr('key', '==', ansible_distribution_version.split('.')[0])
+                | map(attribute='value')
+                | list
+                | first),
+                None
+              )
+            }}
+  
+      - name: Mostrar eol_date
+        debug:
+          var: eol_date
+  
+      - name: Establecer el estado de suscripción
+        set_fact:
+          subscription_status: >-
+            {% if eol_date is defined %}
+              {% if eol_date == "rolling" %}
+                Rolling Release
+              {% elif current_date | int > (eol_date | regex_replace('-', '') | int) %}
+                Deprecado
+              {% else %}
+                Soportada
+              {% endif %}
             {% else %}
-              Soportada
+              version sin fecha establecida de EOL
             {% endif %}
-          {% else %}
-            version sin fecha establecida de EOL
-          {% endif %}
-
-    - name: Mostrar subscription_status
-      debug:
-        var: subscription_status
-
-    - name: Obtener información de hardware de los servidores
-      tasks:
+  
+      - name: Mostrar subscription_status
+        debug:
+          var: subscription_status
+  
       - name: Obtener el número de procesadores
         set_fact:
           num_processors: "{{ ansible_processor_vcpus }}"
@@ -217,23 +215,22 @@
       - name: Mostrar la información de hardware
         debug:
           msg: "Número de procesadores: {{ num_processors }}, RAM total: {{ total_ram }} MB, Espacio en disco: {{ total_disk }}"
-
-- name: Generar archivo resultado.csv
-  hosts: local
-  gather_facts: no
-  tasks:
-    - name: Asegurar que el directorio /home/ansible/resultado existe
-      file:
-        path: /home/ansible/resultado
-        state: directory
-        mode: '0755'
-
-    - name: Crear archivo resultado.csv
-      copy:
-        dest: /home/ansible/resultado/resultado.csv
-        content: |
-          IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion;Vulnerabilidades_Altas;Vulnerabilidades_Medias;Vulnerabilidades_Bajas;Procesadores;RAM_MB;Espacio_Disponible_MB
-          {% for entry in hostvars['localhost']['csv_data'] %}
-          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') | trim }};{{ hostvars[entry.IP]['vulnerabilities_high'].stdout | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'].stdout | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'].stdout | default(0) }};{{ hostvars[entry.IP]['num_processors'] | default('No disponible') }};{{ hostvars[entry.IP]['total_ram'] | default('No disponible') }};{{ hostvars[entry.IP]['total_disk'] | default('No disponible') }}
-          {% endfor %}
-...
+  
+  - name: Generar archivo resultado.csv
+    hosts: local
+    gather_facts: no
+    tasks:
+      - name: Asegurar que el directorio /home/ansible/resultado existe
+        file:
+          path: /home/ansible/resultado
+          state: directory
+          mode: '0755'
+  
+      - name: Crear archivo resultado.csv
+        copy:
+          dest: /home/ansible/resultado/resultado.csv
+          content: |
+            IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion;Vulnerabilidades_Altas;Vulnerabilidades_Medias;Vulnerabilidades_Bajas;Procesadores;RAM_MB;Espacio_Disponible_MB
+            {% for entry in hostvars['localhost']['csv_data'] %}
+            {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution
+  
