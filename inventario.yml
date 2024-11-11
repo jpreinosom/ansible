@@ -200,6 +200,25 @@
       debug:
         var: subscription_status
 
+    - name: Obtener información de hardware de los servidores
+      gather_facts: yes
+      tasks:
+      - name: Obtener el número de procesadores
+        set_fact:
+          num_processors: "{{ ansible_processor_vcpus }}"
+      
+      - name: Obtener la cantidad de memoria RAM
+        set_fact:
+          total_ram: "{{ ansible_memtotal_mb }}"
+      
+      - name: Obtener el espacio en disco
+        set_fact:
+          total_disk: "{{ ansible_mounts[0].size_total | int / 1024 / 1024 }} MB"  # En MB
+  
+      - name: Mostrar la información de hardware
+        debug:
+          msg: "Número de procesadores: {{ num_processors }}, RAM total: {{ total_ram }} MB, Espacio en disco: {{ total_disk }}"
+
 - name: Generar archivo resultado.csv
   hosts: local
   gather_facts: no
@@ -214,8 +233,8 @@
       copy:
         dest: /home/ansible/resultado/resultado.csv
         content: |
-          IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion;Vulnerabilidades_Altas;Vulnerabilidades_Medias;Vulnerabilidades_Bajas
+          IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion;Vulnerabilidades_Altas;Vulnerabilidades_Medias;Vulnerabilidades_Bajas;Procesadores;RAM_MB;Espacio_Disponible_MB
           {% for entry in hostvars['localhost']['csv_data'] %}
-          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') | trim }};{{ hostvars[entry.IP]['vulnerabilities_high'].stdout | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'].stdout | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'].stdout | default(0) }}
+          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') | trim }};{{ hostvars[entry.IP]['vulnerabilities_high'].stdout | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'].stdout | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'].stdout | default(0) }};{{ hostvars[entry.IP]['num_processors'] | default('No disponible') }};{{ hostvars[entry.IP]['total_ram'] | default('No disponible') }};{{ hostvars[entry.IP]['total_disk'] | default('No disponible') }}
           {% endfor %}
 ...
