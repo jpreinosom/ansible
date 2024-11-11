@@ -201,7 +201,6 @@
         var: subscription_status
 
     - name: Obtener información de hardware de los servidores
-      gather_facts: yes
       tasks:
       - name: Obtener el número de procesadores
         set_fact:
