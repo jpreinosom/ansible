@@ -69,7 +69,7 @@
   vars:
     postgres_db: grafana_db
     postgres_user: grafana_user
-    postgres_password: "secure_password"  # **No se usa Ansible Vault en este entorno de pruebas**
+    postgres_password: "secure_password"  # Contraseña en texto plano para entorno de pruebas
     grafana_port: 3000
   tasks:
     - name: Instalar dependencias para PostgreSQL y Grafana
@@ -104,13 +104,6 @@
         line: 'local   all             all                                     md5'
         backup: yes
       notify: Reiniciar PostgreSQL
-
-    # Esta tarea se elimina ya que 'notify' maneja el reinicio
-    # - name: Reiniciar PostgreSQL para aplicar cambios de configuración
-    #   service:
-    #     name: postgresql
-    #     state: restarted
-    #   when: "'local   all             all                                     md5' in lookup('file', '/var/lib/pgsql/data/pg_hba.conf')"
 
     - name: Crear usuario de PostgreSQL para Grafana
       become_user: postgres
