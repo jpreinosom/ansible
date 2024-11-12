@@ -5,7 +5,7 @@
   vars:
     grafana_password: password
     mysql_root_password: rootpassword
-    csv_file: /inventory/grafana.csv  # Ruta del archivo CSV
+    csv_file: "{{ playbook_dir }}/inventory/grafana.csv"  # Ruta del archivo CSV
     delimiter: ";"
 
   tasks:
