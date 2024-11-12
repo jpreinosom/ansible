@@ -77,12 +77,13 @@
           /usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds.xml
         register: scan_result_ubuntu
         changed_when: false
-        when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04"
+        when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "24.04"
   
       # Ejecutar el análisis para CentOS/RHEL
       - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS/RHEL)
         command: >
-          oscap oval eval
+          oscap oval eval 
+          --profile xccdf_org.ssgproject.content_profile_ospp
           --results /tmp/openscap-results.xml
           /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
         register: scan_result_rhel
