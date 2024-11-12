@@ -89,6 +89,7 @@
           /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
         register: scan_result_rhel
         changed_when: false
+        become: yes 
         when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
   
       # Verificar si el archivo de resultados existe
