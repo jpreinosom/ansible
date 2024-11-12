@@ -1,0 +1,99 @@
+---
+- name: Instalar Grafana, MySQL y configurar inventario de servidores
+  hosts: 192.168.100.58
+  become: yes
+  vars:
+    grafana_user: grafana
+    grafana_password: password
+    mysql_root_password: rootpassword
+
+  tasks:
+    - name: Instalar dependencias para MySQL
+      package:
+        name: 
+          - mysql-server
+          - mysql-client
+          - libmysqlclient-dev
+        state: present
+
+    - name: Iniciar y habilitar MySQL
+      service:
+        name: mysql
+        state: started
+        enabled: yes
+
+    - name: Configurar la contraseña del usuario root de MySQL
+      mysql_user:
+        name: root
+        password: "{{ mysql_root_password }}"
+        host: localhost
+        state: present
+
+    - name: Instalar Grafana en el servidor
+      package:
+        name: grafana
+        state: present
+
+    - name: Iniciar y habilitar el servicio de Grafana
+      service:
+        name: grafana-server
+        state: started
+        enabled: yes
+
+    - name: Configurar la contraseña de admin en Grafana
+      lineinfile:
+        path: /etc/grafana/grafana.ini
+        regexp: '^#admin_password ='
+        line: 'admin_password = admin'
+      notify:
+        - Reiniciar Grafana
+
+    - name: Crear base de datos para Grafana
+      mysql_db:
+        name: grafana
+        state: present
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+
+    - name: Crear usuario de base de datos para Grafana
+      mysql_user:
+        name: grafana
+        password: "{{ grafana_password }}"
+        priv: 'grafana.*:ALL'
+        state: present
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+
+    - name: Crear tabla de inventario de servidores
+      mysql_db:
+        name: grafana
+        state: import
+        target: /tmp/crear_tabla_inventario.sql
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+
+    - name: Crear archivo de script para la tabla de inventario
+      copy:
+        dest: /tmp/crear_tabla_inventario.sql
+        content: |
+          CREATE TABLE IF NOT EXISTS servidores (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            ip VARCHAR(15) NOT NULL,
+            distribucion_linux VARCHAR(50) NOT NULL,
+            version_linux VARCHAR(20) NOT NULL,
+            soportada VARCHAR(50) NOT NULL,
+            vulnerabilidad_alta INT DEFAULT 0,
+            vulnerabilidad_media INT DEFAULT 0,
+            vulnerabilidad_baja INT DEFAULT 0,
+            cantidad_procesadores INT DEFAULT 1,
+            cantidad_ram INT DEFAULT 0,
+            cantidad_disco INT DEFAULT 0
+          );
+      notify:
+        - Reiniciar Grafana
+
+  handlers:
+    - name: Reiniciar Grafana
+      service:
+        name: grafana-server
+        state: restarted
