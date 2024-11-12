@@ -1,27 +1,25 @@
 ---
-- name: Instalar Grafana y MySQL en servidores desde CSV
+# Primer Play: Leer CSV y Agregar Hosts Dinámicamente
+- name: Leer CSV y agregar hosts dinámicamente
   hosts: localhost
-  become: yes
+  gather_facts: no
   vars:
-    grafana_password: password
-    mysql_root_password: rootpassword
-    csv_file: "{{ playbook_dir }}/inventory/grafana.csv"  # Ruta del archivo CSV
+    input_file: "{{ playbook_dir }}/inventory/grafana.csv"  # Ruta completa del CSV
     delimiter: ";"
-
   tasks:
     - name: Verificar que el archivo CSV existe
       stat:
-        path: "{{ csv_file }}"
+        path: "{{ input_file }}"
       register: file_check
 
     - name: Fallar si el archivo de inventario no existe
       fail:
-        msg: "El archivo de inventario {{ csv_file }} no existe."
+        msg: "El archivo de inventario {{ input_file }} no existe."
       when: not file_check.stat.exists
 
     - name: Leer contenido del archivo CSV
       set_fact:
-        csv_content: "{{ lookup('file', csv_file) }}"
+        csv_content: "{{ lookup('file', input_file) }}"
 
     - name: Extraer encabezados del CSV
       set_fact:
@@ -52,52 +50,74 @@
         groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_password: "{{ item.Contraseña }}"
-        ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
+        ansible_python_interpreter: /usr/bin/python3
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
 
+    - name: Mostrar estructura completa de csv_data (Opcional)
+      debug:
+        var: csv_data
+
+# Segundo Play: Instalar Python3-DNF, MySQL y Grafana en Hosts Dinámicos
+- name: Instalar Python3-DNF, MySQL y Grafana en hosts dinámicos
+  hosts: dynamic_hosts
+  become: yes
+  vars:
+    grafana_password: admin
+    mysql_root_password: rootpassword
+  tasks:
+    - name: Verificar si python3-dnf está instalado
+      stat:
+        path: /usr/lib/python3.11/site-packages/dnf
+      register: dnf_module
+
+    - name: Instalar python3-dnf si no está instalado
+      raw: dnf install -y python3-dnf
+      when: not dnf_module.stat.exists
+
+    - name: Reiniciar el servicio SSH si se instaló python3-dnf
+      raw: systemctl restart sshd
+      when: not dnf_module.stat.exists
+
+    - name: Recolectar hechos después de instalar python3-dnf
+      setup:
+        gather_subset:
+          - all
+      when: not dnf_module.stat.exists
+
     - name: Instalar dependencias para MySQL
       package:
-        name:
+        name: 
           - mysql-server
           - mysql-client
           - libmysqlclient-dev
         state: present
-      become: yes
-      when: ansible_host is defined
 
     - name: Iniciar y habilitar MySQL
       service:
         name: mysqld
         state: started
         enabled: yes
-      become: yes
-      when: ansible_host is defined
 
     - name: Configurar la contraseña del usuario root de MySQL
       shell: |
         mysqladmin -u root password "{{ mysql_root_password }}"
+      args:
+        warn: false
       ignore_errors: yes
-      become: yes
-      when: ansible_host is defined
 
     - name: Instalar Grafana en el servidor
       package:
         name: grafana
         state: present
-      become: yes
-      when: ansible_host is defined
 
     - name: Iniciar y habilitar el servicio de Grafana
       service:
         name: grafana-server
         state: started
         enabled: yes
-      become: yes
-      when: ansible_host is defined
 
     - name: Configurar la contraseña de admin en Grafana
       lineinfile:
@@ -106,22 +126,20 @@
         line: 'admin_password = admin'
       notify:
         - Reiniciar Grafana
-      become: yes
-      when: ansible_host is defined
 
     - name: Crear base de datos para Grafana
       shell: |
         mysql -u root -p{{ mysql_root_password }} -e "CREATE DATABASE IF NOT EXISTS grafana;"
+      args:
+        warn: false
       ignore_errors: yes
-      become: yes
-      when: ansible_host is defined
 
     - name: Crear usuario de base de datos para Grafana
       shell: |
         mysql -u root -p{{ mysql_root_password }} -e "GRANT ALL PRIVILEGES ON grafana.* TO 'grafana'@'localhost' IDENTIFIED BY '{{ grafana_password }}';"
+      args:
+        warn: false
       ignore_errors: yes
-      become: yes
-      when: ansible_host is defined
 
     - name: Crear tabla de inventario de servidores
       shell: |
@@ -138,13 +156,12 @@
           cantidad_ram INT DEFAULT 0,
           cantidad_disco INT DEFAULT 0
         );"
+      args:
+        warn: false
       ignore_errors: yes
-      become: yes
-      when: ansible_host is defined
 
   handlers:
     - name: Reiniciar Grafana
       service:
         name: grafana-server
         state: restarted
-      become: yes
