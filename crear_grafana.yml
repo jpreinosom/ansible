@@ -64,6 +64,8 @@
 - name: Instalar PostgreSQL y Grafana en hosts dinámicos
   hosts: dynamic_hosts
   become: yes
+  collections:
+    - community.postgresql
   vars:
     grafana_password: admin
     postgres_password: secure_postgres_password  # Contraseña para el usuario de PostgreSQL de Grafana
@@ -124,7 +126,7 @@
     # Paso 7: Establecer la Contraseña del Usuario 'postgres'
     - name: Establecer la contraseña del usuario 'postgres'
       become_user: postgres
-      community.postgresql.postgresql_user:
+      postgresql_user:
         name: postgres
         password: "{{ postgres_password }}"
         state: present
@@ -132,7 +134,7 @@
     # Paso 8: Crear Base de Datos para Grafana
     - name: Crear base de datos para Grafana
       become_user: postgres
-      community.postgresql.postgresql_db:
+      postgresql_db:
         name: grafana
         encoding: UTF-8
         lc_collate: 'en_US.UTF-8'
@@ -142,7 +144,7 @@
     # Paso 9: Crear Usuario de Base de Datos para Grafana
     - name: Crear usuario de base de datos para Grafana
       become_user: postgres
-      community.postgresql.postgresql_user:
+      postgresql_user:
         name: grafana
         password: "{{ grafana_password }}"
         priv: "grafana:ALL"
@@ -210,7 +212,7 @@
     # Paso 16: Crear Tabla de Inventario de Servidores en PostgreSQL
     - name: Crear tabla de inventario de servidores en PostgreSQL
       become_user: postgres
-      community.postgresql.postgresql_query:
+      postgresql_query:
         db: grafana
         query: |
           CREATE TABLE IF NOT EXISTS servidores (
