@@ -7,9 +7,6 @@
   vars:
     input_file: "{{ playbook_dir }}/inventory/grafana.csv"  # Ruta al archivo CSV
     delimiter: ";"  # Delimitador de campos en el CSV
-  vars_files:
-    # Si tienes variables adicionales, descomenta y ajusta la línea siguiente
-    # - vars/eol_map.yml
   tasks:
     - name: Verificar que el archivo CSV existe
       stat:
@@ -73,27 +70,6 @@
     postgres_user: grafana_user
     postgres_password: "secure_password"  # **Recomendado:** Usar Ansible Vault para manejar contraseñas
     grafana_port: 3000
-  pre_tasks:
-    - name: Instalar la colección community.postgresql
-      ansible.builtin.command:
-        cmd: ansible-galaxy collection install community.postgresql
-      register: install_collection
-      changed_when: "'community.postgresql' in install_collection.stdout"
-      ignore_errors: yes
-      tags: install_collection
-
-    - name: Verificar instalación de la colección community.postgresql
-      ansible.builtin.command:
-        cmd: ansible-galaxy collection list
-      register: collection_list
-      changed_when: false
-
-    - name: Fallar si la colección community.postgresql no está instalada
-      ansible.builtin.fail:
-        msg: "La colección community.postgresql no está instalada y no pudo ser instalada automáticamente."
-      when: "'community.postgresql' not in collection_list.stdout"
-      tags: verify_collection
-
   tasks:
     - name: Instalar dependencias para PostgreSQL y Grafana
       dnf:
@@ -102,28 +78,24 @@
           - postgresql-contrib
           - grafana
         state: present
-      tags: install_packages
 
     - name: Inicializar la base de datos de PostgreSQL
       command: /usr/bin/postgresql-setup --initdb
       args:
         creates: /var/lib/pgsql/data/PG_VERSION
       when: "'postgresql-server' in ansible_facts.packages"
-      tags: init_db
 
     - name: Iniciar y habilitar el servicio de PostgreSQL
       service:
         name: postgresql
         state: started
         enabled: yes
-      tags: start_postgres
 
     - name: Iniciar y habilitar el servicio de Grafana
       service:
         name: grafana-server
         state: started
         enabled: yes
-      tags: start_grafana
 
     - name: Configurar la autenticación de PostgreSQL para permitir conexiones locales
       lineinfile:
@@ -132,34 +104,38 @@
         line: 'local   all             all                                     md5'
         backup: yes
       notify: Reiniciar PostgreSQL
-      tags: configure_postgres_auth
 
     - name: Reiniciar PostgreSQL para aplicar cambios de configuración
       service:
         name: postgresql
         state: restarted
       when: "'local   all             all                                     md5' in lookup('file', '/var/lib/pgsql/data/pg_hba.conf')"
-      tags: restart_postgres
 
     - name: Crear usuario de PostgreSQL para Grafana
-      community.postgresql.postgresql_user:
-        name: "{{ postgres_user }}"
-        password: "{{ postgres_password }}"
-        priv: "ALL"
-        state: present
       become_user: postgres
-      tags: create_pg_user
+      shell: |
+        psql -c "DO \$\$ BEGIN
+          IF NOT EXISTS (
+            SELECT FROM pg_catalog.pg_user
+            WHERE usename = '{{ postgres_user }}') THEN
+              CREATE USER {{ postgres_user }} WITH PASSWORD '{{ postgres_password }}';
+        END IF;
+        END \$\$;"
+      args:
+        executable: /bin/bash
 
     - name: Crear base de datos para Grafana
-      community.postgresql.postgresql_db:
-        name: "{{ postgres_db }}"
-        owner: "{{ postgres_user }}"
-        encoding: UTF8
-        lc_collate: en_US.UTF-8
-        lc_ctype: en_US.UTF-8
-        state: present
       become_user: postgres
-      tags: create_pg_db
+      shell: |
+        psql -c "DO \$\$ BEGIN
+          IF NOT EXISTS (
+            SELECT FROM pg_database
+            WHERE datname = '{{ postgres_db }}') THEN
+              CREATE DATABASE {{ postgres_db }} OWNER {{ postgres_user }} ENCODING 'UTF8' LC_COLLATE 'en_US.UTF-8' LC_CTYPE 'en_US.UTF-8';
+        END IF;
+        END \$\$;"
+      args:
+        executable: /bin/bash
 
     - name: Configurar Grafana para usar PostgreSQL
       blockinfile:
@@ -172,26 +148,24 @@
           user = {{ postgres_user }}
           password = {{ postgres_password }}
       notify: Reiniciar Grafana
-      tags: configure_grafana
 
     - name: Crear tabla de inventario en PostgreSQL
-      community.postgresql.postgresql_query:
-        db: "{{ postgres_db }}"
-        query: |
-          CREATE TABLE IF NOT EXISTS inventory (
-            ip VARCHAR(15) PRIMARY KEY,
-            distribucion_linux VARCHAR(50),
-            version_linux VARCHAR(20),
-            soportado TEXT,
-            vulnerabilidades_altas INTEGER,
-            vulnerabilidades_medias INTEGER,
-            vulnerabilidades_bajas INTEGER,
-            cantidad_procesadores INTEGER,
-            cantidad_ram INTEGER,
-            cantidad_disco_duro INTEGER
-          );
       become_user: postgres
-      tags: create_table
+      shell: |
+        psql -d {{ postgres_db }} -c "CREATE TABLE IF NOT EXISTS inventory (
+          ip VARCHAR(15) PRIMARY KEY,
+          distribucion_linux VARCHAR(50),
+          version_linux VARCHAR(20),
+          soportado TEXT,
+          vulnerabilidades_altas INTEGER,
+          vulnerabilidades_medias INTEGER,
+          vulnerabilidades_bajas INTEGER,
+          cantidad_procesadores INTEGER,
+          cantidad_ram INTEGER,
+          cantidad_disco_duro INTEGER
+        );"
+      args:
+        executable: /bin/bash
 
   handlers:
     - name: Reiniciar PostgreSQL
