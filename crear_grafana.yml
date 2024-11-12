@@ -6,21 +6,58 @@
     grafana_password: password
     mysql_root_password: rootpassword
     csv_file: /inventory/grafana.csv  # Ruta del archivo CSV
+    delimiter: ";"
 
   tasks:
-    - name: Leer el archivo CSV para obtener los servidores
-      read_csv:
+    - name: Verificar que el archivo CSV existe
+      stat:
         path: "{{ csv_file }}"
-        delimiter: ";"
-      register: server_list
+      register: file_check
 
-    - name: Añadir los servidores al inventario dinámico
+    - name: Fallar si el archivo de inventario no existe
+      fail:
+        msg: "El archivo de inventario {{ csv_file }} no existe."
+      when: not file_check.stat.exists
+
+    - name: Leer contenido del archivo CSV
+      set_fact:
+        csv_content: "{{ lookup('file', csv_file) }}"
+
+    - name: Extraer encabezados del CSV
+      set_fact:
+        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del CSV
+      set_fact:
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != headers | length
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas para crear diccionarios
+      set_fact:
+        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
       add_host:
         name: "{{ item.IP }}"
+        groups: dynamic_hosts
+        ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
+        ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
-        ansible_python_interpreter: /usr/bin/python3
-      with_items: "{{ server_list.list }}"
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
 
     - name: Instalar dependencias para MySQL
       package:
