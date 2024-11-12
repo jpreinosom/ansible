@@ -79,9 +79,11 @@
   
       - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS/RHEL)
         command: >
-          oscap oval eval
-          --results /tmp/openscap-results.xml
-          /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
+           oscap xccdf eval
+            --profile xccdf_org.ssgproject.content_profile_ospp
+            --results /tmp/openscap-results-rhel.xml
+           --report /tmp/openscap-report-rhel.html
+            /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
         register: scan_result_rhel
         changed_when: false
         when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
