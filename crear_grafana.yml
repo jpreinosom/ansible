@@ -7,6 +7,7 @@
     ansible_host: 192.168.100.58
     ansible_user: grafana
     ansible_ssh_pass: password
+    ansible_python_interpreter: /usr/bin/python3  # Especifica el intérprete de Python 3
     grafana_user: grafana
     grafana_password: password
     mysql_root_password: rootpassword
