@@ -71,6 +71,8 @@
     postgres_user: grafana_user
     postgres_password: "secure_password"  # **Recomendado:** Usar Ansible Vault para manejar contraseñas
     grafana_port: 3000
+  vars_files:
+    - vars.yml  # Archivo de variables cifrado con Ansible Vault
   tasks:
     - name: Instalar dependencias para PostgreSQL y Grafana
       dnf:
@@ -80,17 +82,11 @@
           - grafana
         state: present
 
-    - name: Inicializar la base de datos de PostgreSQL
-      command: /usr/bin/postgresql-setup --initdb
-      args:
-        creates: /var/lib/pgsql/data/PG_VERSION
-      when: "'postgresql-server' in ansible_facts.packages"
-
-    - name: Gather package facts
+    - name: Recopilar información sobre paquetes instalados
       package_facts:
         manager: dnf
 
-    - name: Inicializar la base de datos de PostgreSQL (reintento)
+    - name: Inicializar la base de datos de PostgreSQL
       command: /usr/bin/postgresql-setup --initdb
       args:
         creates: /var/lib/pgsql/data/PG_VERSION
