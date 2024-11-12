@@ -65,7 +65,7 @@
 - name: Instalar y configurar Grafana y PostgreSQL en servidores definidos
   hosts: grafana_hosts
   become: yes
-  gather_facts: yes  # Asegúrate de que 'gather_facts' esté habilitado
+  gather_facts: yes
   vars:
     postgres_db: grafana_db
     postgres_user: grafana_user
@@ -88,12 +88,6 @@
     - name: Iniciar y habilitar el servicio de PostgreSQL
       service:
         name: postgresql
-        state: started
-        enabled: yes
-
-    - name: Iniciar y habilitar el servicio de Grafana
-      service:
-        name: grafana-server
         state: started
         enabled: yes
 
@@ -130,7 +124,6 @@
         path: /etc/grafana/grafana.ini
         regexp: '^;?type\s*='
         line: 'type = postgres'
-        section: database
         insertafter: '^# You can configure the database connection'
       notify: Reiniciar Grafana
 
@@ -139,7 +132,6 @@
         path: /etc/grafana/grafana.ini
         regexp: '^;?host\s*='
         line: 'host = localhost:5432'
-        section: database
         insertafter: '^type = postgres'
       notify: Reiniciar Grafana
 
@@ -148,7 +140,6 @@
         path: /etc/grafana/grafana.ini
         regexp: '^;?name\s*='
         line: 'name = {{ postgres_db }}'
-        section: database
         insertafter: '^host = localhost:5432'
       notify: Reiniciar Grafana
 
@@ -157,7 +148,6 @@
         path: /etc/grafana/grafana.ini
         regexp: '^;?user\s*='
         line: 'user = {{ postgres_user }}'
-        section: database
         insertafter: '^name = {{ postgres_db }}'
       notify: Reiniciar Grafana
 
@@ -166,7 +156,6 @@
         path: /etc/grafana/grafana.ini
         regexp: '^;?password\s*='
         line: 'password = {{ postgres_password }}'
-        section: database
         insertafter: '^user = {{ postgres_user }}'
       notify: Reiniciar Grafana
 
