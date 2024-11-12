@@ -1,5 +1,5 @@
 ---
-# Playbook: crear_grafana.yml
+# Playbook: crear_grafana_postgres.yml
 
 - name: Leer y procesar el inventario CSV
   hosts: localhost
@@ -69,120 +69,171 @@
   vars:
     postgres_db: grafana_db
     postgres_user: grafana_user
-    postgres_password: "secure_password"  # Contraseña en texto plano para entorno de pruebas
+    postgres_password: "grafana_password"  # Contraseña en texto plano para entorno de pruebas
+    postgres_superuser_password: "password"  # Contraseña para el usuario 'postgres'
     grafana_port: 3000
+    grafana_ini_path: "/etc/grafana/grafana.ini"
   tasks:
-    - name: Instalar dependencias para PostgreSQL y Grafana
-      dnf:
+    - name: Instalar el repositorio de PostgreSQL
+      yum:
+        name: https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+        state: present
+
+    - name: Deshabilitar el módulo de PostgreSQL predeterminado de RHEL
+      command: dnf -qy module disable postgresql
+      ignore_errors: yes
+
+    - name: Instalar PostgreSQL y sus dependencias
+      yum:
         name:
-          - postgresql-server
-          - postgresql-contrib
+          - postgresql14-server
+          - postgresql14
+          - postgresql14-contrib
           - grafana
         state: present
 
     - name: Inicializar la base de datos de PostgreSQL si no está inicializada
-      command: /usr/bin/postgresql-setup --initdb
+      command: /usr/pgsql-14/bin/postgresql-14-setup initdb
       args:
-        creates: /var/lib/pgsql/data/PG_VERSION
+        creates: /var/lib/pgsql/14/data/PG_VERSION
 
-    - name: Iniciar y habilitar el servicio de PostgreSQL
-      service:
-        name: postgresql
-        state: started
+    - name: Habilitar y iniciar el servicio de PostgreSQL
+      systemd:
+        name: postgresql-14
         enabled: yes
+        state: started
 
-    - name: Configurar la autenticación de PostgreSQL para permitir conexiones locales
-      lineinfile:
-        path: /var/lib/pgsql/data/pg_hba.conf
-        regexp: '^local\s+all\s+all\s+peer'
-        line: 'local   all             all                                     md5'
-        backup: yes
+    - name: Configurar 'pg_hba.conf' para autenticación 'md5' en IPv4 e IPv6
+      blockinfile:
+        path: /var/lib/pgsql/14/data/pg_hba.conf
+        block: |
+          # Configuración añadida por Ansible para Grafana
+          host    all             all             127.0.0.1/32            md5
+          host    all             all             ::1/128                 md5
       notify: Reiniciar PostgreSQL
 
-    - name: Crear usuario de PostgreSQL para Grafana
-      shell: |
-        PGPASSWORD="" psql -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='{{ postgres_user }}';" | grep -q 1 || psql -U postgres -c "CREATE USER {{ postgres_user }} WITH PASSWORD '{{ postgres_password }}';"
-      args:
-        executable: /bin/bash
+    - name: Configurar 'listen_addresses' en 'postgresql.conf'
+      lineinfile:
+        path: /var/lib/pgsql/14/data/postgresql.conf
+        regexp: '^#?listen_addresses\s*='
+        line: "listen_addresses = 'localhost'"
+      notify: Reiniciar PostgreSQL
 
-    - name: Verificar si la base de datos 'grafana_db' existe
-      shell: |
-        PGPASSWORD="" psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='{{ postgres_db }}';"
-      register: db_exists
-      args:
-        executable: /bin/bash
+    - name: Establecer la contraseña del usuario 'postgres'
+      postgresql_user:
+        name: postgres
+        password: "{{ postgres_superuser_password }}"
+        role_attr_flags: SUPERUSER
+      become_user: postgres
+
+    - name: Crear usuario de PostgreSQL para Grafana
+      postgresql_user:
+        name: "{{ postgres_user }}"
+        password: "{{ postgres_password }}"
+        priv: "{{ postgres_db }}:ALL"
+        role_attr_flags: LOGIN
+        state: present
+      become_user: postgres
 
     - name: Crear base de datos para Grafana si no existe
-      shell: |
-        PGPASSWORD="" psql -U postgres -c "CREATE DATABASE {{ postgres_db }} OWNER {{ postgres_user }} ENCODING 'UTF8' LC_COLLATE 'en_US.UTF-8' LC_CTYPE 'en_US.UTF-8';"
-      when: db_exists.stdout.strip() != "1"
-      args:
-        executable: /bin/bash
+      postgresql_db:
+        name: "{{ postgres_db }}"
+        owner: "{{ postgres_user }}"
+        encoding: UTF8
+        lc_collate: 'en_US.UTF-8'
+        lc_ctype: 'en_US.UTF-8'
+        template: template0
+        state: present
+      become_user: postgres
 
     - name: Configurar Grafana para usar PostgreSQL - Tipo de Base de Datos
       lineinfile:
-        path: /etc/grafana/grafana.ini
-        regexp: '^;?type\s*='
+        path: "{{ grafana_ini_path }}"
+        regexp: '^type\s*='
         line: 'type = postgres'
         insertafter: '^# You can configure the database connection'
       notify: Reiniciar Grafana
 
     - name: Configurar Grafana para usar PostgreSQL - Host
       lineinfile:
-        path: /etc/grafana/grafana.ini
-        regexp: '^;?host\s*='
-        line: 'host = localhost:5432'
+        path: "{{ grafana_ini_path }}"
+        regexp: '^host\s*='
+        line: 'host = 127.0.0.1:5432'
         insertafter: '^type = postgres'
       notify: Reiniciar Grafana
 
     - name: Configurar Grafana para usar PostgreSQL - Nombre de la Base de Datos
       lineinfile:
-        path: /etc/grafana/grafana.ini
-        regexp: '^;?name\s*='
-        line: 'name = {{ postgres_db }}'
-        insertafter: '^host = localhost:5432'
+        path: "{{ grafana_ini_path }}"
+        regexp: '^name\s*='
+        line: "name = {{ postgres_db }}"
+        insertafter: '^host = 127.0.0.1:5432'
       notify: Reiniciar Grafana
 
     - name: Configurar Grafana para usar PostgreSQL - Usuario
       lineinfile:
-        path: /etc/grafana/grafana.ini
-        regexp: '^;?user\s*='
-        line: 'user = {{ postgres_user }}'
+        path: "{{ grafana_ini_path }}"
+        regexp: '^user\s*='
+        line: "user = {{ postgres_user }}"
         insertafter: '^name = {{ postgres_db }}'
       notify: Reiniciar Grafana
 
     - name: Configurar Grafana para usar PostgreSQL - Contraseña
       lineinfile:
-        path: /etc/grafana/grafana.ini
-        regexp: '^;?password\s*='
-        line: 'password = {{ postgres_password }}'
+        path: "{{ grafana_ini_path }}"
+        regexp: '^password\s*='
+        line: "password = {{ postgres_password }}"
         insertafter: '^user = {{ postgres_user }}'
       notify: Reiniciar Grafana
 
-    - name: Crear tabla de inventario en PostgreSQL
-      shell: |
-        PGPASSWORD="{{ postgres_password }}" psql -U {{ postgres_user }} -d {{ postgres_db }} -c "CREATE TABLE IF NOT EXISTS inventory (
-          ip VARCHAR(15) PRIMARY KEY,
-          distribucion_linux VARCHAR(50),
-          version_linux VARCHAR(20),
-          soportado TEXT,
-          vulnerabilidades_altas INTEGER,
-          vulnerabilidades_medias INTEGER,
-          vulnerabilidades_bajas INTEGER,
-          cantidad_procesadores INTEGER,
-          cantidad_ram INTEGER,
-          cantidad_disco_duro INTEGER
-        );"
-      args:
-        executable: /bin/bash
+    - name: Configurar SELinux para permitir conexiones de Grafana a PostgreSQL
+      seboolean:
+        name: httpd_can_network_connect_db
+        state: yes
+        persistent: yes
+
+    - name: Abrir puerto 3000 para Grafana en el firewall
+      firewalld:
+        port: "{{ grafana_port }}/tcp"
+        permanent: yes
+        state: enabled
+      notify: Reiniciar Firewall
+
+    - name: Abrir puerto 5432 para PostgreSQL en el firewall
+      firewalld:
+        port: 5432/tcp
+        permanent: yes
+        state: enabled
+      notify: Reiniciar Firewall
+
+    - name: Establecer permisos adecuados en directorios de Grafana
+      file:
+        path: "{{ item }}"
+        owner: grafana
+        group: grafana
+        mode: '0750'
+        recurse: yes
+      loop:
+        - /etc/grafana
+        - /var/lib/grafana
+        - /var/log/grafana
+
+    - name: Iniciar y habilitar el servicio de Grafana
+      systemd:
+        name: grafana-server
+        enabled: yes
+        state: started
 
   handlers:
     - name: Reiniciar PostgreSQL
-      service:
-        name: postgresql
+      systemd:
+        name: postgresql-14
         state: restarted
 
     - name: Reiniciar Grafana
-      service:
+      systemd:
         name: grafana-server
         state: restarted
+
+    - name: Reiniciar Firewall
+      command: firewall-cmd --reload
