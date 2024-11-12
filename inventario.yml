@@ -227,4 +227,4 @@
             IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion;Vulnerabilidades_Altas;Vulnerabilidades_Medias;Vulnerabilidades_Bajas;Procesadores;RAM_MB;Espacio_Disponible_MB
             {% for entry in hostvars['localhost']['csv_data'] %}
             {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') | trim }};{{ hostvars[
-  
+...
