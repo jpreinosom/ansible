@@ -65,6 +65,7 @@
 - name: Instalar y configurar Grafana y PostgreSQL en servidores definidos
   hosts: grafana_hosts
   become: yes
+  gather_facts: yes  # Asegúrate de que 'gather_facts' esté habilitado
   vars:
     postgres_db: grafana_db
     postgres_user: grafana_user
@@ -80,6 +81,16 @@
         state: present
 
     - name: Inicializar la base de datos de PostgreSQL
+      command: /usr/bin/postgresql-setup --initdb
+      args:
+        creates: /var/lib/pgsql/data/PG_VERSION
+      when: "'postgresql-server' in ansible_facts.packages"
+
+    - name: Gather package facts
+      package_facts:
+        manager: dnf
+
+    - name: Inicializar la base de datos de PostgreSQL (reintento)
       command: /usr/bin/postgresql-setup --initdb
       args:
         creates: /var/lib/pgsql/data/PG_VERSION
