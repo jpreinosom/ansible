@@ -68,7 +68,7 @@
     - community.postgresql
   vars:
     grafana_password: admin
-    postgres_password: secure_postgres_password  # Contraseña para el usuario de PostgreSQL de Grafana
+    postgres_password: password  # Contraseña para el usuario de PostgreSQL de Grafana
     grafana_admin_password: admin  # Contraseña de administrador de Grafana
     postgresql_version: "13"  # Cambia según la versión que desees
     postgresql_repo_url: "https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
