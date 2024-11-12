@@ -1,242 +1,157 @@
 ---
-# Primer Play: Leer CSV y Agregar Hosts Dinámicamente
-- name: Leer CSV y agregar hosts dinámicamente
+- name: Definir hosts desde el archivo CSV
   hosts: localhost
+  connection: local
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventory/grafana.csv"  # Ruta completa del CSV
-    delimiter: ";"
+    csv_file_path: "{{ playbook_dir }}/inventory/grafana.csv"
   tasks:
-    - name: Verificar que el archivo CSV existe
-      stat:
-        path: "{{ input_file }}"
-      register: file_check
+    - name: Leer el archivo CSV de inventario
+      community.general.read_csv:
+        path: "{{ csv_file_path }}"
+        delimiter: ";"
+      register: servers
 
-    - name: Fallar si el archivo de inventario no existe
-      fail:
-        msg: "El archivo de inventario {{ input_file }} no existe."
-      when: not file_check.stat.exists
-
-    - name: Leer contenido del archivo CSV
-      set_fact:
-        csv_content: "{{ lookup('file', input_file) }}"
-
-    - name: Extraer encabezados del CSV
-      set_fact:
-        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
-
-    - name: Extraer filas del CSV
-      set_fact:
-        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
-
-    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
-      fail:
-        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
-      when: row | length != headers | length
-      loop: "{{ rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Combinar encabezados con filas para crear diccionarios
-      set_fact:
-        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
-      loop: "{{ rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
+    - name: Agregar hosts al grupo grafana_hosts
       add_host:
         name: "{{ item.IP }}"
-        groups: dynamic_hosts
-        ansible_host: "{{ item.IP }}"
-        ansible_user: "{{ item.Usuario }}"
-        ansible_ssh_pass: "{{ item.Contraseña }}"
-        ansible_python_interpreter: /usr/bin/python3
-      loop: "{{ csv_data }}"
-      loop_control:
-        loop_var: item
+        groups: grafana_hosts
+        ansible_user: "{{ item.USUARIO }}"
+        ansible_password: "{{ item.CONTRASEÑA }}"
+        ansible_connection: ssh
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+      loop: "{{ servers.list }}"
+      when: item.IP is defined and item.USUARIO is defined and item.CONTRASEÑA is defined
 
-    - name: Mostrar estructura completa de csv_data (Opcional)
-      debug:
-        var: csv_data
-
-# Segundo Play: Instalar PostgreSQL y Grafana en Hosts Dinámicos
-- name: Instalar PostgreSQL y Grafana en hosts dinámicos
-  hosts: dynamic_hosts
+- name: Instalar y configurar Grafana y PostgreSQL en servidores definidos
+  hosts: grafana_hosts
   become: yes
-  vars_files:
-    - vault.yml  # Archivo encriptado con Ansible Vault
   vars:
-    grafana_admin_password: admin  # Contraseña de administrador de Grafana
-    postgresql_version: "14"  # Cambia según la versión que desees
-    postgresql_repo_url: "https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
-    postgresql_gpgkey_url: "https://download.postgresql.org/pub/repos/yum/RPM-GPG-KEY-PGDG"
-    grafana_repo_gpgkey: "https://packages.grafana.com/gpg.key"
-  tasks:
-    # Paso 1: Descargar el repositorio de PostgreSQL
-    - name: Descargar el repositorio de PostgreSQL
-      get_url:
-        url: "{{ postgresql_repo_url }}"
-        dest: /tmp/pgdg-redhat-repo-latest.noarch.rpm
-      become: yes
-
-    # Paso 2: Importar la Clave GPG de PostgreSQL
-    - name: Importar clave GPG de PostgreSQL
-      rpm_key:
-        key: "{{ postgresql_gpgkey_url }}"
-        state: present
-      become: yes
-
-    # Paso 3: Instalar el repositorio de PostgreSQL
-    - name: Instalar el repositorio de PostgreSQL
-      yum:
-        name: /tmp/pgdg-redhat-repo-latest.noarch.rpm
-        state: present
-      become: yes
-
-    # Paso 4: Deshabilitar el Módulo Predeterminado de PostgreSQL
-    - name: Deshabilitar el módulo predeterminado de PostgreSQL
-      command: dnf -qy module disable postgresql
+    postgres_db: grafana_db
+    postgres_user: grafana_user
+    postgres_password: "secure_password"  # **Recomendado:** Usar Ansible Vault para manejar contraseñas
+    grafana_port: 3000
+  pre_tasks:
+    - name: Instalar la colección community.postgresql
+      ansible.builtin.command:
+        cmd: ansible-galaxy collection install community.postgresql
+      register: install_collection
+      changed_when: "'community.postgresql' in install_collection.stdout"
       ignore_errors: yes
-      become: yes
+      tags: install_collection
 
-    # Paso 5: Instalar PostgreSQL
-    - name: Instalar PostgreSQL Server
-      yum:
-        name: "postgresql{{ postgresql_version }}-server"
+    - name: Verificar instalación de la colección community.postgresql
+      ansible.builtin.fail:
+        msg: "La colección community.postgresql no está instalada y no pudo ser instalada automáticamente."
+      when: "'community.postgresql' not in lookup('ansible.builtin.command', 'ansible-galaxy collection list')"
+      tags: verify_collection
+
+  tasks:
+    - name: Instalar dependencias para PostgreSQL y Grafana
+      dnf:
+        name:
+          - postgresql-server
+          - postgresql-contrib
+          - grafana
         state: present
-      become: yes
+      tags: install_packages
 
-    # Paso 6: Inicializar el Clúster de PostgreSQL
-    - name: Inicializar el clúster de base de datos PostgreSQL
-      command: "postgresql{{ postgresql_version }}-setup initdb"
+    - name: Inicializar la base de datos de PostgreSQL
+      command: /usr/bin/postgresql-setup --initdb
       args:
-        creates: "/var/lib/pgsql/{{ postgresql_version }}/data/PG_VERSION"
-      become: yes
+        creates: /var/lib/pgsql/data/PG_VERSION
+      when: "'postgresql-server' in ansible_facts.packages"
+      tags: init_db
 
-    # Paso 7: Iniciar y Habilitar el Servicio de PostgreSQL
     - name: Iniciar y habilitar el servicio de PostgreSQL
       service:
-        name: "postgresql-{{ postgresql_version }}"
+        name: postgresql
         state: started
         enabled: yes
-      become: yes
+      tags: start_postgres
 
-    # Paso 8: Establecer la Contraseña del Usuario 'postgres'
-    - name: Establecer la contraseña del usuario 'postgres'
-      become_user: postgres
-      shell: |
-        psql -c "ALTER USER postgres WITH PASSWORD '{{ postgres_password }}';"
-      args:
-        executable: /bin/bash
-
-    # Paso 9: Crear Base de Datos para Grafana
-    - name: Crear base de datos para Grafana
-      become_user: postgres
-      shell: |
-        psql -c "CREATE DATABASE grafana;"
-      args:
-        executable: /bin/bash
-      ignore_errors: yes
-
-    # Paso 10: Crear Usuario de Base de Datos para Grafana
-    - name: Crear usuario de base de datos para Grafana
-      become_user: postgres
-      shell: |
-        psql -c "CREATE USER grafana WITH PASSWORD '{{ grafana_password }}';"
-        psql -c "GRANT ALL PRIVILEGES ON DATABASE grafana TO grafana;"
-      args:
-        executable: /bin/bash
-      ignore_errors: yes
-
-    # Paso 11: Agregar el Repositorio de Grafana
-    - name: Agregar repositorio de Grafana
-      yum_repository:
-        name: grafana
-        description: "Grafana repository"
-        baseurl: https://packages.grafana.com/oss/rpm
-        repo_gpgcheck: 1
-        enabled: 1
-        gpgcheck: 1
-        gpgkey: "{{ grafana_repo_gpgkey }}"
-      notify:
-        - Importar clave GPG de Grafana
-
-    # Paso 12: Importar la Clave GPG de Grafana
-    - name: Importar clave GPG de Grafana
-      rpm_key:
-        key: "{{ grafana_repo_gpgkey }}"
-        state: present
-      become: yes
-
-    # Paso 13: Instalar Grafana
-    - name: Instalar Grafana
-      yum:
-        name: grafana
-        state: present
-      become: yes
-
-    # Paso 14: Iniciar y Habilitar el Servicio de Grafana
     - name: Iniciar y habilitar el servicio de Grafana
       service:
         name: grafana-server
         state: started
         enabled: yes
-      become: yes
+      tags: start_grafana
 
-    # Paso 15: Configurar la Contraseña de Administrador en Grafana
-    - name: Configurar la contraseña de administrador en Grafana
+    - name: Configurar la autenticación de PostgreSQL para permitir conexiones locales
       lineinfile:
-        path: /etc/grafana/grafana.ini
-        regexp: '^;admin_password ='
-        line: "admin_password = {{ grafana_admin_password }}"
-      notify:
-        - Reiniciar Grafana
+        path: /var/lib/pgsql/data/pg_hba.conf
+        regexp: '^local\s+all\s+all\s+peer'
+        line: 'local   all             all                                     md5'
+        backup: yes
+      notify: Reiniciar PostgreSQL
+      tags: configure_postgres_auth
 
-    # Paso 16: Configurar Grafana para Usar PostgreSQL como Base de Datos
-    - name: Configurar Grafana para usar PostgreSQL como base de datos
+    - name: Reiniciar PostgreSQL para aplicar cambios de configuración
+      service:
+        name: postgresql
+        state: restarted
+      when: "'local   all             all                                     md5' in lookup('file', '/var/lib/pgsql/data/pg_hba.conf')"
+      tags: restart_postgres
+
+    - name: Crear usuario de PostgreSQL para Grafana
+      community.postgresql.postgresql_user:
+        name: "{{ postgres_user }}"
+        password: "{{ postgres_password }}"
+        priv: "ALL"
+        state: present
+      become_user: postgres
+      tags: create_pg_user
+
+    - name: Crear base de datos para Grafana
+      community.postgresql.postgresql_db:
+        name: "{{ postgres_db }}"
+        owner: "{{ postgres_user }}"
+        encoding: UTF8
+        lc_collate: en_US.UTF-8
+        lc_ctype: en_US.UTF-8
+        state: present
+      become_user: postgres
+      tags: create_pg_db
+
+    - name: Configurar Grafana para usar PostgreSQL
       blockinfile:
         path: /etc/grafana/grafana.ini
         block: |
           [database]
           type = postgres
           host = localhost:5432
-          name = grafana
-          user = grafana
-          password = {{ grafana_password }}
-          ssl_mode = disable
-      notify:
-        - Reiniciar Grafana
+          name = {{ postgres_db }}
+          user = {{ postgres_user }}
+          password = {{ postgres_password }}
+      notify: Reiniciar Grafana
+      tags: configure_grafana
 
-    # Paso 17: Crear Tabla de Inventario de Servidores en PostgreSQL
-    - name: Crear tabla de inventario de servidores en PostgreSQL
+    - name: Crear tabla de inventario en PostgreSQL
+      community.postgresql.postgresql_query:
+        db: "{{ postgres_db }}"
+        query: |
+          CREATE TABLE IF NOT EXISTS inventory (
+            ip VARCHAR(15) PRIMARY KEY,
+            distribucion_linux VARCHAR(50),
+            version_linux VARCHAR(20),
+            soportado TEXT,
+            vulnerabilidades_altas INTEGER,
+            vulnerabilidades_medias INTEGER,
+            vulnerabilidades_bajas INTEGER,
+            cantidad_procesadores INTEGER,
+            cantidad_ram INTEGER,
+            cantidad_disco_duro INTEGER
+          );
       become_user: postgres
-      shell: |
-        psql -d grafana -c "CREATE TABLE IF NOT EXISTS servidores (
-          id SERIAL PRIMARY KEY,
-          ip VARCHAR(15) NOT NULL,
-          distribucion_linux VARCHAR(50) NOT NULL,
-          version_linux VARCHAR(20) NOT NULL,
-          soportada VARCHAR(50) NOT NULL,
-          vulnerabilidad_alta INT DEFAULT 0,
-          vulnerabilidad_media INT DEFAULT 0,
-          vulnerabilidad_baja INT DEFAULT 0,
-          cantidad_procesadores INT DEFAULT 1,
-          cantidad_ram INT DEFAULT 0,
-          cantidad_disco INT DEFAULT 0
-        );"
-      args:
-        executable: /bin/bash
+      tags: create_table
 
   handlers:
+    - name: Reiniciar PostgreSQL
+      service:
+        name: postgresql
+        state: restarted
+
     - name: Reiniciar Grafana
       service:
         name: grafana-server
         state: restarted
-      become: yes
-
-    - name: Importar clave GPG de Grafana
-      rpm_key:
-        key: "{{ grafana_repo_gpgkey }}"
-        state: present
-      become: yes
