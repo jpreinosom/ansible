@@ -126,44 +126,48 @@
         executable: /bin/bash
 
     - name: Configurar Grafana para usar PostgreSQL - Tipo de Base de Datos
-      ini_file:
+      lineinfile:
         path: /etc/grafana/grafana.ini
+        regexp: '^;?type\s*='
+        line: 'type = postgres'
         section: database
-        option: type
-        value: postgres
-        state: present
+        insertafter: '^# You can configure the database connection'
+      notify: Reiniciar Grafana
 
     - name: Configurar Grafana para usar PostgreSQL - Host
-      ini_file:
+      lineinfile:
         path: /etc/grafana/grafana.ini
+        regexp: '^;?host\s*='
+        line: 'host = localhost:5432'
         section: database
-        option: host
-        value: "localhost:5432"
-        state: present
+        insertafter: '^type = postgres'
+      notify: Reiniciar Grafana
 
     - name: Configurar Grafana para usar PostgreSQL - Nombre de la Base de Datos
-      ini_file:
+      lineinfile:
         path: /etc/grafana/grafana.ini
+        regexp: '^;?name\s*='
+        line: 'name = {{ postgres_db }}'
         section: database
-        option: name
-        value: "{{ postgres_db }}"
-        state: present
+        insertafter: '^host = localhost:5432'
+      notify: Reiniciar Grafana
 
     - name: Configurar Grafana para usar PostgreSQL - Usuario
-      ini_file:
+      lineinfile:
         path: /etc/grafana/grafana.ini
+        regexp: '^;?user\s*='
+        line: 'user = {{ postgres_user }}'
         section: database
-        option: user
-        value: "{{ postgres_user }}"
-        state: present
+        insertafter: '^name = {{ postgres_db }}'
+      notify: Reiniciar Grafana
 
     - name: Configurar Grafana para usar PostgreSQL - Contraseña
-      ini_file:
+      lineinfile:
         path: /etc/grafana/grafana.ini
+        regexp: '^;?password\s*='
+        line: 'password = {{ postgres_password }}'
         section: database
-        option: password
-        value: "{{ postgres_password }}"
-        state: present
+        insertafter: '^user = {{ postgres_user }}'
       notify: Reiniciar Grafana
 
     - name: Crear tabla de inventario en PostgreSQL
