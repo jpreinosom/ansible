@@ -105,11 +105,12 @@
         backup: yes
       notify: Reiniciar PostgreSQL
 
-    - name: Reiniciar PostgreSQL para aplicar cambios de configuración
-      service:
-        name: postgresql
-        state: restarted
-      when: "'local   all             all                                     md5' in lookup('file', '/var/lib/pgsql/data/pg_hba.conf')"
+    # Esta tarea se elimina ya que 'notify' maneja el reinicio
+    # - name: Reiniciar PostgreSQL para aplicar cambios de configuración
+    #   service:
+    #     name: postgresql
+    #     state: restarted
+    #   when: "'local   all             all                                     md5' in lookup('file', '/var/lib/pgsql/data/pg_hba.conf')"
 
     - name: Crear usuario de PostgreSQL para Grafana
       become_user: postgres
