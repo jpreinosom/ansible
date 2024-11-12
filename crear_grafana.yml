@@ -67,7 +67,7 @@
   vars:
     grafana_password: admin
     mysql_root_password: rootpassword
-    mysql_repo_url: https://dev.mysql.com/get/mysql80-community-release-el8-1.noarch.rpm  # Cambiar según versión deseada
+    mysql_repo_url: https://repo.mysql.com/mysql80-community-release-el8-3.noarch.rpm  # URL actualizada
   tasks:
     - name: Verificar si python3-dnf está instalado
       stat:
@@ -91,16 +91,16 @@
     - name: Descargar el repositorio de MySQL
       get_url:
         url: "{{ mysql_repo_url }}"
-        dest: /tmp/mysql80-community-release-el8-1.noarch.rpm
+        dest: /tmp/mysql80-community-release-el8-3.noarch.rpm
       become: yes
 
     - name: Instalar el repositorio de MySQL
       yum:
-        name: /tmp/mysql80-community-release-el8-1.noarch.rpm
+        name: /tmp/mysql80-community-release-el8-3.noarch.rpm
         state: present
       become: yes
 
-    - name: Deshabilitar el repositorio MySQL 8.0 si es necesario
+    - name: Deshabilitar repositorios innecesarios de MySQL (Opcional)
       yum_repository:
         name: mysql80-community
         enabled: yes
@@ -122,7 +122,7 @@
         enabled: yes
       become: yes
 
-    - name: Obtener la contraseña temporal de MySQL (si es primera instalación)
+    - name: Obtener la contraseña temporal de MySQL (si es la primera instalación)
       shell: grep 'temporary password' /var/log/mysqld.log | awk '{print $NF}'
       register: temp_password
       when: mysql_root_password == "rootpassword"
