@@ -23,11 +23,9 @@
         enabled: yes
 
     - name: Configurar la contraseña del usuario root de MySQL
-      mysql_user:
-        name: root
-        password: "{{ mysql_root_password }}"
-        host: localhost
-        state: present
+      shell: |
+        mysqladmin -u root password "{{ mysql_root_password }}"
+      ignore_errors: yes
 
     - name: Instalar Grafana en el servidor
       package:
@@ -49,48 +47,31 @@
         - Reiniciar Grafana
 
     - name: Crear base de datos para Grafana
-      mysql_db:
-        name: grafana
-        state: present
-        login_user: root
-        login_password: "{{ mysql_root_password }}"
+      shell: |
+        mysql -u root -p{{ mysql_root_password }} -e "CREATE DATABASE IF NOT EXISTS grafana;"
+      ignore_errors: yes
 
     - name: Crear usuario de base de datos para Grafana
-      mysql_user:
-        name: grafana
-        password: "{{ grafana_password }}"
-        priv: 'grafana.*:ALL'
-        state: present
-        login_user: root
-        login_password: "{{ mysql_root_password }}"
+      shell: |
+        mysql -u root -p{{ mysql_root_password }} -e "GRANT ALL PRIVILEGES ON grafana.* TO 'grafana'@'localhost' IDENTIFIED BY '{{ grafana_password }}';"
+      ignore_errors: yes
 
     - name: Crear tabla de inventario de servidores
-      mysql_db:
-        name: grafana
-        state: import
-        target: /tmp/crear_tabla_inventario.sql
-        login_user: root
-        login_password: "{{ mysql_root_password }}"
-
-    - name: Crear archivo de script para la tabla de inventario
-      copy:
-        dest: /tmp/crear_tabla_inventario.sql
-        content: |
-          CREATE TABLE IF NOT EXISTS servidores (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            ip VARCHAR(15) NOT NULL,
-            distribucion_linux VARCHAR(50) NOT NULL,
-            version_linux VARCHAR(20) NOT NULL,
-            soportada VARCHAR(50) NOT NULL,
-            vulnerabilidad_alta INT DEFAULT 0,
-            vulnerabilidad_media INT DEFAULT 0,
-            vulnerabilidad_baja INT DEFAULT 0,
-            cantidad_procesadores INT DEFAULT 1,
-            cantidad_ram INT DEFAULT 0,
-            cantidad_disco INT DEFAULT 0
-          );
-      notify:
-        - Reiniciar Grafana
+      shell: |
+        mysql -u root -p{{ mysql_root_password }} -e "USE grafana; CREATE TABLE IF NOT EXISTS servidores (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          ip VARCHAR(15) NOT NULL,
+          distribucion_linux VARCHAR(50) NOT NULL,
+          version_linux VARCHAR(20) NOT NULL,
+          soportada VARCHAR(50) NOT NULL,
+          vulnerabilidad_alta INT DEFAULT 0,
+          vulnerabilidad_media INT DEFAULT 0,
+          vulnerabilidad_baja INT DEFAULT 0,
+          cantidad_procesadores INT DEFAULT 1,
+          cantidad_ram INT DEFAULT 0,
+          cantidad_disco INT DEFAULT 0
+        );"
+      ignore_errors: yes
 
   handlers:
     - name: Reiniciar Grafana
