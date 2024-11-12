@@ -51,7 +51,7 @@
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_ssh_pass: "{{ item.Contraseña }}"
-        ansible_python_interpreter: /usr/libexec/platform-python
+        ansible_python_interpreter: /usr/bin/python3
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
@@ -64,13 +64,11 @@
 - name: Instalar PostgreSQL y Grafana en hosts dinámicos
   hosts: dynamic_hosts
   become: yes
-  collections:
-    - community.postgresql
+  vars_files:
+    - vault.yml  # Archivo encriptado con Ansible Vault
   vars:
-    grafana_password: admin
-    postgres_password: password  # Contraseña para el usuario de PostgreSQL de Grafana
     grafana_admin_password: admin  # Contraseña de administrador de Grafana
-    postgresql_version: "13"  # Cambia según la versión que desees
+    postgresql_version: "14"  # Cambia según la versión que desees
     postgresql_repo_url: "https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
     postgresql_gpgkey_url: "https://download.postgresql.org/pub/repos/yum/RPM-GPG-KEY-PGDG"
     grafana_repo_gpgkey: "https://packages.grafana.com/gpg.key"
@@ -126,29 +124,29 @@
     # Paso 7: Establecer la Contraseña del Usuario 'postgres'
     - name: Establecer la contraseña del usuario 'postgres'
       become_user: postgres
-      postgresql_user:
-        name: postgres
-        password: "{{ postgres_password }}"
-        state: present
+      shell: |
+        psql -c "ALTER USER postgres WITH PASSWORD '{{ postgres_password }}';"
+      args:
+        executable: /bin/bash
 
     # Paso 8: Crear Base de Datos para Grafana
     - name: Crear base de datos para Grafana
       become_user: postgres
-      postgresql_db:
-        name: grafana
-        encoding: UTF-8
-        lc_collate: 'en_US.UTF-8'
-        lc_ctype: 'en_US.UTF-8'
-        state: present
+      shell: |
+        psql -c "CREATE DATABASE grafana;"
+      args:
+        executable: /bin/bash
+      ignore_errors: yes
 
     # Paso 9: Crear Usuario de Base de Datos para Grafana
     - name: Crear usuario de base de datos para Grafana
       become_user: postgres
-      postgresql_user:
-        name: grafana
-        password: "{{ grafana_password }}"
-        priv: "grafana:ALL"
-        state: present
+      shell: |
+        psql -c "CREATE USER grafana WITH PASSWORD '{{ grafana_password }}';"
+        psql -c "GRANT ALL PRIVILEGES ON DATABASE grafana TO grafana;"
+      args:
+        executable: /bin/bash
+      ignore_errors: yes
 
     # Paso 10: Agregar el Repositorio de Grafana
     - name: Agregar repositorio de Grafana
@@ -212,22 +210,22 @@
     # Paso 16: Crear Tabla de Inventario de Servidores en PostgreSQL
     - name: Crear tabla de inventario de servidores en PostgreSQL
       become_user: postgres
-      postgresql_query:
-        db: grafana
-        query: |
-          CREATE TABLE IF NOT EXISTS servidores (
-            id SERIAL PRIMARY KEY,
-            ip VARCHAR(15) NOT NULL,
-            distribucion_linux VARCHAR(50) NOT NULL,
-            version_linux VARCHAR(20) NOT NULL,
-            soportada VARCHAR(50) NOT NULL,
-            vulnerabilidad_alta INT DEFAULT 0,
-            vulnerabilidad_media INT DEFAULT 0,
-            vulnerabilidad_baja INT DEFAULT 0,
-            cantidad_procesadores INT DEFAULT 1,
-            cantidad_ram INT DEFAULT 0,
-            cantidad_disco INT DEFAULT 0
-          );
+      shell: |
+        psql -d grafana -c "CREATE TABLE IF NOT EXISTS servidores (
+          id SERIAL PRIMARY KEY,
+          ip VARCHAR(15) NOT NULL,
+          distribucion_linux VARCHAR(50) NOT NULL,
+          version_linux VARCHAR(20) NOT NULL,
+          soportada VARCHAR(50) NOT NULL,
+          vulnerabilidad_alta INT DEFAULT 0,
+          vulnerabilidad_media INT DEFAULT 0,
+          vulnerabilidad_baja INT DEFAULT 0,
+          cantidad_procesadores INT DEFAULT 1,
+          cantidad_ram INT DEFAULT 0,
+          cantidad_disco INT DEFAULT 0
+        );"
+      args:
+        executable: /bin/bash
 
   handlers:
     - name: Reiniciar Grafana
