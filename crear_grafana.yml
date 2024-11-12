@@ -1,27 +1,69 @@
 ---
-- name: Definir hosts desde el archivo CSV
+# Playbook: crear_grafana.yml
+
+- name: Leer y procesar el inventario CSV
   hosts: localhost
-  connection: local
   gather_facts: no
   vars:
-    csv_file_path: "{{ playbook_dir }}/inventory/grafana.csv"
+    input_file: "{{ playbook_dir }}/inventory/grafana.csv"  # Ruta al archivo CSV
+    delimiter: ";"  # Delimitador de campos en el CSV
+  vars_files:
+    # Si tienes variables adicionales, descomenta y ajusta la línea siguiente
+    # - vars/eol_map.yml
   tasks:
-    - name: Leer el archivo CSV de inventario
-      community.general.read_csv:
-        path: "{{ csv_file_path }}"
-        delimiter: ";"
-      register: servers
+    - name: Verificar que el archivo CSV existe
+      stat:
+        path: "{{ input_file }}"
+      register: file_check
 
-    - name: Agregar hosts al grupo grafana_hosts
+    - name: Fallar si el archivo de inventario no existe
+      fail:
+        msg: "El archivo de inventario {{ input_file }} no existe."
+      when: not file_check.stat.exists
+
+    - name: Leer contenido del archivo CSV
+      set_fact:
+        csv_content: "{{ lookup('file', input_file) }}"
+
+    - name: Extraer encabezados del CSV
+      set_fact:
+        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del CSV
+      set_fact:
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != headers | length
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas para crear diccionarios
+      set_fact:
+        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
       add_host:
         name: "{{ item.IP }}"
         groups: grafana_hosts
+        ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.USUARIO }}"
         ansible_password: "{{ item.CONTRASEÑA }}"
         ansible_connection: ssh
         ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
-      loop: "{{ servers.list }}"
-      when: item.IP is defined and item.USUARIO is defined and item.CONTRASEÑA is defined
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+
+    - name: Mostrar estructura completa de csv_data
+      debug:
+        var: csv_data
 
 - name: Instalar y configurar Grafana y PostgreSQL en servidores definidos
   hosts: grafana_hosts
@@ -41,9 +83,15 @@
       tags: install_collection
 
     - name: Verificar instalación de la colección community.postgresql
+      ansible.builtin.command:
+        cmd: ansible-galaxy collection list
+      register: collection_list
+      changed_when: false
+
+    - name: Fallar si la colección community.postgresql no está instalada
       ansible.builtin.fail:
         msg: "La colección community.postgresql no está instalada y no pudo ser instalada automáticamente."
-      when: "'community.postgresql' not in lookup('ansible.builtin.command', 'ansible-galaxy collection list')"
+      when: "'community.postgresql' not in collection_list.stdout"
       tags: verify_collection
 
   tasks:
