@@ -60,148 +60,147 @@
       debug:
         var: csv_data
 
-# Segundo Play: Instalar Python3-DNF, MySQL y Grafana en Hosts Dinámicos
-- name: Instalar Python3-DNF, MySQL y Grafana en hosts dinámicos
+- name: Instalar PostgreSQL y Grafana en hosts dinámicos
   hosts: dynamic_hosts
   become: yes
   vars:
     grafana_password: admin
-    mysql_root_password: rootpassword
-    mysql_repo_url: https://repo.mysql.com/mysql80-community-release-el8-3.noarch.rpm  # URL actualizada
+    postgres_password: postgres_password  # Contraseña para el usuario de PostgreSQL de Grafana
+    grafana_admin_password: admin  # Contraseña de administrador de Grafana
   tasks:
-    - name: Verificar si python3-dnf está instalado
-      stat:
-        path: /usr/lib/python3.11/site-packages/dnf
-      register: dnf_module
-
-    - name: Instalar python3-dnf si no está instalado
-      raw: dnf install -y python3-dnf
-      when: not dnf_module.stat.exists
-
-    - name: Reiniciar el servicio SSH si se instaló python3-dnf
-      raw: systemctl restart sshd
-      when: not dnf_module.stat.exists
-
-    - name: Recolectar hechos después de instalar python3-dnf
-      setup:
-        gather_subset:
-          - all
-      when: not dnf_module.stat.exists
-
-    - name: Descargar el repositorio de MySQL
-      get_url:
-        url: "{{ mysql_repo_url }}"
-        dest: /tmp/mysql80-community-release-el8-3.noarch.rpm
-      become: yes
-
-    - name: Instalar el repositorio de MySQL
+    # Paso 1: Instalar PostgreSQL desde Repositorios Predeterminados
+    - name: Instalar PostgreSQL desde repositorios predeterminados
       yum:
-        name: /tmp/mysql80-community-release-el8-3.noarch.rpm
+        name:
+          - postgresql-server
+          - postgresql-contrib
         state: present
-      become: yes
 
-    - name: Deshabilitar repositorios innecesarios de MySQL (Opcional)
-      yum_repository:
-        name: mysql80-community
-        enabled: yes
-      become: yes
+    # Paso 2: Inicializar el Clúster de PostgreSQL
+    - name: Inicializar el clúster de base de datos PostgreSQL
+      command: postgresql-setup --initdb
+      args:
+        creates: /var/lib/pgsql/data/PG_VERSION
 
-    - name: Instalar dependencias para MySQL
-      yum:
-        name: 
-          - mysql-community-server
-          - mysql-community-client
-          - mysql-community-devel
-        state: present
-      become: yes
-
-    - name: Iniciar y habilitar MySQL
+    # Paso 3: Iniciar y Habilitar el Servicio de PostgreSQL
+    - name: Iniciar y habilitar el servicio de PostgreSQL
       service:
-        name: mysqld
+        name: postgresql
         state: started
         enabled: yes
-      become: yes
 
-    - name: Obtener la contraseña temporal de MySQL (si es la primera instalación)
-      shell: grep 'temporary password' /var/log/mysqld.log | awk '{print $NF}'
-      register: temp_password
-      when: mysql_root_password == "rootpassword"
-      become: yes
+    # Paso 4: Establecer la Contraseña del Usuario 'postgres'
+    - name: Establecer la contraseña del usuario 'postgres'
+      become_user: postgres
+      postgresql_user:
+        name: postgres
+        password: "{{ postgres_password }}"
+        state: present
 
-    - name: Configurar la contraseña del usuario root de MySQL (primera vez)
-      shell: >
-        mysqladmin --connect-expired-password -u root -p'{{ temp_password.stdout }}' password '{{ mysql_root_password }}'
-      when: mysql_root_password == "rootpassword"
-      become: yes
+    # Paso 5: Crear Base de Datos para Grafana
+    - name: Crear base de datos para Grafana
+      become_user: postgres
+      postgresql_db:
+        name: grafana
+        encoding: UTF-8
+        lc_collate: 'en_US.UTF-8'
+        lc_ctype: 'en_US.UTF-8'
+        state: present
 
-    - name: Configurar la contraseña del usuario root de MySQL (si ya está configurada)
-      shell: |
-        mysqladmin -u root -p'{{ mysql_root_password }}' password '{{ mysql_root_password }}'
-      args:
-        warn: false
-      ignore_errors: yes
-      become: yes
+    # Paso 6: Crear Usuario de Base de Datos para Grafana
+    - name: Crear usuario de base de datos para Grafana
+      become_user: postgres
+      postgresql_user:
+        name: grafana
+        password: "{{ grafana_password }}"
+        priv: "grafana:ALL"
+        state: present
 
-    - name: Instalar Grafana en el servidor
+    # Paso 7: Agregar el Repositorio de Grafana
+    - name: Agregar repositorio de Grafana
+      yum_repository:
+        name: grafana
+        description: "Grafana repository"
+        baseurl: https://packages.grafana.com/oss/rpm
+        repo_gpgcheck: 1
+        enabled: 1
+        gpgcheck: 1
+        gpgkey: "https://packages.grafana.com/gpg.key"
+      notify:
+        - Importar clave GPG de Grafana
+
+    # Paso 8: Importar la Clave GPG de Grafana
+    - name: Importar clave GPG de Grafana
+      rpm_key:
+        key: "https://packages.grafana.com/gpg.key"
+        state: present
+
+    # Paso 9: Instalar Grafana
+    - name: Instalar Grafana
       yum:
         name: grafana
         state: present
-      become: yes
 
+    # Paso 10: Iniciar y Habilitar el Servicio de Grafana
     - name: Iniciar y habilitar el servicio de Grafana
       service:
         name: grafana-server
         state: started
         enabled: yes
-      become: yes
 
-    - name: Configurar la contraseña de admin en Grafana
+    # Paso 11: Configurar la Contraseña de Administrador en Grafana
+    - name: Configurar la contraseña de administrador en Grafana
       lineinfile:
         path: /etc/grafana/grafana.ini
-        regexp: '^#admin_password ='
-        line: 'admin_password = admin'
+        regexp: '^;admin_password ='
+        line: "admin_password = {{ grafana_admin_password }}"
       notify:
         - Reiniciar Grafana
-      become: yes
 
-    - name: Crear base de datos para Grafana
-      shell: |
-        mysql -u root -p'{{ mysql_root_password }}' -e "CREATE DATABASE IF NOT EXISTS grafana;"
-      args:
-        warn: false
-      ignore_errors: yes
-      become: yes
+    # Paso 12: Configurar Grafana para Usar PostgreSQL como Base de Datos
+    - name: Configurar Grafana para usar PostgreSQL como base de datos
+      blockinfile:
+        path: /etc/grafana/grafana.ini
+        block: |
+          [database]
+          type = postgres
+          host = localhost:5432
+          name = grafana
+          user = grafana
+          password = {{ grafana_password }}
+          ssl_mode = disable
+      notify:
+        - Reiniciar Grafana
 
-    - name: Crear usuario de base de datos para Grafana
-      shell: |
-        mysql -u root -p'{{ mysql_root_password }}' -e "GRANT ALL PRIVILEGES ON grafana.* TO 'grafana'@'localhost' IDENTIFIED BY '{{ grafana_password }}';"
-      args:
-        warn: false
-      ignore_errors: yes
-      become: yes
-
-    - name: Crear tabla de inventario de servidores
-      shell: |
-        mysql -u root -p'{{ mysql_root_password }}' -e "USE grafana; CREATE TABLE IF NOT EXISTS servidores (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          ip VARCHAR(15) NOT NULL,
-          distribucion_linux VARCHAR(50) NOT NULL,
-          version_linux VARCHAR(20) NOT NULL,
-          soportada VARCHAR(50) NOT NULL,
-          vulnerabilidad_alta INT DEFAULT 0,
-          vulnerabilidad_media INT DEFAULT 0,
-          vulnerabilidad_baja INT DEFAULT 0,
-          cantidad_procesadores INT DEFAULT 1,
-          cantidad_ram INT DEFAULT 0,
-          cantidad_disco INT DEFAULT 0
-        );"
-      args:
-        warn: false
-      ignore_errors: yes
+    # Paso 13: Crear Tabla de Inventario de Servidores en PostgreSQL
+    - name: Crear tabla de inventario de servidores en PostgreSQL
+      become_user: postgres
+      postgresql_query:
+        db: grafana
+        query: |
+          CREATE TABLE IF NOT EXISTS servidores (
+            id SERIAL PRIMARY KEY,
+            ip VARCHAR(15) NOT NULL,
+            distribucion_linux VARCHAR(50) NOT NULL,
+            version_linux VARCHAR(20) NOT NULL,
+            soportada VARCHAR(50) NOT NULL,
+            vulnerabilidad_alta INT DEFAULT 0,
+            vulnerabilidad_media INT DEFAULT 0,
+            vulnerabilidad_baja INT DEFAULT 0,
+            cantidad_procesadores INT DEFAULT 1,
+            cantidad_ram INT DEFAULT 0,
+            cantidad_disco INT DEFAULT 0
+          );
 
   handlers:
     - name: Reiniciar Grafana
       service:
         name: grafana-server
         state: restarted
+      become: yes
+
+    - name: Importar clave GPG de Grafana
+      rpm_key:
+        key: "https://packages.grafana.com/gpg.key"
+        state: present
       become: yes
