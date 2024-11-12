@@ -1,8 +1,12 @@
 ---
 - name: Instalar Grafana, MySQL y configurar inventario de servidores
-  hosts: 192.168.100.58
+  hosts: localhost
   become: yes
   vars:
+    # Configuración de conexión al servidor
+    ansible_host: 192.168.100.58
+    ansible_user: grafana
+    ansible_ssh_pass: password
     grafana_user: grafana
     grafana_password: password
     mysql_root_password: rootpassword
