@@ -50,8 +50,8 @@
         name: "{{ item.IP }}"
         groups: grafana_hosts
         ansible_host: "{{ item.IP }}"
-        ansible_user: "{{ item.USUARIO }}"
-        ansible_password: "{{ item.CONTRASEÑA }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
       loop: "{{ csv_data }}"
