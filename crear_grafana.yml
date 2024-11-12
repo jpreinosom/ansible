@@ -1,47 +1,66 @@
 ---
-- name: Instalar Grafana, MySQL y configurar inventario de servidores
+- name: Instalar Grafana y MySQL en servidores desde CSV
   hosts: localhost
   become: yes
   vars:
-    # Configuración de conexión al servidor
-    ansible_host: 192.168.100.58
-    ansible_user: grafana
-    ansible_ssh_pass: password
-    ansible_python_interpreter: /usr/bin/python3  # Especificar Python 3
-    grafana_user: grafana
     grafana_password: password
     mysql_root_password: rootpassword
+    csv_file: /inventory/grafana.csv  # Ruta del archivo CSV
 
   tasks:
+    - name: Leer el archivo CSV para obtener los servidores
+      read_csv:
+        path: "{{ csv_file }}"
+        delimiter: ";"
+      register: server_list
+
+    - name: Añadir los servidores al inventario dinámico
+      add_host:
+        name: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_ssh_pass: "{{ item.Contraseña }}"
+        ansible_python_interpreter: /usr/bin/python3
+      with_items: "{{ server_list.list }}"
+
     - name: Instalar dependencias para MySQL
       package:
-        name: 
+        name:
           - mysql-server
           - mysql-client
           - libmysqlclient-dev
         state: present
+      become: yes
+      when: ansible_host is defined
 
     - name: Iniciar y habilitar MySQL
       service:
         name: mysqld
         state: started
         enabled: yes
+      become: yes
+      when: ansible_host is defined
 
     - name: Configurar la contraseña del usuario root de MySQL
       shell: |
         mysqladmin -u root password "{{ mysql_root_password }}"
       ignore_errors: yes
+      become: yes
+      when: ansible_host is defined
 
     - name: Instalar Grafana en el servidor
       package:
         name: grafana
         state: present
+      become: yes
+      when: ansible_host is defined
 
     - name: Iniciar y habilitar el servicio de Grafana
       service:
         name: grafana-server
         state: started
         enabled: yes
+      become: yes
+      when: ansible_host is defined
 
     - name: Configurar la contraseña de admin en Grafana
       lineinfile:
@@ -50,16 +69,22 @@
         line: 'admin_password = admin'
       notify:
         - Reiniciar Grafana
+      become: yes
+      when: ansible_host is defined
 
     - name: Crear base de datos para Grafana
       shell: |
         mysql -u root -p{{ mysql_root_password }} -e "CREATE DATABASE IF NOT EXISTS grafana;"
       ignore_errors: yes
+      become: yes
+      when: ansible_host is defined
 
     - name: Crear usuario de base de datos para Grafana
       shell: |
         mysql -u root -p{{ mysql_root_password }} -e "GRANT ALL PRIVILEGES ON grafana.* TO 'grafana'@'localhost' IDENTIFIED BY '{{ grafana_password }}';"
       ignore_errors: yes
+      become: yes
+      when: ansible_host is defined
 
     - name: Crear tabla de inventario de servidores
       shell: |
@@ -77,9 +102,12 @@
           cantidad_disco INT DEFAULT 0
         );"
       ignore_errors: yes
+      become: yes
+      when: ansible_host is defined
 
   handlers:
     - name: Reiniciar Grafana
       service:
         name: grafana-server
         state: restarted
+      become: yes
