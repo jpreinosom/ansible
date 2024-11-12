@@ -51,7 +51,7 @@
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_ssh_pass: "{{ item.Contraseña }}"
-        ansible_python_interpreter: /usr/bin/python3
+        ansible_python_interpreter: /usr/libexec/platform-python
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
@@ -60,63 +60,95 @@
       debug:
         var: csv_data
 
+# Segundo Play: Instalar PostgreSQL y Grafana en Hosts Dinámicos
 - name: Instalar PostgreSQL y Grafana en hosts dinámicos
   hosts: dynamic_hosts
   become: yes
   vars:
     grafana_password: admin
-    postgres_password: postgres_password  # Contraseña para el usuario de PostgreSQL de Grafana
+    postgres_password: secure_postgres_password  # Contraseña para el usuario de PostgreSQL de Grafana
     grafana_admin_password: admin  # Contraseña de administrador de Grafana
+    postgresql_version: "13"  # Cambia según la versión que desees
+    postgresql_repo_url: "https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
+    postgresql_gpgkey_url: "https://download.postgresql.org/pub/repos/yum/RPM-GPG-KEY-PGDG"
+    grafana_repo_gpgkey: "https://packages.grafana.com/gpg.key"
   tasks:
-    # Paso 1: Instalar PostgreSQL desde Repositorios Predeterminados
-    - name: Instalar PostgreSQL desde repositorios predeterminados
+    # Paso 1: Agregar el Repositorio Externo de PostgreSQL
+    - name: Descargar el repositorio de PostgreSQL
+      get_url:
+        url: "{{ postgresql_repo_url }}"
+        dest: /tmp/pgdg-redhat-repo-latest.noarch.rpm
+      become: yes
+
+    - name: Instalar el repositorio de PostgreSQL
       yum:
-        name:
-          - postgresql-server
-          - postgresql-contrib
+        name: /tmp/pgdg-redhat-repo-latest.noarch.rpm
         state: present
+      become: yes
 
-    # Paso 2: Inicializar el Clúster de PostgreSQL
+    # Paso 2: Importar la Clave GPG de PostgreSQL
+    - name: Importar clave GPG de PostgreSQL
+      rpm_key:
+        key: "{{ postgresql_gpgkey_url }}"
+        state: present
+      become: yes
+
+    # Paso 3: Deshabilitar el Módulo Predeterminado de PostgreSQL
+    - name: Deshabilitar el módulo predeterminado de PostgreSQL
+      command: dnf -qy module disable postgresql
+      ignore_errors: yes
+      become: yes
+
+    # Paso 4: Instalar PostgreSQL
+    - name: Instalar PostgreSQL Server
+      yum:
+        name: "postgresql{{ postgresql_version }}-server"
+        state: present
+      become: yes
+
+    # Paso 5: Inicializar el Clúster de PostgreSQL
     - name: Inicializar el clúster de base de datos PostgreSQL
-      command: postgresql-setup --initdb
+      command: "postgresql{{ postgresql_version }}-setup initdb"
       args:
-        creates: /var/lib/pgsql/data/PG_VERSION
+        creates: "/var/lib/pgsql/{{ postgresql_version }}/data/PG_VERSION"
+      become: yes
 
-    # Paso 3: Iniciar y Habilitar el Servicio de PostgreSQL
+    # Paso 6: Iniciar y Habilitar el Servicio de PostgreSQL
     - name: Iniciar y habilitar el servicio de PostgreSQL
       service:
-        name: postgresql
+        name: "postgresql-{{ postgresql_version }}"
         state: started
         enabled: yes
+      become: yes
 
-    # Paso 4: Establecer la Contraseña del Usuario 'postgres'
+    # Paso 7: Establecer la Contraseña del Usuario 'postgres'
     - name: Establecer la contraseña del usuario 'postgres'
       become_user: postgres
-      postgresql_user:
+      community.postgresql.postgresql_user:
         name: postgres
         password: "{{ postgres_password }}"
         state: present
 
-    # Paso 5: Crear Base de Datos para Grafana
+    # Paso 8: Crear Base de Datos para Grafana
     - name: Crear base de datos para Grafana
       become_user: postgres
-      postgresql_db:
+      community.postgresql.postgresql_db:
         name: grafana
         encoding: UTF-8
         lc_collate: 'en_US.UTF-8'
         lc_ctype: 'en_US.UTF-8'
         state: present
 
-    # Paso 6: Crear Usuario de Base de Datos para Grafana
+    # Paso 9: Crear Usuario de Base de Datos para Grafana
     - name: Crear usuario de base de datos para Grafana
       become_user: postgres
-      postgresql_user:
+      community.postgresql.postgresql_user:
         name: grafana
         password: "{{ grafana_password }}"
         priv: "grafana:ALL"
         state: present
 
-    # Paso 7: Agregar el Repositorio de Grafana
+    # Paso 10: Agregar el Repositorio de Grafana
     - name: Agregar repositorio de Grafana
       yum_repository:
         name: grafana
@@ -125,30 +157,33 @@
         repo_gpgcheck: 1
         enabled: 1
         gpgcheck: 1
-        gpgkey: "https://packages.grafana.com/gpg.key"
+        gpgkey: "{{ grafana_repo_gpgkey }}"
       notify:
         - Importar clave GPG de Grafana
 
-    # Paso 8: Importar la Clave GPG de Grafana
+    # Paso 11: Importar la Clave GPG de Grafana
     - name: Importar clave GPG de Grafana
       rpm_key:
-        key: "https://packages.grafana.com/gpg.key"
+        key: "{{ grafana_repo_gpgkey }}"
         state: present
+      become: yes
 
-    # Paso 9: Instalar Grafana
+    # Paso 12: Instalar Grafana
     - name: Instalar Grafana
       yum:
         name: grafana
         state: present
+      become: yes
 
-    # Paso 10: Iniciar y Habilitar el Servicio de Grafana
+    # Paso 13: Iniciar y Habilitar el Servicio de Grafana
     - name: Iniciar y habilitar el servicio de Grafana
       service:
         name: grafana-server
         state: started
         enabled: yes
+      become: yes
 
-    # Paso 11: Configurar la Contraseña de Administrador en Grafana
+    # Paso 14: Configurar la Contraseña de Administrador en Grafana
     - name: Configurar la contraseña de administrador en Grafana
       lineinfile:
         path: /etc/grafana/grafana.ini
@@ -157,7 +192,7 @@
       notify:
         - Reiniciar Grafana
 
-    # Paso 12: Configurar Grafana para Usar PostgreSQL como Base de Datos
+    # Paso 15: Configurar Grafana para Usar PostgreSQL como Base de Datos
     - name: Configurar Grafana para usar PostgreSQL como base de datos
       blockinfile:
         path: /etc/grafana/grafana.ini
@@ -172,10 +207,10 @@
       notify:
         - Reiniciar Grafana
 
-    # Paso 13: Crear Tabla de Inventario de Servidores en PostgreSQL
+    # Paso 16: Crear Tabla de Inventario de Servidores en PostgreSQL
     - name: Crear tabla de inventario de servidores en PostgreSQL
       become_user: postgres
-      postgresql_query:
+      community.postgresql.postgresql_query:
         db: grafana
         query: |
           CREATE TABLE IF NOT EXISTS servidores (
@@ -201,6 +236,6 @@
 
     - name: Importar clave GPG de Grafana
       rpm_key:
-        key: "https://packages.grafana.com/gpg.key"
+        key: "{{ grafana_repo_gpgkey }}"
         state: present
       become: yes
