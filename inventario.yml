@@ -5,10 +5,10 @@
     hosts: localhost
     gather_facts: no
     vars:
-      input_file: "{{ playbook_dir }}/inventario.csv"  # Asegúrate de que esta ruta sea correcta
+      input_file: "{{ playbook_dir }}/inventario.csv"
       delimiter: ";"
     vars_files:
-      - vars/eol_map.yml  # Asegúrate de que esta ruta sea correcta
+      - vars/eol_map.yml
     tasks:
       - name: Verificar que el archivo CSV existe
         stat:
@@ -67,25 +67,18 @@
   - name: Ejecutar análisis de vulnerabilidades con OpenSCAP
     hosts: dynamic_hosts
     become: yes
+    gather_facts: yes
     tasks:
-      - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (Ubuntu 22.04)
+      - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS/RHEL - Perfil OSPP)
         command: >
-          oscap oval eval
+          oscap xccdf eval
+          --profile xccdf_org.ssgproject.content_profile_ospp
           --results /tmp/openscap-results.xml
-          /usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds.xml
-        register: scan_result_ubuntu
-        changed_when: false
-        when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04"
-  
-      - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS/RHEL)
-        command: >
-           oscap xccdf eval
-            --profile xccdf_org.ssgproject.content_profile_ospp
-            --results /tmp/openscap-results-rhel.xml
-           --report /tmp/openscap-report-rhel.html
-            /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
+          --report /tmp/openscap-report.html
+          /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
         register: scan_result_rhel
         changed_when: false
+        ignore_errors: yes
         when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
   
       - name: Verificar si el archivo de resultados existe
@@ -218,7 +211,7 @@
           msg: "Número de procesadores: {{ num_processors }}, RAM total: {{ total_ram }} MB, Espacio en disco: {{ total_disk }}"
   
   - name: Generar archivo resultado.csv
-    hosts: local
+    hosts: localhost
     gather_facts: no
     tasks:
       - name: Asegurar que el directorio /home/ansible/resultado existe
@@ -233,5 +226,5 @@
           content: |
             IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion;Vulnerabilidades_Altas;Vulnerabilidades_Medias;Vulnerabilidades_Bajas;Procesadores;RAM_MB;Espacio_Disponible_MB
             {% for entry in hostvars['localhost']['csv_data'] %}
-            {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') | trim }};{{ hostvars[entry.IP]['vulnerabilities_high'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'] | default(0) }};{{ hostvars[entry.IP]['num_processors'] | default('No disponible') }};{{ hostvars[entry.IP]['total_ram'] | default('No disponible') }};{{ hostvars[entry.IP]['total_disk'] | default('No disponible') }}
-            {% endfor %}
+            {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_facts']['distribution'] }};{{ hostvars[entry.IP]['ansible_facts']['distribution_version'] }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') | trim }};{{ hostvars[
+  
