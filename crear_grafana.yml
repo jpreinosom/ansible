@@ -67,6 +67,7 @@
   vars:
     grafana_password: admin
     mysql_root_password: rootpassword
+    mysql_repo_url: https://dev.mysql.com/get/mysql80-community-release-el8-1.noarch.rpm  # Cambiar según versión deseada
   tasks:
     - name: Verificar si python3-dnf está instalado
       stat:
@@ -87,37 +88,72 @@
           - all
       when: not dnf_module.stat.exists
 
-    - name: Instalar dependencias para MySQL
-      package:
-        name: 
-          - mysql-server
-          - mysql-client
-          - libmysqlclient-dev
+    - name: Descargar el repositorio de MySQL
+      get_url:
+        url: "{{ mysql_repo_url }}"
+        dest: /tmp/mysql80-community-release-el8-1.noarch.rpm
+      become: yes
+
+    - name: Instalar el repositorio de MySQL
+      yum:
+        name: /tmp/mysql80-community-release-el8-1.noarch.rpm
         state: present
+      become: yes
+
+    - name: Deshabilitar el repositorio MySQL 8.0 si es necesario
+      yum_repository:
+        name: mysql80-community
+        enabled: yes
+      become: yes
+
+    - name: Instalar dependencias para MySQL
+      yum:
+        name: 
+          - mysql-community-server
+          - mysql-community-client
+          - mysql-community-devel
+        state: present
+      become: yes
 
     - name: Iniciar y habilitar MySQL
       service:
         name: mysqld
         state: started
         enabled: yes
+      become: yes
 
-    - name: Configurar la contraseña del usuario root de MySQL
+    - name: Obtener la contraseña temporal de MySQL (si es primera instalación)
+      shell: grep 'temporary password' /var/log/mysqld.log | awk '{print $NF}'
+      register: temp_password
+      when: mysql_root_password == "rootpassword"
+      become: yes
+
+    - name: Configurar la contraseña del usuario root de MySQL (primera vez)
+      shell: >
+        mysqladmin --connect-expired-password -u root -p'{{ temp_password.stdout }}' password '{{ mysql_root_password }}'
+      when: mysql_root_password == "rootpassword"
+      become: yes
+
+    - name: Configurar la contraseña del usuario root de MySQL (si ya está configurada)
       shell: |
-        mysqladmin -u root password "{{ mysql_root_password }}"
+        mysqladmin -u root -p'{{ mysql_root_password }}' password '{{ mysql_root_password }}'
       args:
         warn: false
       ignore_errors: yes
+      become: yes
 
     - name: Instalar Grafana en el servidor
-      package:
+      yum:
         name: grafana
         state: present
+      become: yes
 
     - name: Iniciar y habilitar el servicio de Grafana
       service:
         name: grafana-server
         state: started
         enabled: yes
+      become: yes
 
     - name: Configurar la contraseña de admin en Grafana
       lineinfile:
@@ -126,24 +162,27 @@
         line: 'admin_password = admin'
       notify:
         - Reiniciar Grafana
+      become: yes
 
     - name: Crear base de datos para Grafana
       shell: |
-        mysql -u root -p{{ mysql_root_password }} -e "CREATE DATABASE IF NOT EXISTS grafana;"
+        mysql -u root -p'{{ mysql_root_password }}' -e "CREATE DATABASE IF NOT EXISTS grafana;"
       args:
         warn: false
       ignore_errors: yes
+      become: yes
 
     - name: Crear usuario de base de datos para Grafana
       shell: |
-        mysql -u root -p{{ mysql_root_password }} -e "GRANT ALL PRIVILEGES ON grafana.* TO 'grafana'@'localhost' IDENTIFIED BY '{{ grafana_password }}';"
+        mysql -u root -p'{{ mysql_root_password }}' -e "GRANT ALL PRIVILEGES ON grafana.* TO 'grafana'@'localhost' IDENTIFIED BY '{{ grafana_password }}';"
       args:
         warn: false
       ignore_errors: yes
+      become: yes
 
     - name: Crear tabla de inventario de servidores
       shell: |
-        mysql -u root -p{{ mysql_root_password }} -e "USE grafana; CREATE TABLE IF NOT EXISTS servidores (
+        mysql -u root -p'{{ mysql_root_password }}' -e "USE grafana; CREATE TABLE IF NOT EXISTS servidores (
           id INT AUTO_INCREMENT PRIMARY KEY,
           ip VARCHAR(15) NOT NULL,
           distribucion_linux VARCHAR(50) NOT NULL,
@@ -165,3 +204,4 @@
       service:
         name: grafana-server
         state: restarted
+      become: yes
