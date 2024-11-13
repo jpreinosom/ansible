@@ -124,15 +124,33 @@
         - ansible_distribution == "Ubuntu"
         - usg_results_file.stat.exists
 
-    # Procesar el contenido del archivo XML para contar vulnerabilidades (Ubuntu)
-    - name: Contar vulnerabilidades de USG (Ubuntu)
-      set_fact:
-        vulnerabilities_high: "{{ usg_results_parsed.Benchmark.TestResult.'rule-result' | selectattr('severity', 'equalto', 'high') | selectattr('result', 'equalto', 'fail') | list | length }}"
-        vulnerabilities_medium: "{{ usg_results_parsed.Benchmark.TestResult.'rule-result' | selectattr('severity', 'equalto', 'medium') | selectattr('result', 'equalto', 'fail') | list | length }}"
-        vulnerabilities_low: "{{ usg_results_parsed.Benchmark.TestResult.'rule-result' | selectattr('severity', 'equalto', 'low') | selectattr('result', 'equalto', 'fail') | list | length }}"
+    # Depurar el contenido parseado del XML (Ubuntu)
+    - name: Mostrar contenido parseado del XML (Ubuntu)
+      debug:
+        var: usg_results_parsed
       vars:
         usg_results_content: "{{ usg_results_xml.content | b64decode }}"
         usg_results_parsed: "{{ usg_results_content | xmltodict }}"
+      when:
+        - ansible_distribution == "Ubuntu"
+        - usg_results_xml is defined
+
+    # Procesar el contenido del archivo XML para contar vulnerabilidades (Ubuntu)
+    - name: Contar vulnerabilidades de USG (Ubuntu)
+      set_fact:
+        vulnerabilities_high: "{{ rule_results | selectattr('severity', 'equalto', 'high') | selectattr('result', 'equalto', 'fail') | list | length }}"
+        vulnerabilities_medium: "{{ rule_results | selectattr('severity', 'equalto', 'medium') | selectattr('result', 'equalto', 'fail') | list | length }}"
+        vulnerabilities_low: "{{ rule_results | selectattr('severity', 'equalto', 'low') | selectattr('result', 'equalto', 'fail') | list | length }}"
+      vars:
+        usg_results_content: "{{ usg_results_xml.content | b64decode }}"
+        usg_results_parsed: "{{ usg_results_content | xmltodict }}"
+        test_result: "{{ usg_results_parsed['Benchmark']['TestResult'] }}"
+        rule_results: >-
+          {% if test_result is iterable and test_result is not mapping %}
+            {{ test_result[0]['rule-result'] }}
+          {% else %}
+            {{ test_result['rule-result'] }}
+          {% endif %}
       when:
         - ansible_distribution == "Ubuntu"
         - usg_results_xml is defined
@@ -197,9 +215,9 @@
     # Procesar el contenido del archivo XML para contar vulnerabilidades (CentOS)
     - name: Contar vulnerabilidades de OpenSCAP (CentOS)
       set_fact:
-        vulnerabilities_high: "{{ openscap_results | regex_findall('severity=\"high\".*result value=\"fail\"') | length }}"
-        vulnerabilities_medium: "{{ openscap_results | regex_findall('severity=\"medium\".*result value=\"fail\"') | length }}"
-        vulnerabilities_low: "{{ openscap_results | regex_findall('severity=\"low\".*result value=\"fail\"') | length }}"
+        vulnerabilities_high: "{{ openscap_results | regex_findall('severity=\"high\".*result severity=\"high\".*<result>fail</result>') | length }}"
+        vulnerabilities_medium: "{{ openscap_results | regex_findall('severity=\"medium\".*result severity=\"medium\".*<result>fail</result>') | length }}"
+        vulnerabilities_low: "{{ openscap_results | regex_findall('severity=\"low\".*result severity=\"low\".*<result>fail</result>') | length }}"
       vars:
         openscap_results: "{{ slurped_xml.content | b64decode }}"
       when:
@@ -306,4 +324,3 @@
           {% for entry in csv_data %}
           {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_distribution'] | default('No disponible') }};{{ hostvars[entry.IP]['ansible_distribution_version'] | default('No disponible') }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') | trim }};{{ hostvars[entry.IP]['vulnerabilities_high'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'] | default(0) }};{{ hostvars[entry.IP]['num_processors'] | default('No disponible') }};{{ hostvars[entry.IP]['total_ram'] | default('No disponible') }};{{ hostvars[entry.IP]['total_disk'] | default('No disponible') }}
           {% endfor %}
-
