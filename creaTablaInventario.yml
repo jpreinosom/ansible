@@ -1,0 +1,93 @@
+- name: Leer y procesar el inventario CSV
+  hosts: localhost
+  gather_facts: no
+  vars:
+    input_file: "{{ playbook_dir }}/inventory/grafana.csv"  # Ruta al archivo CSV
+    delimiter: ";"  # Delimitador de campos en el CSV
+  tasks:
+    - name: Verificar que el archivo CSV existe
+      ansible.builtin.stat:
+        path: "{{ input_file }}"
+      register: file_check
+
+    - name: Fallar si el archivo de inventario no existe
+      ansible.builtin.fail:
+        msg: "El archivo de inventario {{ input_file }} no existe."
+      when: not file_check.stat.exists
+
+    - name: Leer contenido del archivo CSV
+      ansible.builtin.set_fact:
+        csv_content: "{{ lookup('file', input_file) }}"
+
+    - name: Extraer encabezados del CSV
+      ansible.builtin.set_fact:
+        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del CSV
+      ansible.builtin.set_fact:
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
+      ansible.builtin.fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != headers | length
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas para crear diccionarios
+      ansible.builtin.set_fact:
+        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
+      ansible.builtin.add_host:
+        name: "{{ item.IP }}"
+        groups: grafana_hosts
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
+        ansible_connection: ssh
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+
+    - name: Mostrar estructura completa de csv_data
+      ansible.builtin.debug:
+        var: csv_data
+
+- name: Crear tabla inventario en la base de datos grafana_db
+  hosts: grafana_hosts
+  become: yes
+  gather_facts: no
+
+  vars:
+    postgres_user: grafana_user
+    postgres_password: "grafana_password"  # Contraseña en texto plano para entorno de pruebas
+    postgres_db: grafana_db
+
+  tasks:
+    - name: Crear tabla inventario en la base de datos
+      ansible.builtin.command:
+        cmd: >
+          psql -U {{ postgres_user }} -d {{ postgres_db }} -c
+          "CREATE TABLE IF NOT EXISTS inventario (
+            IP VARCHAR(50),
+            Distribucion VARCHAR(50),
+            Version VARCHAR(50),
+            Estado_Suscripcion TEXT,
+            Vulnerabilidades_Altas INTEGER,
+            Vulnerabilidades_Medias INTEGER,
+            Vulnerabilidades_Bajas INTEGER,
+            Procesadores INTEGER,
+            RAM_MB INTEGER,
+            Espacio_Disponible_MB INTEGER,
+            Fecha_Creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (IP, Fecha_Creacion)
+          );"
+      environment:
+        PGPASSWORD: "{{ postgres_password }}"
+      become_user: postgres
