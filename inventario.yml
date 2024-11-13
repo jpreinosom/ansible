@@ -89,7 +89,7 @@
         register: scan_result_ubuntu
         changed_when: false
         become: yes
-        when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "24.04"
+        when: ansible_distribution == "Ubuntu"
   
       # Ejecutar análisis con SUSE Manager para SUSE
       - name: Ejecutar análisis de vulnerabilidades con SUSE Manager (SUSE)
