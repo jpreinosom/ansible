@@ -153,7 +153,7 @@
         - name: Asegurarse de que la herramienta de seguridad está desinstalada
           fail:
             msg: "La herramienta de seguridad no se pudo desinstalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-          when: openscap_installed is defined and openscap_installed.rc == 0 or usg_installed is defined and usg_installed.rc == 0 or suse_manager_installed is defined and suse_manager_installed.rc == 0
+          when: "(openscap_installed is defined and openscap_installed.rc == 0) or (usg_installed is defined and usg_installed.rc == 0) or (suse_manager_installed is defined and suse_manager_installed.rc == 0)"
 
         - name: Mostrar mensaje de éxito
           debug:
