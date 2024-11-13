@@ -108,19 +108,24 @@
         state: present
 
     # Instalación de USG para Ubuntu/Debian
-    - name: Instalar paquetes necesarios para Ubuntu/Debian
+    - name: Instalar USG en Ubuntu/Debian
       when: ansible_distribution in ["Ubuntu", "Debian"]
       block:
+        - name: Habilitar Ubuntu Advantage USG
+          command: "ua enable usg"
+          become: yes
+
         - name: Actualizar la lista de paquetes
           apt:
             update_cache: yes
             cache_valid_time: 3600  # 1 hora
+          become: yes
 
-        - name: Instalar paquetes USG
+        - name: Instalar USG
           apt:
-            name: "{{ paquetes_a_instalar }}"
+            name: usg
             state: present
-            update_cache: yes
+          become: yes
 
     # Instalación de SUSE Manager para SUSE
     - name: Instalar SUSE Manager Client en SUSE
