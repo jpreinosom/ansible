@@ -100,52 +100,53 @@
         become: yes
         when: ansible_distribution == "SLES"
   
-      # Verificar si el archivo de resultados existe (CentOS)
+      # Verificar si el archivo de resultados existe (CentOS/RHEL)
       - name: Verificar si el archivo de resultados existe (CentOS)
         stat:
           path: /tmp/openscap-results-centos.xml
         register: results_file_check
-  
+        when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+
       # Fallar si el análisis no generó el archivo de resultados (CentOS)
       - name: Fallar si el análisis no generó el archivo de resultados (CentOS)
         fail:
           msg: "El archivo de resultados de OpenSCAP no se generó en {{ inventory_hostname }}."
-        when: not results_file_check.stat.exists
+        when: not results_file_check.stat.exists and ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
   
       # Leer el archivo de resultados XML para OpenSCAP (CentOS)
       - name: Leer el archivo de resultados XML (CentOS)
         slurp:
           src: /tmp/openscap-results-centos.xml
         register: slurped_xml
-        when: results_file_check.stat.exists
+        when: results_file_check.stat.exists and ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
   
       # Decodificar el contenido del archivo XML (OpenSCAP) (CentOS)
       - name: Decodificar el contenido del archivo XML (CentOS)
         set_fact:
           openscap_results: "{{ slurped_xml.content | b64decode }}"
-        when: slurped_xml is defined and slurped_xml is not none
+        when: slurped_xml is defined and slurped_xml is not none and ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
   
       # Contar las vulnerabilidades por categoría (OpenSCAP) (CentOS)
       - name: Contar vulnerabilidades altas (CentOS)
         set_fact:
           vulnerabilities_high: "{{ openscap_results | regex_findall('severity=\"high\"') | length }}"
-        when: openscap_results is defined and openscap_results | length > 0
+        when: openscap_results is defined and openscap_results | length > 0 and ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
   
       - name: Contar vulnerabilidades medias (CentOS)
         set_fact:
           vulnerabilities_medium: "{{ openscap_results | regex_findall('severity=\"medium\"') | length }}"
-        when: openscap_results is defined and openscap_results | length > 0
+        when: openscap_results is defined and openscap_results | length > 0 and ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
   
       - name: Contar vulnerabilidades bajas (CentOS)
         set_fact:
           vulnerabilities_low: "{{ openscap_results | regex_findall('severity=\"low\"') | length }}"
-        when: openscap_results is defined and openscap_results | length > 0
+        when: openscap_results is defined and openscap_results | length > 0 and ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
   
       # Mostrar la cantidad de vulnerabilidades (CentOS)
       - name: Mostrar la cantidad de vulnerabilidades altas, medias y bajas (CentOS)
         debug:
           msg: "Vulnerabilidades Altas: {{ vulnerabilities_high }}, Vulnerabilidades Medias: {{ vulnerabilities_medium }}, Vulnerabilidades Bajas: {{ vulnerabilities_low }}"
-        when: vulnerabilities_high is defined and vulnerabilities_medium is defined and vulnerabilities_low is defined
+        when: vulnerabilities_high is defined and vulnerabilities_medium is defined and vulnerabilities_low is defined and ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
 
   - name: Obtener información y verificar EoL de los servidores
     hosts: dynamic_hosts
