@@ -72,7 +72,11 @@
       # Ejecutar análisis con OpenSCAP para CentOS/RHEL/AlmaLinux/RockyLinux
       - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS/RHEL/AlmaLinux/RockyLinux)
         command: >
-          sudo oscap xccdf eval --profile xccdf_org.ssgproject.content_profile_ospp --results /tmp/openscap-results-centos.xml --report /tmp/openscap-report-centos.html /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
+          sudo oscap xccdf eval
+          --profile xccdf_org.ssgproject.content_profile_ospp
+          --results /tmp/openscap-results-centos.xml
+          --report /tmp/openscap-report-centos.html
+          /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
         register: scan_result_centos
         changed_when: false
         become: yes
@@ -85,7 +89,7 @@
         register: scan_result_ubuntu
         changed_when: false
         become: yes
-        when: ansible_distribution == "Ubuntu"
+        when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "24.04"
   
       # Ejecutar análisis con SUSE Manager para SUSE
       - name: Ejecutar análisis de vulnerabilidades con SUSE Manager (SUSE)
