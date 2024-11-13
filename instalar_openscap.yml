@@ -111,8 +111,14 @@
     - name: Instalar USG en Ubuntu/Debian
       when: ansible_distribution in ["Ubuntu", "Debian"]
       block:
+        - name: Instalar Ubuntu Advantage Tools
+          apt:
+            name: ubuntu-advantage-tools
+            state: present
+          become: yes
+
         - name: Habilitar Ubuntu Advantage USG
-          command: "ua enable usg"
+          command: "/usr/bin/ua enable usg"
           become: yes
 
         - name: Actualizar la lista de paquetes
