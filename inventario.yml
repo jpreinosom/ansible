@@ -1,6 +1,6 @@
 ---
   # playbooks/analizar_vulnerabilidades.yml
-  
+
   - name: Leer y procesar el inventario CSV
     hosts: localhost
     gather_facts: no
@@ -63,24 +63,14 @@
       - name: Mostrar estructura completa de csv_data
         debug:
           var: csv_data
-  
-  - name: Ejecutar análisis de vulnerabilidades con OpenSCAP
+
+  - name: Ejecutar análisis de vulnerabilidades con OpenSCAP, USG o SUSE Manager
     hosts: dynamic_hosts
     gather_facts: yes
     become: yes
     tasks:
-      # Ejecutar el análisis para Ubuntu 22.04
-      - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (Ubuntu 22.04)
-        command: >
-          oscap oval eval
-          --results /tmp/openscap-results.xml
-          /usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds.xml
-        register: scan_result_ubuntu
-        changed_when: false
-        when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "24.04"
-  
-      # Ejecutar el análisis para CentOS/RHEL
-      - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS/RHEL)
+      # Ejecutar análisis con OpenSCAP para RHEL/CentOS/AlmaLinux/RockyLinux
+      - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS/RHEL/AlmaLinux/RockyLinux)
         command: >
           oscap xccdf eval
           --profile xccdf_org.ssgproject.content_profile_ospp
@@ -89,14 +79,28 @@
           /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
         register: scan_result_rhel
         changed_when: false
-        ignore_errors: yes
-        become: yes 
         when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+
+      # Ejecutar análisis con USG para Ubuntu
+      - name: Ejecutar análisis de vulnerabilidades con USG (Ubuntu)
+        command: >
+          sudo ua enable usg
+        register: scan_result_ubuntu
+        changed_when: false
+        when: ansible_distribution == "Ubuntu"
+  
+      # Ejecutar análisis con SUSE Manager para SUSE
+      - name: Ejecutar análisis de vulnerabilidades con SUSE Manager (SUSE)
+        command: >
+          zypper se --installed-only --type patch
+        register: scan_result_suse
+        changed_when: false
+        when: ansible_distribution == "SLES"
   
       # Verificar si el archivo de resultados existe
       - name: Verificar si el archivo de resultados existe
         stat:
-          path: /tmp/openscap-results.xml
+          path: /tmp/openscap-results-rhel.xml
         register: results_file_check
   
       # Fallar si el análisis no generó el archivo de resultados
@@ -105,39 +109,37 @@
           msg: "El archivo de resultados de OpenSCAP no se generó en {{ inventory_hostname }}."
         when: not results_file_check.stat.exists
   
-      # Leer el archivo de resultados XML
-      - name: Leer el archivo de resultados XML
+      # Leer el archivo de resultados XML para OpenSCAP
+      - name: Leer el archivo de resultados XML (OpenSCAP)
         slurp:
-          src: /tmp/openscap-results.xml
+          src: /tmp/openscap-results-rhel.xml
         register: slurped_xml
         when: results_file_check.stat.exists
   
-      # Decodificar el contenido del archivo XML
-      - name: Decodificar el contenido del archivo XML
+      # Decodificar el contenido del archivo XML (OpenSCAP)
+      - name: Decodificar el contenido del archivo XML (OpenSCAP)
         set_fact:
           openscap_results: "{{ slurped_xml.content | b64decode }}"
         when: slurped_xml is defined and slurped_xml is not none
   
-      # Contar las vulnerabilidades altas
-      - name: Contar vulnerabilidades altas
+      # Contar las vulnerabilidades por categoría (OpenSCAP)
+      - name: Contar vulnerabilidades altas (OpenSCAP)
         set_fact:
           vulnerabilities_high: "{{ openscap_results | regex_findall('severity=\"high\"') | length }}"
         when: openscap_results is defined and openscap_results | length > 0
   
-      # Contar las vulnerabilidades medias
-      - name: Contar vulnerabilidades medias
+      - name: Contar vulnerabilidades medias (OpenSCAP)
         set_fact:
           vulnerabilities_medium: "{{ openscap_results | regex_findall('severity=\"medium\"') | length }}"
         when: openscap_results is defined and openscap_results | length > 0
   
-      # Contar las vulnerabilidades bajas
-      - name: Contar vulnerabilidades bajas
+      - name: Contar vulnerabilidades bajas (OpenSCAP)
         set_fact:
           vulnerabilities_low: "{{ openscap_results | regex_findall('severity=\"low\"') | length }}"
         when: openscap_results is defined and openscap_results | length > 0
   
-      # Mostrar la cantidad de vulnerabilidades altas, medias y bajas
-      - name: Mostrar la cantidad de vulnerabilidades altas, medias y bajas
+      # Mostrar la cantidad de vulnerabilidades (OpenSCAP)
+      - name: Mostrar la cantidad de vulnerabilidades altas, medias y bajas (OpenSCAP)
         debug:
           msg: "Vulnerabilidades Altas: {{ vulnerabilities_high }}, Vulnerabilidades Medias: {{ vulnerabilities_medium }}, Vulnerabilidades Bajas: {{ vulnerabilities_low }}"
         when: vulnerabilities_high is defined and vulnerabilities_medium is defined and vulnerabilities_low is defined
