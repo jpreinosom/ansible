@@ -139,7 +139,7 @@
         vulnerabilities_medium: "{{ openscap_results | regex_findall('<rule-result.*?severity=\"medium\".*?<result>fail</result>') | length }}"
         vulnerabilities_low: "{{ openscap_results | regex_findall('<rule-result.*?severity=\"low\".*?<result>fail</result>') | length }}"
       vars:
-        openscap_results: "{{ slurped_xml.content | b64decode }}"
+        openscap_results: "{{ slurped_xml.content | b64decode | regex_replace('\n', '') }}"
       when:
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
         - slurped_xml is defined
