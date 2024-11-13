@@ -1,7 +1,7 @@
 ---
-# playbooks/desinstalar_openscap.yml
+# playbooks/desinstalar_herramientas_seguridad.yml
 
-- name: Leer y procesar el inventario CSV para desinstalar OpenSCAP
+- name: Leer y procesar el inventario CSV para desinstalar herramientas de seguridad
   hosts: localhost
   gather_facts: no
   vars:
@@ -45,12 +45,13 @@
       loop_control:
         loop_var: row
 
-    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts_openscap'
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts_seguridad'
       add_host:
         name: "{{ item.IP }}"
-        groups: dynamic_hosts_openscap
+        groups: dynamic_hosts_seguridad
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
+        ansible_become: yes
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
@@ -62,46 +63,103 @@
       debug:
         var: csv_data
 
-- name: Desinstalar OpenSCAP en los hosts dinámicos
-  hosts: dynamic_hosts_openscap
+- name: Desinstalar herramientas de seguridad en los hosts dinámicos
+  hosts: dynamic_hosts_seguridad
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
+  vars:
+    distribuciones_paquetes:
+      Ubuntu:
+        - usg
+      Debian:
+        - usg
+      CentOS:
+        - openscap-scanner
+        - scap-security-guide
+      RedHat:
+        - openscap-scanner
+        - scap-security-guide
+      Fedora:
+        - openscap
+        - scap-security-guide
+      SUSE:
+        - suse-manager-client
   tasks:
     - name: Depurar la distribución del sistema
       debug:
         msg: "Distribución detectada: {{ ansible_distribution }} {{ ansible_distribution_version }}"
 
-    - name: Definir paquetes necesarios para OpenSCAP
+    # Definir paquetes a desinstalar según la distribución
+    - name: Definir paquetes necesarios para la distribución
       set_fact:
-        openscap_packages: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
+        paquetes_a_desinstalar: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
 
-    - name: Mostrar paquetes a desinstalar para USG
+    - name: Mostrar paquetes a desinstalar para {{ ansible_distribution }}
       debug:
-        msg: "Paquetes a desinstalar para {{ ansible_distribution }}: {{ openscap_packages }}"
+        msg: "Paquetes a desinstalar para {{ ansible_distribution }}: {{ paquetes_a_desinstalar }}"
 
-    - name: Desinstalar paquetes necesarios para OpenSCAP (Ubuntu)
-      apt:
-        name: "{{ openscap_packages }}"
+    # Desinstalación de OpenSCAP para CentOS/RHEL/Fedora
+    - name: Desinstalar paquetes necesarios para CentOS/RHEL/Fedora
+      when: ansible_distribution in ["CentOS", "RedHat", "Fedora"]
+      package:
+        name: "{{ paquetes_a_desinstalar }}"
         state: absent
-      when: ansible_distribution == "Ubuntu" and openscap_packages | length > 0
 
-    - name: Desinstalar paquetes necesarios para OpenSCAP (CentOS/RHEL)
-      yum:
-        name: "{{ openscap_packages }}"
-        state: absent
-      when: ansible_distribution in ["CentOS", "RedHat"] and openscap_packages | length > 0
+    # Desinstalación de USG para Ubuntu/Debian
+    - name: Desinstalar USG en Ubuntu/Debian
+      when: ansible_distribution in ["Ubuntu", "Debian"]
+      block:
+        - name: Desinstalar USG
+          apt:
+            name: usg
+            state: absent
+          become: yes
 
-    - name: Verificar desinstalación de OpenSCAP
-      command: which oscap
-      register: openscap_installed
-      ignore_errors: yes
+        - name: Deshabilitar Ubuntu Advantage USG
+          command: "/usr/bin/ua disable usg"
+          become: yes
+          ignore_errors: yes
 
-    - name: Asegurarse de que OpenSCAP está desinstalado
-      fail:
-        msg: "OpenSCAP no se pudo desinstalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-      when: openscap_installed.rc == 0
+    # Desinstalación de SUSE Manager Client en SUSE
+    - name: Desinstalar SUSE Manager Client en SUSE
+      when: ansible_distribution == "SUSE Linux Enterprise Server"
+      block:
+        - name: Desinstalar paquetes SUSE Manager
+          command: "zypper remove -y {{ paquetes_a_desinstalar | join(' ') }}"
+          args:
+            removes: "/usr/bin/rhnreg_ks"  # Asumiendo que este binario se crea al instalar suse-manager-client
 
-    - name: Mostrar mensaje de éxito
-      debug:
-        msg: "OpenSCAP se desinstaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+    # Verificar desinstalación de la herramienta de seguridad
+    - name: Verificar desinstalación de la herramienta de seguridad
+      block:
+        - name: Verificar desinstalación de OpenSCAP
+          command: which oscap
+          register: openscap_installed
+          ignore_errors: yes
+          when: ansible_distribution in ["CentOS", "RedHat", "Fedora"]
+
+        - name: Verificar desinstalación de USG
+          command: which usg
+          register: usg_installed
+          ignore_errors: yes
+          when: ansible_distribution in ["Ubuntu", "Debian"]
+
+        - name: Verificar desinstalación de SUSE Manager Client
+          command: which rhnreg_ks
+          register: suse_manager_installed
+          ignore_errors: yes
+          when: ansible_distribution == "SUSE Linux Enterprise Server"
+
+        - name: Asegurarse de que la herramienta de seguridad está desinstalada
+          fail:
+            msg: "La herramienta de seguridad no se pudo desinstalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          when: (
+            (openscap_installed is defined and openscap_installed.rc == 0) or
+            (usg_installed is defined and usg_installed.rc == 0) or
+            (suse_manager_installed is defined and suse_manager_installed.rc == 0)
+          )
+
+        - name: Mostrar mensaje de éxito
+          debug:
+            msg: "La herramienta de seguridad se desinstaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
 ...
