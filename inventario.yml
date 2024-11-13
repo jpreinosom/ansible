@@ -89,7 +89,7 @@
       become: yes
       when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
       
-    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP, USG o SUSE Manager
+    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP CENTOS
       hosts: dynamic_hosts
       gather_facts: yes
       become: yes
