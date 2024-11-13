@@ -120,7 +120,6 @@
         - name: Habilitar Ubuntu Pro
           command: "/usr/bin/ua attach C13BivKq4s2fp1wKkPLiHtChr8FaqF"
           become: yes
-          when: not ansible_env.UA_STATUS
 
         - name: Habilitar Ubuntu Advantage USG
           command: "/usr/bin/ua enable usg"
