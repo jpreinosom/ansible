@@ -66,6 +66,8 @@
   hosts: dynamic_hosts_seguridad
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
+  collections:
+    - community.general
   vars:
     distribuciones_paquetes:
       Ubuntu:
@@ -91,8 +93,8 @@
       debug:
         msg: "Distribución detectada: {{ ansible_distribution }} {{ ansible_distribution_version }}"
 
-    # Instalación de OpenSCAP para CentOS/RHEL/Fedora
-    - name: Definir paquetes necesarios para OpenSCAP
+    # Definir paquetes a instalar según la distribución
+    - name: Definir paquetes necesarios para la distribución
       set_fact:
         paquetes_a_instalar: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
 
@@ -100,14 +102,12 @@
       debug:
         msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ paquetes_a_instalar }}"
 
+    # Instalación de OpenSCAP para CentOS/RHEL/Fedora
     - name: Instalar paquetes necesarios para CentOS/RHEL/Fedora
       when: ansible_distribution in ["CentOS", "RedHat", "Fedora"]
-      block:
-        - name: Instalar paquetes con yum/dnf
-          package:
-            name: "{{ paquetes_a_instalar }}"
-            state: present
-          become: yes
+      package:
+        name: "{{ paquetes_a_instalar }}"
+        state: present
 
     # Instalación de USG para Ubuntu/Debian
     - name: Instalar paquetes necesarios para Ubuntu/Debian
@@ -116,11 +116,13 @@
         - name: Actualizar la lista de paquetes
           apt:
             update_cache: yes
+            cache_valid_time: 3600  # 1 hora
 
         - name: Instalar paquetes USG
           apt:
             name: "{{ paquetes_a_instalar }}"
             state: present
+            update_cache: yes
 
     # Instalación de SUSE Manager para SUSE
     - name: Instalar SUSE Manager Client en SUSE
@@ -149,6 +151,7 @@
             name: "{{ paquetes_a_instalar }}"
             state: present
 
+    # Verificar instalación de la herramienta de seguridad
     - name: Verificar instalación de la herramienta de seguridad
       block:
         - name: Verificar instalación de OpenSCAP
