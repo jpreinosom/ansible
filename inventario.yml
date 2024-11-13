@@ -69,7 +69,7 @@
     gather_facts: yes
     become: yes
     tasks:
-      # Ejecutar análisis con OpenSCAP para RHEL/CentOS/AlmaLinux/RockyLinux
+      # Ejecutar análisis con OpenSCAP para CentOS/RHEL/AlmaLinux/RockyLinux
       - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS/RHEL/AlmaLinux/RockyLinux)
         command: >
           sudo oscap xccdf eval
@@ -94,13 +94,13 @@
       # Ejecutar análisis con SUSE Manager para SUSE
       - name: Ejecutar análisis de vulnerabilidades con SUSE Manager (SUSE)
         command: >
-          zypper se --installed-only --type patch
+          sudo zypper se --installed-only --type patch
         register: scan_result_suse
         changed_when: false
         become: yes
         when: ansible_distribution == "SLES"
   
-      # Verificar si el archivo de resultados existe
+      # Verificar si el archivo de resultados existe (CentOS)
       - name: Verificar si el archivo de resultados existe (CentOS)
         stat:
           path: /tmp/openscap-results-centos.xml
