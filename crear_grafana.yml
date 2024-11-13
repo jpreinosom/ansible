@@ -3,7 +3,6 @@
 
 - name: Leer y procesar el inventario CSV
   hosts: localhost
-  
   gather_facts: no
   vars:
     input_file: "{{ playbook_dir }}/inventory/grafana.csv"  # Ruta al archivo CSV
@@ -83,7 +82,8 @@
           - postgresql
           - postgresql-contrib
           - grafana
-      state: present
+        state: present
+
     - name: Inicializar la base de datos de PostgreSQL si no está inicializada
       command: /usr/bin/postgresql-setup --initdb
       args:
