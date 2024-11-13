@@ -77,7 +77,7 @@
           - xccdf
           - eval
           - '--profile'
-          - 'xccdf_org.ssgproject.content_profile_ospp'
+          - 'xccdf_org.ssgproject.content_profile_cis_server_l1'
           - '--results'
           - '/tmp/openscap-results.xml'
           - '--report'
@@ -96,7 +96,7 @@
           - xccdf
           - eval
           - '--profile'
-          - 'xccdf_org.ssgproject.content_profile_ospp'
+          - 'xccdf_org.ssgproject.content_profile_cis_server_l1'
           - '--results'
           - '/tmp/openscap-results.xml'
           - '--report'
