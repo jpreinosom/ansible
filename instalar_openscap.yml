@@ -66,8 +66,6 @@
   hosts: dynamic_hosts_seguridad
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
-  collections:
-    - community.general  # Declaración de la colección
   vars:
     distribuciones_paquetes:
       Ubuntu:
@@ -128,28 +126,33 @@
     - name: Instalar SUSE Manager Client en SUSE
       when: ansible_distribution == "SUSE Linux Enterprise Server"
       block:
-        - name: Agregar repositorio de SUSE Manager
-          zypper_repository:
-            name: SUSE_Manager
-            description: Repositorio de SUSE Manager
-            baseurl: "{{ suse_manager_repo_url }}"
-            gpgkey: "{{ suse_manager_repo_gpg }}"
-            state: present
+        - name: Verificar si el repositorio de SUSE Manager ya está agregado
+          command: "zypper repos --details | grep 'SUSE_Manager'"
+          register: repo_exists
+          ignore_errors: yes
 
-        - name: Importar clave GPG del repositorio de SUSE Manager
-          rpm_key:
-            key: "{{ suse_manager_repo_gpg }}"
-            state: present
+        - name: Agregar repositorio de SUSE Manager si no existe
+          when: repo_exists.rc != 0
+          block:
+            - name: Agregar repositorio de SUSE Manager
+              command: "zypper addrepo {{ suse_manager_repo_url }} SUSE_Manager"
+              args:
+                creates: "/etc/zypp/repos.d/SUSE_Manager.repo"
 
-        - name: Actualizar la lista de repositorios
-          command: zypper refresh
-          register: zypper_refresh
-          changed_when: "'Refreshing ' in zypper_refresh.stdout"
+            - name: Importar clave GPG del repositorio de SUSE Manager
+              command: "rpm --import {{ suse_manager_repo_gpg }}"
+              args:
+                creates: "/etc/pki/rpm-gpg/RPM-GPG-KEY-SUSE_Manager"
+
+            - name: Actualizar la lista de repositorios
+              command: "zypper refresh"
+              register: zypper_refresh
+              changed_when: "'Refreshing ' in zypper_refresh.stdout"
 
         - name: Instalar paquetes SUSE Manager
-          zypper:
-            name: "{{ paquetes_a_instalar }}"
-            state: present
+          command: "zypper install -y {{ paquetes_a_instalar | join(' ') }}"
+          args:
+            creates: "/usr/bin/rhnreg_ks"  # Asumiendo que este binario se crea al instalar suse-manager-client
 
     # Verificar instalación de la herramienta de seguridad
     - name: Verificar instalación de la herramienta de seguridad
