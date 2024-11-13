@@ -87,32 +87,26 @@
       changed_when: false
       failed_when: false  # Evita que Ansible marque la tarea como fallida si el comando devuelve un código distinto de cero
       become: yes
-      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+      when: ansible_distribution in ["RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
       
-    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP CENTOS
-      hosts: dynamic_hosts
-      gather_facts: yes
+    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS)
+      command:
+        argv:
+          - oscap
+          - xccdf
+          - eval
+          - '--profile'
+          - 'xccdf_org.ssgproject.content_profile_ospp'
+          - '--results'
+          - '/tmp/openscap-results.xml'
+          - '--report'
+          - '/tmp/openscap-report.html'
+          - '/usr/share/xml/scap/ssg/content/ssg-cs9-ds.xml'  # Ajusta el archivo según la versión de tu sistema
+      register: scan_result_centos
+      changed_when: false
+      failed_when: false  # Evita que Ansible marque la tarea como fallida si el comando devuelve un código distinto de cero
       become: yes
-      tasks:
-        # Análisis con OpenSCAP para CentOS/RHEL/AlmaLinux/RockyLinux
-        - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS)
-          command:
-            argv:
-              - oscap
-              - xccdf
-              - eval
-              - '--profile'
-              - 'xccdf_org.ssgproject.content_profile_ospp'
-              - '--results'
-              - '/tmp/openscap-results.xml'
-              - '--report'
-              - '/tmp/openscap-report.html'
-              - '/usr/share/xml/scap/ssg/content/ssg-cs9-ds.xml'  # Ajusta el archivo según la versión de tu sistema
-          register: scan_result_centos
-          changed_when: false
-          failed_when: false  # Evita que Ansible marque la tarea como fallida si el comando devuelve un código distinto de cero
-          become: yes
-          when: ansible_distribution in ["CentOS"]
+      when: ansible_distribution in ["CentOS"]
 
     # Verificar si el archivo de resultados existe (CentOS)
     - name: Verificar si el archivo de resultados existe (CentOS)
