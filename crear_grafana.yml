@@ -76,7 +76,7 @@
     grafana_port: 3000
     grafana_ini_path: "/etc/grafana/grafana.ini"
   tasks:
-    - name: Instalar PostgreSQL y Grafana usando repositorios por defecto de RHEL
+                - name: Instalar PostgreSQL y Grafana usando repositorios por defecto de RHEL
       yum:
         name:
           - postgresql-server
@@ -220,3 +220,4 @@
 
     - name: Reiniciar Firewall
       command: firewall-cmd --reload
+...
