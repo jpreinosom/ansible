@@ -67,7 +67,7 @@
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
   collections:
-    - community.general
+    - community.general  # Declaración de la colección
   vars:
     distribuciones_paquetes:
       Ubuntu:
