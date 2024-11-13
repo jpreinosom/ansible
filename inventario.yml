@@ -155,7 +155,7 @@
     # Ejecutar auditoría con USG y generar archivo de resultados (Ubuntu)
     - name: Ejecutar auditoría con USG y generar archivo de resultados (Ubuntu)
       command: >
-        usg audit cis_level1_server
+        usg audit cis_level1_workstation
         --results-file /tmp/usg_results.xml
       register: usg_audit_result
       changed_when: false
