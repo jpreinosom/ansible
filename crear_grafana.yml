@@ -97,7 +97,7 @@
 
     - name: Configurar 'pg_hba.conf' para autenticación 'md5' en IPv4 e IPv6
       blockinfile:
-        path: /var/lib/pgsql/14/data/pg_hba.conf
+        path: /var/lib/pgsql/data/pg_hba.conf
         block: |
           # Configuración añadida por Ansible para Grafana
           host    all             all             127.0.0.1/32            md5
@@ -210,7 +210,7 @@
   handlers:
     - name: Reiniciar PostgreSQL
       systemd:
-        name: postgresql-14
+        name: postgresql
         state: restarted
 
     - name: Reiniciar Grafana
