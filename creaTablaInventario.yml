@@ -90,4 +90,4 @@
           );"
       environment:
         PGPASSWORD: "{{ postgres_password }}"
-      become_user: postgres
+      become_user: grafana_user
