@@ -1,7 +1,7 @@
 ---
-# playbooks/instalar_openscap.yml
+# playbooks/instalar_herramientas_seguridad.yml
 
-- name: Leer y procesar el inventario CSV para instalar OpenSCAP
+- name: Leer y procesar el inventario CSV para instalar herramientas de seguridad
   hosts: localhost
   gather_facts: no
   vars:
@@ -45,10 +45,10 @@
       loop_control:
         loop_var: row
 
-    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts_openscap'
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts_seguridad'
       add_host:
         name: "{{ item.IP }}"
-        groups: dynamic_hosts_openscap
+        groups: dynamic_hosts_seguridad
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_password: "{{ item.Contraseña }}"
@@ -62,62 +62,133 @@
       debug:
         var: csv_data
 
-- name: Instalar OpenSCAP en los hosts dinámicos
-  hosts: dynamic_hosts_openscap
+- name: Instalar herramientas de seguridad en los hosts dinámicos
+  hosts: dynamic_hosts_seguridad
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
+  vars:
+    distribuciones_paquetes:
+      Ubuntu:
+        - usg
+      Debian:
+        - usg
+      CentOS:
+        - openscap-scanner
+        - scap-security-guide
+      RedHat:
+        - openscap-scanner
+        - scap-security-guide
+      Fedora:
+        - openscap
+        - scap-security-guide
+      SUSE:
+        - suse-manager-client
+    # Variables específicas para SUSE Manager
+    suse_manager_repo_url: "https://download.opensuse.org/repositories/systemsmanagement:SUSE_Manager/standard/"
+    suse_manager_repo_gpg: "https://download.opensuse.org/repositories/systemsmanagement:SUSE_Manager/standard/repodata/repomd.xml.key"
   tasks:
     - name: Depurar la distribución del sistema
       debug:
         msg: "Distribución detectada: {{ ansible_distribution }} {{ ansible_distribution_version }}"
 
-    - name: Habilitar el repositorio "universe" (solo para Ubuntu)
-      apt_repository:
-        repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} universe"
-        state: present
-      when: ansible_distribution == "Ubuntu"
-
-    - name: Actualizar la lista de paquetes (solo para Ubuntu)
-      apt:
-        update_cache: yes
-      when: ansible_distribution == "Ubuntu"
-
+    # Instalación de OpenSCAP para CentOS/RHEL/Fedora
     - name: Definir paquetes necesarios para OpenSCAP
       set_fact:
-        openscap_packages: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
+        paquetes_a_instalar: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
 
-    - name: Mostrar paquetes a instalar para OpenSCAP
+    - name: Mostrar paquetes a instalar para {{ ansible_distribution }}
       debug:
-        msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ openscap_packages }}"
+        msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ paquetes_a_instalar }}"
 
-    - name: Instalar paquetes necesarios para OpenSCAP (Ubuntu)
-      apt:
-        name: "{{ openscap_packages }}"
-        state: present
-      when: ansible_distribution == "Ubuntu" and openscap_packages | length > 0
+    - name: Instalar paquetes necesarios para CentOS/RHEL/Fedora
+      when: ansible_distribution in ["CentOS", "RedHat", "Fedora"]
+      block:
+        - name: Instalar paquetes con yum/dnf
+          package:
+            name: "{{ paquetes_a_instalar }}"
+            state: present
+          become: yes
 
-    - name: Instalar paquetes necesarios para OpenSCAP (CentOS/RHEL)
-      yum:
-        name: "{{ openscap_packages }}"
-        state: present
-      when: ansible_distribution in ["CentOS", "RedHat"] and openscap_packages | length > 0
+    # Instalación de USG para Ubuntu/Debian
+    - name: Instalar paquetes necesarios para Ubuntu/Debian
+      when: ansible_distribution in ["Ubuntu", "Debian"]
+      block:
+        - name: Actualizar la lista de paquetes
+          apt:
+            update_cache: yes
 
-    - name: Verificar instalación de OpenSCAP
-      command: which oscap
-      register: openscap_installed
-      ignore_errors: yes
+        - name: Instalar paquetes USG
+          apt:
+            name: "{{ paquetes_a_instalar }}"
+            state: present
 
-    - name: Establecer el estado de instalación
-      set_fact:
-        openscap_instalado: "{{ openscap_installed.rc == 0 }}"
-      when: openscap_installed.rc is defined
+    # Instalación de SUSE Manager para SUSE
+    - name: Instalar SUSE Manager Client en SUSE
+      when: ansible_distribution == "SUSE Linux Enterprise Server"
+      block:
+        - name: Agregar repositorio de SUSE Manager
+          zypper_repository:
+            name: SUSE_Manager
+            description: Repositorio de SUSE Manager
+            baseurl: "{{ suse_manager_repo_url }}"
+            gpgkey: "{{ suse_manager_repo_gpg }}"
+            state: present
 
-    - name: Asegurarse de que OpenSCAP está instalado
-      fail:
-        msg: "OpenSCAP no se pudo instalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-      when: not openscap_instalado
+        - name: Importar clave GPG del repositorio de SUSE Manager
+          rpm_key:
+            key: "{{ suse_manager_repo_gpg }}"
+            state: present
 
-    - name: Mostrar mensaje de éxito
-      debug:
-        msg: "OpenSCAP se instaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-...
+        - name: Actualizar la lista de repositorios
+          command: zypper refresh
+          register: zypper_refresh
+          changed_when: "'Refreshing ' in zypper_refresh.stdout"
+
+        - name: Instalar paquetes SUSE Manager
+          zypper:
+            name: "{{ paquetes_a_instalar }}"
+            state: present
+
+    - name: Verificar instalación de la herramienta de seguridad
+      block:
+        - name: Verificar instalación de OpenSCAP
+          command: which oscap
+          register: openscap_installed
+          ignore_errors: yes
+          when: ansible_distribution in ["CentOS", "RedHat", "Fedora"]
+
+        - name: Verificar instalación de USG
+          command: which usg
+          register: usg_installed
+          ignore_errors: yes
+          when: ansible_distribution in ["Ubuntu", "Debian"]
+
+        - name: Verificar instalación de SUSE Manager Client
+          command: which rhnreg_ks
+          register: suse_manager_installed
+          ignore_errors: yes
+          when: ansible_distribution == "SUSE Linux Enterprise Server"
+
+        - name: Establecer el estado de instalación de OpenSCAP
+          set_fact:
+            herramienta_instalada: "{{ openscap_installed.rc == 0 }}"
+          when: openscap_installed.rc is defined
+
+        - name: Establecer el estado de instalación de USG
+          set_fact:
+            herramienta_instalada: "{{ usg_installed.rc == 0 }}"
+          when: usg_installed.rc is defined
+
+        - name: Establecer el estado de instalación de SUSE Manager
+          set_fact:
+            herramienta_instalada: "{{ suse_manager_installed.rc == 0 }}"
+          when: suse_manager_installed.rc is defined
+
+        - name: Asegurarse de que la herramienta de seguridad está instalada
+          fail:
+            msg: "La herramienta de seguridad no se pudo instalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          when: not herramienta_instalada
+
+        - name: Mostrar mensaje de éxito
+          debug:
+            msg: "La herramienta de seguridad se instaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
