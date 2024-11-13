@@ -94,48 +94,57 @@
         enabled: yes
         state: started
 
-    - name: Configurar 'pg_hba.conf' para autenticación 'md5'
+    - name: Configurar 'pg_hba.conf' para autenticación 'trust' temporalmente
       ansible.builtin.blockinfile:
         path: /var/lib/pgsql/data/pg_hba.conf
         block: |
-          # Configuración añadida por Ansible para Grafana
-          local   all             all                                     md5
-          host    all             all             127.0.0.1/32            md5
-          host    all             all             ::1/128                 md5
+          # Configuración temporal para cambiar contraseña de postgres
+          local   all             postgres                                trust
       notify: Reiniciar PostgreSQL
 
-    - name: Configurar 'listen_addresses' en 'postgresql.conf'
+    - name: Reiniciar PostgreSQL para aplicar cambios de autenticación temporal
+      ansible.builtin.systemd:
+        name: postgresql
+        state: restarted
+
+    - name: Establecer la contraseña del usuario 'postgres'
+      ansible.builtin.command:
+        cmd: "psql -U postgres -d postgres -c \"ALTER USER postgres PASSWORD '{{ postgres_superuser_password }}';\""
+      become_user: postgres
+
+    - name: Configurar 'pg_hba.conf' para usar 'md5' con usuario 'postgres'
       ansible.builtin.lineinfile:
-        path: /var/lib/pgsql/data/postgresql.conf
-        regexp: '^#?listen_addresses\s*='
-        line: "listen_addresses = '*'"
+        path: /var/lib/pgsql/data/pg_hba.conf
+        regexp: '^local\s+all\s+postgres\s+'
+        line: 'local   all             postgres                                md5'
       notify: Reiniciar PostgreSQL
 
-    - name: Reiniciar PostgreSQL para aplicar cambios
+    - name: Reiniciar PostgreSQL después de cambiar autenticación
       ansible.builtin.systemd:
         name: postgresql
         state: restarted
 
     - name: Crear usuario de PostgreSQL para Grafana
-      ansible.builtin.postgresql_user:
-        name: "{{ postgres_user }}"
-        password: "{{ postgres_password }}"
-        priv: "ALL"
-        role_attr_flags: "CREATEDB"
+      ansible.builtin.command:
+        cmd: "psql -U postgres -d postgres -c \"CREATE USER {{ postgres_user }} WITH PASSWORD '{{ postgres_password }}';\""
+      environment:
+        PGPASSWORD: "{{ postgres_superuser_password }}"
       become_user: postgres
+      ignore_errors: yes
 
     - name: Crear base de datos para Grafana si no existe
-      ansible.builtin.postgresql_db:
-        name: "{{ postgres_db }}"
-        owner: "{{ postgres_user }}"
+      ansible.builtin.command:
+        cmd: "psql -U postgres -d postgres -c \"CREATE DATABASE {{ postgres_db }} WITH OWNER {{ postgres_user }} ENCODING 'UTF8' LC_COLLATE='en_US.UTF-8' LC_CTYPE='en_US.UTF-8' TEMPLATE=template0;\""
+      environment:
+        PGPASSWORD: "{{ postgres_superuser_password }}"
       become_user: postgres
+      ignore_errors: yes
 
     - name: Otorgar privilegios al usuario de PostgreSQL para Grafana
-      ansible.builtin.postgresql_privs:
-        database: "{{ postgres_db }}"
-        roles: "{{ postgres_user }}"
-        type: "database"
-        privs: "ALL"
+      ansible.builtin.command:
+        cmd: "psql -U postgres -d postgres -c \"GRANT ALL PRIVILEGES ON DATABASE {{ postgres_db }} TO {{ postgres_user }};\""
+      environment:
+        PGPASSWORD: "{{ postgres_superuser_password }}"
       become_user: postgres
 
     - name: Configurar Grafana para usar PostgreSQL - Tipo de Base de Datos
