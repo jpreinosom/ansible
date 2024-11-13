@@ -51,6 +51,7 @@
         groups: dynamic_hosts_seguridad
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
+        ansible_become: yes
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
@@ -117,13 +118,23 @@
             state: present
           become: yes
 
-        - name: Habilitar Ubuntu Pro
-          command: "/usr/bin/ua attach C13BivKq4s2fp1wKkPLiHtChr8FaqF"
+        - name: Hacer que el usuario sea sudoer
+          command: "usermod -aG sudo {{ ansible_user }}"
           become: yes
 
         - name: Habilitar Ubuntu Advantage USG
           command: "/usr/bin/ua enable usg"
           become: yes
+          register: ua_enable_result
+          retries: 3
+          delay: 10
+          until: ua_enable_result.rc == 0
+          ignore_errors: yes
+
+        - name: Verificar habilitación de USG
+          fail:
+            msg: "No se pudo habilitar USG en {{ ansible_distribution }} {{ ansible_distribution_version }}."
+          when: ua_enable_result.rc != 0
 
         - name: Actualizar la lista de paquetes
           apt:
