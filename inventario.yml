@@ -135,9 +135,9 @@
     # Procesar el contenido del archivo XML para contar vulnerabilidades (CentOS)
     - name: Contar vulnerabilidades de OpenSCAP (CentOS)
       set_fact:
-        vulnerabilities_high: "{{ openscap_results | regex_findall('severity=\"high\".*<result>fail</result>') | length }}"
-        vulnerabilities_medium: "{{ openscap_results | regex_findall('severity=\"medium\".*<result>fail</result>') | length }}"
-        vulnerabilities_low: "{{ openscap_results | regex_findall('severity=\"low\".*<result>fail</result>') | length }}"
+        vulnerabilities_high: "{{ openscap_results | regex_findall('<rule-result.*?severity=\"high\".*?<result>fail</result>') | length }}"
+        vulnerabilities_medium: "{{ openscap_results | regex_findall('<rule-result.*?severity=\"medium\".*?<result>fail</result>') | length }}"
+        vulnerabilities_low: "{{ openscap_results | regex_findall('<rule-result.*?severity=\"low\".*?<result>fail</result>') | length }}"
       vars:
         openscap_results: "{{ slurped_xml.content | b64decode }}"
       when:
