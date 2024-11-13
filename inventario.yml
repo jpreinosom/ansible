@@ -190,11 +190,11 @@
     # Procesar el contenido del archivo XML para contar vulnerabilidades (Ubuntu)
     - name: Contar vulnerabilidades de USG (Ubuntu)
       set_fact:
-        vulnerabilities_high: "{{ usg_results_content | regex_findall('severity=\"high\".*<result>fail</result>') | length }}"
-        vulnerabilities_medium: "{{ usg_results_content | regex_findall('severity=\"medium\".*<result>fail</result>') | length }}"
-        vulnerabilities_low: "{{ usg_results_content | regex_findall('severity=\"low\".*<result>fail</result>') | length }}"
+        vulnerabilities_high: "{{ usg_results_content | regex_findall('<rule-result.*?severity=\"high\".*?<result>fail</result>') | length }}"
+        vulnerabilities_medium: "{{ usg_results_content | regex_findall('<rule-result.*?severity=\"medium\".*?<result>fail</result>') | length }}"
+        vulnerabilities_low: "{{ usg_results_content | regex_findall('<rule-result.*?severity=\"low\".*?<result>fail</result>') | length }}"
       vars:
-        usg_results_content: "{{ usg_results_xml.content | b64decode }}"
+        usg_results_content: "{{ usg_results_xml.content | b64decode | regex_replace('\n', '') }}"
       when:
         - ansible_distribution == "Ubuntu"
         - usg_results_xml is defined
