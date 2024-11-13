@@ -93,32 +93,21 @@
         enabled: yes
         state: started
 
-    - name: Configurar 'pg_hba.conf' para autenticación 'md5' y 'peer'
+    - name: Configurar 'pg_hba.conf' para autenticación 'trust' temporalmente
       blockinfile:
         path: /var/lib/pgsql/data/pg_hba.conf
         block: |
-          # Configuración añadida por Ansible para Grafana
-          local   all             postgres                                peer
-          host    all             all             127.0.0.1/32            md5
-          host    all             all             ::1/128                 md5
+          # Configuración temporal para cambiar contraseña de postgres
+          local   all             postgres                                trust
       notify: Reiniciar PostgreSQL
 
-    - name: Configurar 'listen_addresses' en 'postgresql.conf'
-      lineinfile:
-        path: /var/lib/pgsql/data/postgresql.conf
-        regexp: '^#?listen_addresses\s*='
-        line: "listen_addresses = 'localhost'"
-      notify: Reiniciar PostgreSQL
-
-    - name: Reiniciar PostgreSQL para aplicar cambios
+    - name: Reiniciar PostgreSQL para aplicar cambios de autenticación temporal
       systemd:
         name: postgresql
         state: restarted
 
     - name: Establecer la contraseña del usuario 'postgres'
       command: "psql -U postgres -d postgres -c \"ALTER USER postgres PASSWORD '{{ postgres_superuser_password }}';\""
-      environment:
-        PGPASSWORD: ""
       become_user: postgres
 
     - name: Configurar 'pg_hba.conf' para usar 'md5' con usuario 'postgres'
