@@ -5,10 +5,10 @@
   hosts: localhost
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventario.csv"  # Asegúrate de que esta ruta sea correcta
+    input_file: "{{ playbook_dir }}/inventario.csv"
     delimiter: ";"
   vars_files:
-    - vars/eol_map.yml  # Asegúrate de que esta ruta sea correcta
+    - vars/eol_map.yml
   tasks:
     - name: Verificar que el archivo CSV existe
       stat:
@@ -85,7 +85,7 @@
           - '/usr/share/xml/scap/ssg/content/ssg-rhel7-ds.xml'  # Ajusta el archivo según la versión de tu sistema
       register: scan_result_centos
       changed_when: false
-      failed_when: false  # Evita que Ansible marque la tarea como fallida si el comando devuelve un código distinto de cero
+      failed_when: false
       become: yes
       when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
 
@@ -115,51 +115,33 @@
         - ansible_distribution == "Ubuntu"
         - not usg_results_file.stat.exists
 
-    # Leer el archivo de resultados XML de USG (Ubuntu)
-    - name: Leer el archivo de resultados XML de USG (Ubuntu)
-      slurp:
-        src: /tmp/usg_results.xml
-      register: usg_results_xml
+    # Contar vulnerabilidades utilizando el módulo xml (Ubuntu)
+    - name: Contar vulnerabilidades de USG (Ubuntu)
+      xml:
+        path: /tmp/usg_results.xml
+        xpath: /Benchmark/TestResult/rule-result
+        content: attribute
+      register: usg_vulnerabilities
       when:
         - ansible_distribution == "Ubuntu"
         - usg_results_file.stat.exists
 
-    # Depurar el contenido parseado del XML (Ubuntu)
-    - name: Mostrar contenido parseado del XML (Ubuntu)
-      debug:
-        var: usg_results_parsed
-      vars:
-        usg_results_content: "{{ usg_results_xml.content | b64decode }}"
-        usg_results_parsed: "{{ usg_results_content | xmltodict }}"
-      when:
-        - ansible_distribution == "Ubuntu"
-        - usg_results_xml is defined
-
-    # Procesar el contenido del archivo XML para contar vulnerabilidades (Ubuntu)
-    - name: Contar vulnerabilidades de USG (Ubuntu)
+    - name: Procesar vulnerabilidades de USG (Ubuntu)
       set_fact:
-        vulnerabilities_high: "{{ rule_results | selectattr('severity', 'equalto', 'high') | selectattr('result', 'equalto', 'fail') | list | length }}"
-        vulnerabilities_medium: "{{ rule_results | selectattr('severity', 'equalto', 'medium') | selectattr('result', 'equalto', 'fail') | list | length }}"
-        vulnerabilities_low: "{{ rule_results | selectattr('severity', 'equalto', 'low') | selectattr('result', 'equalto', 'fail') | list | length }}"
-      vars:
-        usg_results_content: "{{ usg_results_xml.content | b64decode }}"
-        usg_results_parsed: "{{ usg_results_content | xmltodict }}"
-        test_result: "{{ usg_results_parsed['Benchmark']['TestResult'] }}"
-        rule_results: >-
-          {% if test_result is iterable and test_result is not mapping %}
-            {{ test_result[0]['rule-result'] }}
-          {% else %}
-            {{ test_result['rule-result'] }}
-          {% endif %}
+        vulnerabilities_high: "{{ usg_vulnerabilities.matches | selectattr('attributes.severity', 'equalto', 'high') | selectattr('attributes.result', 'equalto', 'fail') | list | length }}"
+        vulnerabilities_medium: "{{ usg_vulnerabilities.matches | selectattr('attributes.severity', 'equalto', 'medium') | selectattr('attributes.result', 'equalto', 'fail') | list | length }}"
+        vulnerabilities_low: "{{ usg_vulnerabilities.matches | selectattr('attributes.severity', 'equalto', 'low') | selectattr('attributes.result', 'equalto', 'fail') | list | length }}"
       when:
         - ansible_distribution == "Ubuntu"
-        - usg_results_xml is defined
+        - usg_vulnerabilities is defined
 
     # Mostrar la cantidad de vulnerabilidades altas, medias y bajas (Ubuntu)
     - name: Mostrar la cantidad de vulnerabilidades altas, medias y bajas (Ubuntu)
       debug:
         msg: "Vulnerabilidades Altas: {{ vulnerabilities_high }}, Vulnerabilidades Medias: {{ vulnerabilities_medium }}, Vulnerabilidades Bajas: {{ vulnerabilities_low }}"
-      when: ansible_distribution == "Ubuntu"
+      when:
+        - ansible_distribution == "Ubuntu"
+        - vulnerabilities_high is defined
 
     # Análisis con SUSE Manager para SUSE
     - name: Ejecutar análisis de vulnerabilidades con SUSE Manager (SUSE)
@@ -186,7 +168,9 @@
     - name: Mostrar la cantidad de vulnerabilidades altas, medias y bajas (SUSE)
       debug:
         msg: "Vulnerabilidades Altas: {{ vulnerabilities_high }}, Vulnerabilidades Medias: {{ vulnerabilities_medium }}, Vulnerabilidades Bajas: {{ vulnerabilities_low }}"
-      when: ansible_distribution == "SLES"
+      when:
+        - ansible_distribution == "SLES"
+        - vulnerabilities_high is defined
 
     # Verificar si el archivo de resultados existe (CentOS/RHEL)
     - name: Verificar si el archivo de resultados existe (CentOS)
@@ -203,32 +187,33 @@
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
         - not results_file_check.stat.exists
 
-    # Leer el archivo de resultados XML para OpenSCAP (CentOS)
-    - name: Leer el archivo de resultados XML (CentOS)
-      slurp:
-        src: /tmp/openscap-results.xml
-      register: slurped_xml
+    # Contar vulnerabilidades de OpenSCAP utilizando el módulo xml (CentOS)
+    - name: Contar vulnerabilidades de OpenSCAP (CentOS)
+      xml:
+        path: /tmp/openscap-results.xml
+        xpath: /Benchmark/TestResult/rule-result
+        content: attribute
+      register: openscap_vulnerabilities
       when:
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
         - results_file_check.stat.exists
 
-    # Procesar el contenido del archivo XML para contar vulnerabilidades (CentOS)
-    - name: Contar vulnerabilidades de OpenSCAP (CentOS)
+    - name: Procesar vulnerabilidades de OpenSCAP (CentOS)
       set_fact:
-        vulnerabilities_high: "{{ openscap_results | regex_findall('severity=\"high\".*result severity=\"high\".*<result>fail</result>') | length }}"
-        vulnerabilities_medium: "{{ openscap_results | regex_findall('severity=\"medium\".*result severity=\"medium\".*<result>fail</result>') | length }}"
-        vulnerabilities_low: "{{ openscap_results | regex_findall('severity=\"low\".*result severity=\"low\".*<result>fail</result>') | length }}"
-      vars:
-        openscap_results: "{{ slurped_xml.content | b64decode }}"
+        vulnerabilities_high: "{{ openscap_vulnerabilities.matches | selectattr('attributes.severity', 'equalto', 'high') | selectattr('attributes.result', 'equalto', 'fail') | list | length }}"
+        vulnerabilities_medium: "{{ openscap_vulnerabilities.matches | selectattr('attributes.severity', 'equalto', 'medium') | selectattr('attributes.result', 'equalto', 'fail') | list | length }}"
+        vulnerabilities_low: "{{ openscap_vulnerabilities.matches | selectattr('attributes.severity', 'equalto', 'low') | selectattr('attributes.result', 'equalto', 'fail') | list | length }}"
       when:
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - slurped_xml is defined
+        - openscap_vulnerabilities is defined
 
     # Mostrar la cantidad de vulnerabilidades altas, medias y bajas (CentOS)
     - name: Mostrar la cantidad de vulnerabilidades altas, medias y bajas (CentOS)
       debug:
         msg: "Vulnerabilidades Altas: {{ vulnerabilities_high }}, Vulnerabilidades Medias: {{ vulnerabilities_medium }}, Vulnerabilidades Bajas: {{ vulnerabilities_low }}"
-      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+      when:
+        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+        - vulnerabilities_high is defined
 
 - name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
@@ -307,7 +292,7 @@
         msg: "Número de procesadores: {{ num_processors }}, RAM total: {{ total_ram }} MB, Espacio en disco: {{ total_disk }}"
 
 - name: Generar archivo resultado.csv
-  hosts: localhost
+  hosts: local
   gather_facts: no
   tasks:
     - name: Asegurar que el directorio /home/ansible/resultado existe
