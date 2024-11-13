@@ -66,18 +66,16 @@
   hosts: dynamic_hosts_openscap
   gather_facts: yes
   become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
-  vars_files:
-    - group_vars/dynamic_hosts_openscap.yml  # Asegúrate de que este archivo contiene 'distribuciones_paquetes'
   tasks:
     - name: Depurar la distribución del sistema
       debug:
-        msg: "Distribución detectada: {{ ansible_distribution }}"
+        msg: "Distribución detectada: {{ ansible_distribution }} {{ ansible_distribution_version }}"
 
-    - name: Definir paquetes necesarios para desinstalar OpenSCAP
+    - name: Definir paquetes necesarios para OpenSCAP
       set_fact:
         openscap_packages: "{{ distribuciones_paquetes[ansible_distribution] | default([]) }}"
 
-    - name: Mostrar paquetes a desinstalar para OpenSCAP
+    - name: Mostrar paquetes a desinstalar para USG
       debug:
         msg: "Paquetes a desinstalar para {{ ansible_distribution }}: {{ openscap_packages }}"
 
@@ -85,7 +83,6 @@
       apt:
         name: "{{ openscap_packages }}"
         state: absent
-        purge: yes  # Opcional: purgar archivos de configuración
       when: ansible_distribution == "Ubuntu" and openscap_packages | length > 0
 
     - name: Desinstalar paquetes necesarios para OpenSCAP (CentOS/RHEL)
@@ -94,21 +91,17 @@
         state: absent
       when: ansible_distribution in ["CentOS", "RedHat"] and openscap_packages | length > 0
 
-    - name: Verificar eliminación de OpenSCAP
+    - name: Verificar desinstalación de OpenSCAP
       command: which oscap
-      register: openscap_removed
+      register: openscap_installed
       ignore_errors: yes
 
-    - name: Establecer el estado de eliminación
-      set_fact:
-        openscap_eliminado: "{{ openscap_removed.rc != 0 }}"
-      when: openscap_removed.rc is defined
-
-    - name: Asegurarse de que OpenSCAP ha sido desinstalado
+    - name: Asegurarse de que OpenSCAP está desinstalado
       fail:
         msg: "OpenSCAP no se pudo desinstalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-      when: not openscap_eliminado
+      when: openscap_installed.rc == 0
 
     - name: Mostrar mensaje de éxito
       debug:
-        msg: "OpenSCAP ha sido desinstalado correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+        msg: "OpenSCAP se desinstaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+...
