@@ -382,15 +382,15 @@
           {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_distribution'] | default('No disponible') }};{{ hostvars[entry.IP]['ansible_distribution_version'] | default('No disponible') }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') | trim }};{{ hostvars[entry.IP]['vulnerabilities_high'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'] | default(0) }};{{ hostvars[entry.IP]['num_processors'] | default('No disponible') }};{{ hostvars[entry.IP]['total_ram'] | default('No disponible') }};{{ hostvars[entry.IP]['total_disk'] | default('No disponible') }}
           {% endfor %}
 
-    - name: Insertar registros en la tabla inventario en la base de datos
-      hosts: grafana_hosts
-      gather_facts: no
-      tasks:
-        - name: Insertar registros desde resultado.csv en la base de datos
-          command: >
-            psql -U grafana_user -d grafana_db -c
-            "COPY inventario (IP, Distribucion, Version, Estado_Suscripcion, Vulnerabilidades_Altas, Vulnerabilidades_Medias, Vulnerabilidades_Bajas, Procesadores, RAM_MB, Espacio_Disponible_MB)
-            FROM '/home/ansible/resultado/resultado.csv' DELIMITER ';' CSV HEADER;"
-          environment:
-            PGPASSWORD: "grafana_password"
-          become: no
+- name: Insertar registros en la tabla inventario en la base de datos
+  hosts: grafana_hosts
+  gather_facts: no
+  tasks:
+    - name: Insertar registros desde resultado.csv en la base de datos
+      command: >
+        psql -U grafana_user -d grafana_db -c
+        "COPY inventario (IP, Distribucion, Version, Estado_Suscripcion, Vulnerabilidades_Altas, Vulnerabilidades_Medias, Vulnerabilidades_Bajas, Procesadores, RAM_MB, Espacio_Disponible_MB)
+        FROM '/home/ansible/resultado/resultado.csv' DELIMITER ';' CSV HEADER;"
+      environment:
+        PGPASSWORD: "grafana_password"
+      become: no
