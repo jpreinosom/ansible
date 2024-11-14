@@ -382,16 +382,16 @@
           {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_distribution'] | default('No disponible') }};{{ hostvars[entry.IP]['ansible_distribution_version'] | default('No disponible') }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') | trim }};{{ hostvars[entry.IP]['vulnerabilities_high'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'] | default(0) }};{{ hostvars[entry.IP]['num_processors'] | default('No disponible') }};{{ hostvars[entry.IP]['total_ram'] | default('No disponible') }};{{ hostvars[entry.IP]['total_disk'] | default('No disponible') }}
           {% endfor %}
 
-    - name: Insertar registros en la tabla inventario en la base de datos
-      hosts: grafana_hosts
-      gather_facts: no
-      tasks:
-        - name: Insertar registros en la base de datos desde csv_data
-          command: >
-            psql -U grafana_user -d grafana_db -c "INSERT INTO inventario (IP, Distribucion, Version, Estado_Suscripcion, Vulnerabilidades_Altas, Vulnerabilidades_Medias, Vulnerabilidades_Bajas, Procesadores, RAM_MB, Espacio_Disponible_MB) VALUES ('{{ item.IP }}', '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}', '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}', '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}', {{ hostvars[item.IP]['vulnerabilities_high'] | default(0) }}, {{ hostvars[item.IP]['vulnerabilities_medium'] | default(0) }}, {{ hostvars[item.IP]['vulnerabilities_low'] | default(0) }}, {{ hostvars[item.IP]['num_processors'] | default('No disponible') }}, {{ hostvars[item.IP]['total_ram'] | default('No disponible') }}, {{ hostvars[item.IP]['total_disk'] | default('No disponible') }});"
-          environment:
-            PGPASSWORD: "grafana_password"
-          become: no
-          loop: "{{ hostvars['localhost']['csv_data'] }}"
-          loop_control:
-            loop_var: item
+- name: Insertar registros en la tabla inventario en la base de datos
+  hosts: grafana_hosts
+  gather_facts: no
+  tasks:
+    - name: Insertar registros en la base de datos desde csv_data
+      command: >
+        psql -U grafana_user -d grafana_db -c "INSERT INTO inventario (IP, Distribucion, Version, Estado_Suscripcion, Vulnerabilidades_Altas, Vulnerabilidades_Medias, Vulnerabilidades_Bajas, Procesadores, RAM_MB, Espacio_Disponible_MB) VALUES ('{{ item.IP }}', '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}', '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}', '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}', {{ hostvars[item.IP]['vulnerabilities_high'] | default(0) }}, {{ hostvars[item.IP]['vulnerabilities_medium'] | default(0) }}, {{ hostvars[item.IP]['vulnerabilities_low'] | default(0) }}, {{ hostvars[item.IP]['num_processors'] | default('No disponible') }}, {{ hostvars[item.IP]['total_ram'] | default('No disponible') }}, {{ hostvars[item.IP]['total_disk'] | default('No disponible') }});"
+      environment:
+        PGPASSWORD: "grafana_password"
+      become: no
+      loop: "{{ hostvars['localhost']['csv_data'] }}"
+      loop_control:
+        loop_var: item
