@@ -6,6 +6,7 @@
   gather_facts: no
   vars:
     input_file: "{{ playbook_dir }}/inventario.csv"
+    grafana_file: "{{ playbook_dir }}/grafana.csv"
     delimiter: ";"
   vars_files:
     - vars/eol_map.yml
@@ -47,6 +48,43 @@
       loop_control:
         loop_var: row
 
+    - name: Verificar que el archivo Grafana CSV existe
+      stat:
+        path: "{{ grafana_file }}"
+      register: grafana_file_check
+
+    - name: Fallar si el archivo de inventario Grafana no existe
+      fail:
+        msg: "El archivo de inventario {{ grafana_file }} no existe."
+      when: not grafana_file_check.stat.exists
+
+    - name: Leer contenido del archivo Grafana CSV
+      set_fact:
+        grafana_csv_content: "{{ lookup('file', grafana_file) }}"
+
+    - name: Extraer encabezados del archivo Grafana CSV
+      set_fact:
+        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del archivo Grafana CSV
+      set_fact:
+        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != grafana_headers | length
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
+      set_fact:
+        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
     - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
       add_host:
         name: "{{ item.IP }}"
@@ -57,6 +95,19 @@
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
       loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+
+    - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
+      add_host:
+        name: "{{ item.IP }}"
+        groups: grafana_hosts
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
+        ansible_connection: ssh
+        ansible_ssh_pass: "{{ item.Contraseña }}"
+      loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
 
@@ -82,7 +133,7 @@
           - '/tmp/openscap-results.xml'
           - '--report'
           - '/tmp/openscap-report.html'
-          - '/usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml'  # Ajusta el archivo según la versión de tu sistema
+          - '/usr/share/xml/scap/ssg-rhel9-ds.xml'  # Ajusta el archivo según la versión de tu sistema
       register: scan_result_centos
       changed_when: false
       failed_when: false  # Evita que Ansible marque la tarea como fallida si el comando devuelve un código distinto de cero
@@ -313,7 +364,7 @@
         msg: "Número de procesadores: {{ num_processors }}, RAM total: {{ total_ram }} MB, Espacio en disco: {{ total_disk }}"
 
 - name: Generar archivo resultado.csv
-  hosts: local
+  hosts: localhost
   gather_facts: no
   tasks:
     - name: Asegurar que el directorio /home/ansible/resultado existe
@@ -330,12 +381,17 @@
           {% for entry in hostvars['localhost']['csv_data'] %}
           {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_distribution'] | default('No disponible') }};{{ hostvars[entry.IP]['ansible_distribution_version'] | default('No disponible') }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') | trim }};{{ hostvars[entry.IP]['vulnerabilities_high'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'] | default(0) }};{{ hostvars[entry.IP]['num_processors'] | default('No disponible') }};{{ hostvars[entry.IP]['total_ram'] | default('No disponible') }};{{ hostvars[entry.IP]['total_disk'] | default('No disponible') }}
           {% endfor %}
+
     - name: Insertar registros en la tabla inventario en la base de datos
-      command: >
-        psql -U grafana_user -d grafana_db -c
-        "COPY inventario (IP, Distribucion, Version, Estado_Suscripcion, Vulnerabilidades_Altas, Vulnerabilidades_Medias, Vulnerabilidades_Bajas, Procesadores, RAM_MB, Espacio_Disponible_MB)
-        FROM '/home/ansible/resultado/resultado.csv' DELIMITER ';' CSV HEADER;"
-      environment:
-        PGPASSWORD: "grafana_password"
-      become: no
- 
+      hosts: grafana_hosts
+      gather_facts: no
+      tasks:
+        - name: Insertar registros desde resultado.csv en la base de datos
+          command: >
+            psql -U grafana_user -d grafana_db -c
+            "COPY inventario (IP, Distribucion, Version, Estado_Suscripcion, Vulnerabilidades_Altas, Vulnerabilidades_Medias, Vulnerabilidades_Bajas, Procesadores, RAM_MB, Espacio_Disponible_MB)
+            FROM '/home/ansible/resultado/resultado.csv' DELIMITER ';' CSV HEADER;"
+          environment:
+            PGPASSWORD: "grafana_password"
+          become: no
+...
