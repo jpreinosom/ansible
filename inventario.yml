@@ -391,7 +391,7 @@
         psql -U {{ postgres_user }} -d {{ postgres_db }} -c "
         INSERT INTO inventario (IP, Distribucion, Version, Estado_Suscripcion, Vulnerabilidades_Altas, Vulnerabilidades_Medias, Vulnerabilidades_Bajas, Procesadores, RAM_MB, Espacio_Disponible_MB)
         VALUES ('{{ item.IP }}', '{{ item.Distribucion }}', '{{ item.Version }}', '{{ item.Estado_Suscripcion }}', {{ item.Vulnerabilidades_Altas }}, {{ item.Vulnerabilidades_Medias }}, {{ item.Vulnerabilidades_Bajas }}, {{ item.Procesadores }}, {{ item.RAM_MB }}, {{ item.Espacio_Disponible_MB }});"
-      loop: "{{ csv_data }}"
+      loop: "{{ hostvars['localhost']['csv_data'] }}"
       loop_control:
         loop_var: item
       environment:
