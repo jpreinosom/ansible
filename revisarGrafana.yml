@@ -212,12 +212,12 @@
 
     # 16. Configurar SELinux para permitir conexiones de Grafana a PostgreSQL
     - name: Determinar versión de RHEL
-      shell: cat /etc/redhat-release
-      register: rhel_release
+      set_fact:
+        rhel_major_version: "{{ ansible_distribution_major_version | int }}"
 
     - name: Establecer nombre del paquete SELinux según la versión de RHEL
       set_fact:
-        selinux_package: "{{ 'policycoreutils-python-utils' if 'release 8' in rhel_release.stdout.lower() else 'policycoreutils-python' }}"
+        selinux_package: "{{ 'policycoreutils-python-utils' if rhel_major_version >= 8 else 'policycoreutils-python' }}"
 
     - name: Instalar el paquete SELinux necesario
       yum:
