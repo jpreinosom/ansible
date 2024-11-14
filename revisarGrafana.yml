@@ -217,7 +217,7 @@
 
     - name: Establecer nombre del paquete SELinux según la versión de RHEL
       set_fact:
-        selinux_package: "{{ 'policycoreutils-python-utils' if rhel_major_version >= 8 else 'policycoreutils-python' }}"
+        selinux_package: "{{ 'policycoreutils-python-utils' if (rhel_major_version >= 8) else 'policycoreutils-python' }}"
 
     - name: Instalar el paquete SELinux necesario
       yum:
