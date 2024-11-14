@@ -274,9 +274,9 @@
     # Procesar resultados de SUSE Manager (SUSE)
     - name: Procesar resultados de SUSE Manager (SUSE)
       set_fact:
-        vulnerabilities_high: "{{ scan_result_suse.stdout | regex_findall('^.*(Important|Critical).*\$', multiline=True) | length }}"
-        vulnerabilities_medium: "{{ scan_result_suse.stdout | regex_findall('^.*(Moderate).*\$', multiline=True) | length }}"
-        vulnerabilities_low: "{{ scan_result_suse.stdout | regex_findall('^.*(Low).*\$', multiline=True) | length }}"
+        vulnerabilities_high: "{{ scan_result_suse.stdout | regex_findall('^.*(Important|Critical).*\\$', multiline=True) | length }}"
+        vulnerabilities_medium: "{{ scan_result_suse.stdout | regex_findall('^.*(Moderate).*\\$', multiline=True) | length }}"
+        vulnerabilities_low: "{{ scan_result_suse.stdout | regex_findall('^.*(Low).*\\$', multiline=True) | length }}"
       when: ansible_distribution == "SLES"
 
     # Mostrar la cantidad de vulnerabilidades altas, medias y bajas (SUSE)
