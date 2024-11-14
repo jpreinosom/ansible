@@ -89,8 +89,8 @@
       args:
         creates: /var/lib/pgsql/data/PG_VERSION
 
-    # 3. Habilitar y iniciar el servicio de PostgreSQL
-    - name: Habilitar y iniciar el servicio de PostgreSQL
+    # 3. Habilitar e iniciar el servicio de PostgreSQL
+    - name: Habilitar e iniciar el servicio de PostgreSQL
       systemd:
         name: postgresql
         enabled: yes
@@ -211,9 +211,17 @@
         - /var/log/grafana
 
     # 16. Configurar SELinux para permitir conexiones de Grafana a PostgreSQL
-    - name: Instalar policycoreutils-python si no está instalado (para SELinux)
+    - name: Determinar versión de RHEL
+      shell: cat /etc/redhat-release
+      register: rhel_release
+
+    - name: Establecer nombre del paquete SELinux según la versión de RHEL
+      set_fact:
+        selinux_package: "{{ 'policycoreutils-python-utils' if 'release 8' in rhel_release.stdout.lower() else 'policycoreutils-python' }}"
+
+    - name: Instalar el paquete SELinux necesario
       yum:
-        name: policycoreutils-python
+        name: "{{ selinux_package }}"
         state: present
 
     - name: Permitir el puerto 5432 en SELinux para PostgreSQL
