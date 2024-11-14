@@ -6,7 +6,7 @@
   gather_facts: no
   vars:
     input_file: "{{ playbook_dir }}/inventario.csv"
-    grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
+    grafana_file: "{{ playbook_dir }}/grafana.csv"
     delimiter: ";"
   vars_files:
     - vars/eol_map.yml
@@ -133,7 +133,7 @@
           - '/tmp/openscap-results.xml'
           - '--report'
           - '/tmp/openscap-report.html'
-          - '/usr/share/xml/scap/ssg-rhel9-ds.xml'  # Ajusta el archivo según la versión de tu sistema
+          - '/usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml'  # Ajusta el archivo según la versión de tu sistema
       register: scan_result_centos
       changed_when: false
       failed_when: false  # Evita que Ansible marque la tarea como fallida si el comando devuelve un código distinto de cero
@@ -274,9 +274,9 @@
     # Procesar resultados de SUSE Manager (SUSE)
     - name: Procesar resultados de SUSE Manager (SUSE)
       set_fact:
-        vulnerabilities_high: "{{ scan_result_suse.stdout | regex_findall('^.*(Important|Critical).*$', multiline=True) | length }}"
-        vulnerabilities_medium: "{{ scan_result_suse.stdout | regex_findall('^.*(Moderate).*$', multiline=True) | length }}"
-        vulnerabilities_low: "{{ scan_result_suse.stdout | regex_findall('^.*(Low).*$', multiline=True) | length }}"
+        vulnerabilities_high: "{{ scan_result_suse.stdout | regex_findall('^.*(Important|Critical).*\$', multiline=True) | length }}"
+        vulnerabilities_medium: "{{ scan_result_suse.stdout | regex_findall('^.*(Moderate).*\$', multiline=True) | length }}"
+        vulnerabilities_low: "{{ scan_result_suse.stdout | regex_findall('^.*(Low).*\$', multiline=True) | length }}"
       when: ansible_distribution == "SLES"
 
     # Mostrar la cantidad de vulnerabilidades altas, medias y bajas (SUSE)
@@ -364,7 +364,7 @@
         msg: "Número de procesadores: {{ num_processors }}, RAM total: {{ total_ram }} MB, Espacio en disco: {{ total_disk }}"
 
 - name: Generar archivo resultado.csv
-  hosts: localhost
+  hosts: local
   gather_facts: no
   tasks:
     - name: Asegurar que el directorio /home/ansible/resultado existe
@@ -386,11 +386,14 @@
   hosts: grafana_hosts
   gather_facts: no
   tasks:
-    - name: Insertar registros desde resultado.csv en la base de datos
+    - name: Insertar registros en la base de datos desde csv_data
       command: >
-        psql -U grafana_user -d grafana_db -c
-        "COPY inventario (IP, Distribucion, Version, Estado_Suscripcion, Vulnerabilidades_Altas, Vulnerabilidades_Medias, Vulnerabilidades_Bajas, Procesadores, RAM_MB, Espacio_Disponible_MB)
-        FROM '/home/ansible/resultado/resultado.csv' DELIMITER ';' CSV HEADER;"
+        psql -U grafana_user -d grafana_db -c "
+        {% for entry in hostvars['localhost']['csv_data'] %}
+        INSERT INTO inventario (IP, Distribucion, Version, Estado_Suscripcion, Vulnerabilidades_Altas, Vulnerabilidades_Medias, Vulnerabilidades_Bajas, Procesadores, RAM_MB, Espacio_Disponible_MB) 
+        VALUES ('{{ entry.IP }}', '{{ hostvars[entry.IP]['ansible_distribution'] | default('No disponible') }}', '{{ hostvars[entry.IP]['ansible_distribution_version'] | default('No disponible') }}', '{{ hostvars[entry.IP]['subscription_status'] | default('No definido') | trim }}', {{ hostvars[entry.IP]['vulnerabilities_high'] | default(0) }}, {{ hostvars[entry.IP]['vulnerabilities_medium'] | default(0) }}, {{ hostvars[entry.IP]['vulnerabilities_low'] | default(0) }}, {{ hostvars[entry.IP]['num_processors'] | default('No disponible') }}, {{ hostvars[entry.IP]['total_ram'] | default('No disponible') }}, {{ hostvars[entry.IP]['total_disk'] | default('No disponible') }});
+        {% endfor %}
+        "
       environment:
         PGPASSWORD: "grafana_password"
       become: no
