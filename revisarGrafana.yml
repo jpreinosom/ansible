@@ -1,0 +1,284 @@
+---
+- name: Leer y procesar el inventario CSV
+  hosts: localhost
+  gather_facts: no
+  vars:
+    input_file: "{{ playbook_dir }}/inventory/grafana.csv"  # Ruta al archivo CSV
+    delimiter: ";"  # Delimitador de campos en el CSV
+  tasks:
+    - name: Verificar que el archivo CSV existe
+      ansible.builtin.stat:
+        path: "{{ input_file }}"
+      register: file_check
+
+    - name: Fallar si el archivo de inventario no existe
+      ansible.builtin.fail:
+        msg: "El archivo de inventario {{ input_file }} no existe."
+      when: not file_check.stat.exists
+
+    - name: Leer contenido del archivo CSV
+      ansible.builtin.set_fact:
+        csv_content: "{{ lookup('file', input_file) }}"
+
+    - name: Extraer encabezados del CSV
+      ansible.builtin.set_fact:
+        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del CSV
+      ansible.builtin.set_fact:
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
+      ansible.builtin.fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != headers | length
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas para crear diccionarios
+      ansible.builtin.set_fact:
+        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
+      ansible.builtin.add_host:
+        name: "{{ item.IP }}"
+        groups: grafana_hosts
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
+        ansible_connection: ssh
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+
+    - name: Mostrar estructura completa de csv_data
+      ansible.builtin.debug:
+        var: csv_data
+
+- name: Verificar y configurar Grafana y PostgreSQL en servidores definidos
+  hosts: grafana_hosts
+  become: yes
+  gather_facts: yes
+
+  vars:
+    postgres_db: grafana_db
+    postgres_user: grafana_user
+    postgres_password: "grafana_password"  # Contraseña en texto plano para entorno de pruebas
+    postgres_superuser_password: "password"  # Contraseña para el usuario 'postgres'
+    grafana_port: 3000
+    grafana_ini_path: "/etc/grafana/grafana.ini"
+
+  tasks:
+    # 1. Verificar que PostgreSQL y Grafana están instalados
+    - name: Verificar que PostgreSQL está instalado
+      ansible.builtin.yum:
+        name: postgresql-server
+        state: present
+
+    - name: Verificar que Grafana está instalado
+      ansible.builtin.yum:
+        name: grafana
+        state: present
+
+    # 2. Inicializar PostgreSQL si no está inicializado
+    - name: Inicializar la base de datos de PostgreSQL si no está inicializada
+      ansible.builtin.command:
+        cmd: /usr/bin/postgresql-setup --initdb
+      args:
+        creates: /var/lib/pgsql/data/PG_VERSION
+
+    # 3. Habilitar y iniciar el servicio de PostgreSQL
+    - name: Habilitar y iniciar el servicio de PostgreSQL
+      ansible.builtin.systemd:
+        name: postgresql
+        enabled: yes
+        state: started
+
+    # 4. Configurar 'pg_hba.conf' para conexiones locales con autenticación 'md5'
+    - name: Configurar 'pg_hba.conf' para conexiones IPv4 locales con autenticación 'md5'
+      ansible.builtin.lineinfile:
+        path: /var/lib/pgsql/data/pg_hba.conf
+        regexp: '^host\s+all\s+all\s+127\.0\.0\.1/32\s+md5'
+        line: 'host    all             all             127.0.0.1/32            md5'
+        state: present
+      notify: Reiniciar PostgreSQL
+
+    - name: Configurar 'pg_hba.conf' para conexiones IPv6 locales con autenticación 'md5'
+      ansible.builtin.lineinfile:
+        path: /var/lib/pgsql/data/pg_hba.conf
+        regexp: '^host\s+all\s+all\s+\::1/128\s+md5'
+        line: 'host    all             all             ::1/128                 md5'
+        state: present
+      notify: Reiniciar PostgreSQL
+
+    # 5. Configurar 'postgresql.conf' para escuchar en todas las interfaces
+    - name: Configurar 'postgresql.conf' para escuchar en todas las interfaces
+      ansible.builtin.lineinfile:
+        path: /var/lib/pgsql/data/postgresql.conf
+        regexp: '^listen_addresses\s*='
+        line: "listen_addresses = '*'"
+        state: present
+      notify: Reiniciar PostgreSQL
+
+    # 6. Crear base de datos para Grafana si no existe
+    - name: Crear base de datos para Grafana si no existe
+      ansible.builtin.shell: |
+        PGPASSWORD="{{ postgres_superuser_password }}" psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = '{{ postgres_db }}'" | grep -q 1 || PGPASSWORD="{{ postgres_superuser_password }}" createdb -U postgres -O "{{ postgres_user }}" "{{ postgres_db }}"
+      args:
+        executable: /bin/bash
+
+    # 7. Crear usuario de PostgreSQL para Grafana si no existe
+    - name: Crear usuario de PostgreSQL para Grafana si no existe
+      ansible.builtin.shell: |
+        PGPASSWORD="{{ postgres_superuser_password }}" psql -U postgres -tc "SELECT 1 FROM pg_roles WHERE rolname = '{{ postgres_user }}'" | grep -q 1 || PGPASSWORD="{{ postgres_superuser_password }}" psql -U postgres -c "CREATE USER {{ postgres_user }} WITH PASSWORD '{{ postgres_password }}';"
+      args:
+        executable: /bin/bash
+
+    # 8. Otorgar privilegios al usuario de PostgreSQL para Grafana
+    - name: Otorgar privilegios al usuario de PostgreSQL para Grafana
+      ansible.builtin.shell: |
+        PGPASSWORD="{{ postgres_superuser_password }}" psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE {{ postgres_db }} TO {{ postgres_user }};"
+      args:
+        executable: /bin/bash
+
+    # 9. Configurar Grafana para usar PostgreSQL - Tipo de Base de Datos
+    - name: Configurar Grafana para usar PostgreSQL - Tipo de Base de Datos
+      ansible.builtin.ini_file:
+        path: "{{ grafana_ini_path }}"
+        section: "database"
+        option: "type"
+        value: "postgres"
+        state: present
+
+    # 10. Configurar Grafana para usar PostgreSQL - Host
+    - name: Configurar Grafana para usar PostgreSQL - Host
+      ansible.builtin.ini_file:
+        path: "{{ grafana_ini_path }}"
+        section: "database"
+        option: "host"
+        value: "127.0.0.1:5432"
+        state: present
+
+    # 11. Configurar Grafana para usar PostgreSQL - Nombre de la Base de Datos
+    - name: Configurar Grafana para usar PostgreSQL - Nombre de la Base de Datos
+      ansible.builtin.ini_file:
+        path: "{{ grafana_ini_path }}"
+        section: "database"
+        option: "name"
+        value: "{{ postgres_db }}"
+        state: present
+
+    # 12. Configurar Grafana para usar PostgreSQL - Usuario
+    - name: Configurar Grafana para usar PostgreSQL - Usuario
+      ansible.builtin.ini_file:
+        path: "{{ grafana_ini_path }}"
+        section: "database"
+        option: "user"
+        value: "{{ postgres_user }}"
+        state: present
+
+    # 13. Configurar Grafana para usar PostgreSQL - Contraseña
+    - name: Configurar Grafana para usar PostgreSQL - Contraseña
+      ansible.builtin.ini_file:
+        path: "{{ grafana_ini_path }}"
+        section: "database"
+        option: "password"
+        value: "{{ postgres_password }}"
+        state: present
+
+    # 14. Configurar Grafana para usar PostgreSQL - SSL Mode
+    - name: Configurar Grafana para usar PostgreSQL - SSL Mode
+      ansible.builtin.ini_file:
+        path: "{{ grafana_ini_path }}"
+        section: "database"
+        option: "ssl_mode"
+        value: "disable"
+        state: present
+
+    # 15. Establecer permisos adecuados en directorios de Grafana
+    - name: Establecer permisos adecuados en directorios de Grafana
+      ansible.builtin.file:
+        path: "{{ item }}"
+        owner: grafana
+        group: grafana
+        mode: '0750'
+        recurse: yes
+      loop:
+        - /etc/grafana
+        - /var/lib/grafana
+        - /var/log/grafana
+
+    # 16. Configurar SELinux para permitir conexiones de Grafana a PostgreSQL
+    - name: Instalar policycoreutils-python si no está instalado (para SELinux)
+      ansible.builtin.yum:
+        name: policycoreutils-python
+        state: present
+
+    - name: Permitir el puerto 5432 en SELinux para PostgreSQL
+      ansible.builtin.command:
+        cmd: "semanage port -a -t postgresql_port_t -p tcp 5432"
+      args:
+        warn: no
+      ignore_errors: yes
+      register: semanage_postgres
+      changed_when: "'already defined' not in semanage_postgres.stderr"
+
+    - name: Permitir el puerto 3000 en SELinux para Grafana
+      ansible.builtin.command:
+        cmd: "semanage port -a -t http_port_t -p tcp 3000"
+      args:
+        warn: no
+      ignore_errors: yes
+      register: semanage_grafana
+      changed_when: "'already defined' not in semanage_grafana.stderr"
+
+    - name: Configurar SELinux boolean para permitir conexiones de Grafana a PostgreSQL
+      ansible.builtin.command:
+        cmd: "setsebool -P httpd_can_network_connect_db 1"
+
+    # 17. Configurar el Firewall
+    - name: Abrir puerto 3000 para Grafana en el firewall
+      ansible.builtin.firewalld:
+        port: "{{ grafana_port }}/tcp"
+        permanent: yes
+        state: enabled
+      notify: Recargar Firewall
+
+    - name: Abrir puerto 5432 para PostgreSQL en el firewall
+      ansible.builtin.firewalld:
+        port: 5432/tcp
+        permanent: yes
+        state: enabled
+      notify: Recargar Firewall
+
+    # 18. Iniciar y habilitar el servicio de Grafana
+    - name: Iniciar y habilitar el servicio de Grafana
+      ansible.builtin.systemd:
+        name: grafana-server
+        enabled: yes
+        state: restarted
+
+    # 19. Verificar que el servicio de Grafana está activo
+    - name: Verificar que el servicio de Grafana está activo
+      ansible.builtin.systemd:
+        name: grafana-server
+        state: started
+      register: grafana_service
+      until: grafana_service.status.active == True
+      retries: 5
+      delay: 10
+
+  handlers:
+    - name: Reiniciar PostgreSQL
+      ansible.builtin.systemd:
+        name: postgresql
+        state: restarted
+
+    - name: Recargar Firewall
+      ansible.builtin.command:
+        cmd: firewall-cmd --reload
