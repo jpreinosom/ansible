@@ -64,7 +64,6 @@
   hosts: grafana_hosts
   become: yes
   gather_facts: yes
-
   vars:
     postgres_db: grafana_db
     postgres_user: grafana_user
@@ -72,7 +71,6 @@
     postgres_superuser_password: "password"  # Contraseña para el usuario 'postgres'
     grafana_port: 3000
     grafana_ini_path: "/etc/grafana/grafana.ini"
-
   tasks:
     # 1. Verificar que PostgreSQL y Grafana están instalados
     - name: Verificar que PostgreSQL está instalado
@@ -147,56 +145,56 @@
 
     # 9. Configurar Grafana para usar PostgreSQL - Tipo de Base de Datos
     - name: Configurar Grafana para usar PostgreSQL - Tipo de Base de Datos
-      ini_file:
+      lineinfile:
         path: "{{ grafana_ini_path }}"
-        section: "database"
-        option: "type"
-        value: "postgres"
+        regexp: '^type\s*='
+        line: 'type = postgres'
+        insertafter: '\[database\]'
         state: present
 
     # 10. Configurar Grafana para usar PostgreSQL - Host
     - name: Configurar Grafana para usar PostgreSQL - Host
-      ini_file:
+      lineinfile:
         path: "{{ grafana_ini_path }}"
-        section: "database"
-        option: "host"
-        value: "127.0.0.1:5432"
+        regexp: '^host\s*='
+        line: 'host = 127.0.0.1:5432'
+        insertafter: '^type = postgres'
         state: present
 
     # 11. Configurar Grafana para usar PostgreSQL - Nombre de la Base de Datos
     - name: Configurar Grafana para usar PostgreSQL - Nombre de la Base de Datos
-      ini_file:
+      lineinfile:
         path: "{{ grafana_ini_path }}"
-        section: "database"
-        option: "name"
-        value: "{{ postgres_db }}"
+        regexp: '^name\s*='
+        line: "name = {{ postgres_db }}"
+        insertafter: '^host = 127.0.0.1:5432'
         state: present
 
     # 12. Configurar Grafana para usar PostgreSQL - Usuario
     - name: Configurar Grafana para usar PostgreSQL - Usuario
-      ini_file:
+      lineinfile:
         path: "{{ grafana_ini_path }}"
-        section: "database"
-        option: "user"
-        value: "{{ postgres_user }}"
+        regexp: '^user\s*='
+        line: "user = {{ postgres_user }}"
+        insertafter: '^name = {{ postgres_db }}'
         state: present
 
     # 13. Configurar Grafana para usar PostgreSQL - Contraseña
     - name: Configurar Grafana para usar PostgreSQL - Contraseña
-      ini_file:
+      lineinfile:
         path: "{{ grafana_ini_path }}"
-        section: "database"
-        option: "password"
-        value: "{{ postgres_password }}"
+        regexp: '^password\s*='
+        line: "password = {{ postgres_password }}"
+        insertafter: '^user = {{ postgres_user }}'
         state: present
 
     # 14. Configurar Grafana para usar PostgreSQL - SSL Mode
     - name: Configurar Grafana para usar PostgreSQL - SSL Mode
-      ini_file:
+      lineinfile:
         path: "{{ grafana_ini_path }}"
-        section: "database"
-        option: "ssl_mode"
-        value: "disable"
+        regexp: '^ssl_mode\s*='
+        line: "ssl_mode = disable"
+        insertafter: '^password = {{ postgres_password }}'
         state: present
 
     # 15. Establecer permisos adecuados en directorios de Grafana
@@ -277,4 +275,3 @@
 
     - name: Recargar Firewall
       command: firewall-cmd --reload
-...
