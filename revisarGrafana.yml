@@ -226,19 +226,15 @@
 
     - name: Permitir el puerto 5432 en SELinux para PostgreSQL
       command: "semanage port -a -t postgresql_port_t -p tcp 5432"
-      args:
-        warn: no
       ignore_errors: yes
       register: semanage_postgres
-      changed_when: "'already defined' not in semanage_postgres.stderr"
+      changed_when: "'already defined' not in semanage_postgres.stdout + semanage_postgres.stderr"
 
     - name: Permitir el puerto 3000 en SELinux para Grafana
       command: "semanage port -a -t http_port_t -p tcp 3000"
-      args:
-        warn: no
       ignore_errors: yes
       register: semanage_grafana
-      changed_when: "'already defined' not in semanage_grafana.stderr"
+      changed_when: "'already defined' not in semanage_grafana.stdout + semanage_grafana.stderr"
 
     - name: Configurar SELinux boolean para permitir conexiones de Grafana a PostgreSQL
       command: "setsebool -P httpd_can_network_connect_db 1"
@@ -271,7 +267,7 @@
         name: grafana-server
         state: started
       register: grafana_service
-      until: grafana_service.status.active == True
+      until: grafana_service.status.ActiveState == 'active'
       retries: 5
       delay: 10
 
