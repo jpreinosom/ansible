@@ -379,7 +379,7 @@
         content: |
           IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion;Vulnerabilidades_Altas;Vulnerabilidades_Medias;Vulnerabilidades_Bajas;Procesadores;RAM_MB;Espacio_Disponible_MB
           {% for entry in hostvars['localhost']['csv_data'] %}
-          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_distribution'] | default('No disponible') }};{{ hostvars[entry.IP]['ansible_distribution_version'] | default('No disponible') }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') | trim }};{{ hostvars[entry.IP]['vulnerabilidades_altas'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilidades_medias'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilidades_bajas'] | default(0) }};{{ hostvars[item.IP]['num_processors'] | default('No disponible') }};{{ hostvars[item.IP]['total_ram'] | default('No disponible') }};{{ hostvars[item.IP]['total_disk'] | default('No disponible') }}
+          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_distribution'] | default('No disponible') }};{{ hostvars[entry.IP]['ansible_distribution_version'] | default('No disponible') }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') | trim }};{{ hostvars[entry.IP]['vulnerabilidades_altas'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilidades_medias'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilidades_bajas'] | default(0) }};{{ hostvars[entry.IP]['num_processors'] | default('No disponible') }};{{ hostvars[entry.IP]['total_ram'] | default('No disponible') }};{{ hostvars[entry.IP]['total_disk'] | default('No disponible') }}
           {% endfor %}
 
 - name: Insertar registros en la tabla inventario en la base de datos
