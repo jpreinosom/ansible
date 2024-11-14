@@ -186,9 +186,9 @@
     # Procesar el contenido del archivo XML para contar vulnerabilidades (CentOS)
     - name: Contar vulnerabilidades de OpenSCAP (CentOS)
       set_fact:
-        vulnerabilities_high: "{{ openscap_results | regex_findall('<rule-result.*?severity=\"high\".*?<result>fail</result>') | length }}"
-        vulnerabilities_medium: "{{ openscap_results | regex_findall('<rule-result.*?severity=\"medium\".*?<result>fail</result>') | length }}"
-        vulnerabilities_low: "{{ openscap_results | regex_findall('<rule-result.*?severity=\"low\".*?<result>fail</result>') | length }}"
+        vulnerabilidades_altas: "{{ openscap_results | regex_findall('<rule-result.*?severity=\"high\".*?<result>fail</result>') | length }}"
+        vulnerabilidades_medias: "{{ openscap_results | regex_findall('<rule-result.*?severity=\"medium\".*?<result>fail</result>') | length }}"
+        vulnerabilidades_bajas: "{{ openscap_results | regex_findall('<rule-result.*?severity=\"low\".*?<result>fail</result>') | length }}"
       vars:
         openscap_results: "{{ slurped_xml.content | b64decode | regex_replace('\n', '') }}"
       when:
@@ -198,10 +198,10 @@
     # Mostrar la cantidad de vulnerabilidades altas, medias y bajas (CentOS)
     - name: Mostrar la cantidad de vulnerabilidades altas, medias y bajas (CentOS)
       debug:
-        msg: "Vulnerabilidades Altas: {{ vulnerabilities_high }}, Vulnerabilidades Medias: {{ vulnerabilities_medium }}, Vulnerabilidades Bajas: {{ vulnerabilities_low }}"
+        msg: "Vulnerabilidades Altas: {{ vulnerabilidades_altas }}, Vulnerabilidades Medias: {{ vulnerabilidades_medias }}, Vulnerabilidades Bajas: {{ vulnerabilidades_bajas }}"
       when:
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - vulnerabilities_high is defined
+        - vulnerabilidades_altas is defined
 
     # Ejecutar auditoría con USG y generar archivo de resultados (Ubuntu)
     - name: Ejecutar auditoría con USG y generar archivo de resultados (Ubuntu)
@@ -241,9 +241,9 @@
     # Procesar el contenido del archivo XML para contar vulnerabilidades (Ubuntu)
     - name: Contar vulnerabilidades de USG (Ubuntu)
       set_fact:
-        vulnerabilities_high: "{{ usg_results_content | regex_findall('<rule-result.*?severity=\"high\".*?<result>fail</result>') | length }}"
-        vulnerabilities_medium: "{{ usg_results_content | regex_findall('<rule-result.*?severity=\"medium\".*?<result>fail</result>') | length }}"
-        vulnerabilities_low: "{{ usg_results_content | regex_findall('<rule-result.*?severity=\"low\".*?<result>fail</result>') | length }}"
+        vulnerabilidades_altas: "{{ usg_results_content | regex_findall('<rule-result.*?severity=\"high\".*?<result>fail</result>') | length }}"
+        vulnerabilidades_medias: "{{ usg_results_content | regex_findall('<rule-result.*?severity=\"medium\".*?<result>fail</result>') | length }}"
+        vulnerabilidades_bajas: "{{ usg_results_content | regex_findall('<rule-result.*?severity=\"low\".*?<result>fail</result>') | length }}"
       vars:
         usg_results_content: "{{ usg_results_xml.content | b64decode | regex_replace('\n', '') }}"
       when:
@@ -253,10 +253,10 @@
     # Mostrar la cantidad de vulnerabilidades altas, medias y bajas (Ubuntu)
     - name: Mostrar la cantidad de vulnerabilidades altas, medias y bajas (Ubuntu)
       debug:
-        msg: "Vulnerabilidades Altas: {{ vulnerabilities_high }}, Vulnerabilidades Medias: {{ vulnerabilities_medium }}, Vulnerabilidades Bajas: {{ vulnerabilities_low }}"
+        msg: "Vulnerabilidades Altas: {{ vulnerabilidades_altas }}, Vulnerabilidades Medias: {{ vulnerabilidades_medias }}, Vulnerabilidades Bajas: {{ vulnerabilidades_bajas }}"
       when:
         - ansible_distribution == "Ubuntu"
-        - vulnerabilities_high is defined
+        - vulnerabilidades_altas is defined
 
     # Análisis con SUSE Manager para SUSE
     - name: Ejecutar análisis de vulnerabilidades con SUSE Manager (SUSE)
@@ -274,18 +274,18 @@
     # Procesar resultados de SUSE Manager (SUSE)
     - name: Procesar resultados de SUSE Manager (SUSE)
       set_fact:
-        vulnerabilities_high: "{{ scan_result_suse.stdout | regex_findall('^.*(Important|Critical).*\\$', multiline=True) | length }}"
-        vulnerabilities_medium: "{{ scan_result_suse.stdout | regex_findall('^.*(Moderate).*\\$', multiline=True) | length }}"
-        vulnerabilities_low: "{{ scan_result_suse.stdout | regex_findall('^.*(Low).*\\$', multiline=True) | length }}"
+        vulnerabilidades_altas: "{{ scan_result_suse.stdout | regex_findall('^.*(Important|Critical).*\\$', multiline=True) | length }}"
+        vulnerabilidades_medias: "{{ scan_result_suse.stdout | regex_findall('^.*(Moderate).*\\$', multiline=True) | length }}"
+        vulnerabilidades_bajas: "{{ scan_result_suse.stdout | regex_findall('^.*(Low).*\\$', multiline=True) | length }}"
       when: ansible_distribution == "SLES"
 
     # Mostrar la cantidad de vulnerabilidades altas, medias y bajas (SUSE)
     - name: Mostrar la cantidad de vulnerabilidades altas, medias y bajas (SUSE)
       debug:
-        msg: "Vulnerabilidades Altas: {{ vulnerabilities_high }}, Vulnerabilidades Medias: {{ vulnerabilities_medium }}, Vulnerabilidades Bajas: {{ vulnerabilities_low }}"
+        msg: "Vulnerabilidades Altas: {{ vulnerabilidades_altas }}, Vulnerabilidades Medias: {{ vulnerabilidades_medias }}, Vulnerabilidades Bajas: {{ vulnerabilidades_bajas }}"
       when:
         - ansible_distribution == "SLES"
-        - vulnerabilities_high is defined
+        - vulnerabilidades_altas is defined
 
 - name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
@@ -379,7 +379,7 @@
         content: |
           IP;Usuario;Contraseña;Distribucion;Version;Estado_Suscripcion;Vulnerabilidades_Altas;Vulnerabilidades_Medias;Vulnerabilidades_Bajas;Procesadores;RAM_MB;Espacio_Disponible_MB
           {% for entry in hostvars['localhost']['csv_data'] %}
-          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_distribution'] | default('No disponible') }};{{ hostvars[entry.IP]['ansible_distribution_version'] | default('No disponible') }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') | trim }};{{ hostvars[entry.IP]['vulnerabilities_high'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_medium'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilities_low'] | default(0) }};{{ hostvars[entry.IP]['num_processors'] | default('No disponible') }};{{ hostvars[entry.IP]['total_ram'] | default('No disponible') }};{{ hostvars[entry.IP]['total_disk'] | default('No disponible') }}
+          {{ entry.IP }};{{ entry.Usuario }};{{ entry.Contraseña }};{{ hostvars[entry.IP]['ansible_distribution'] | default('No disponible') }};{{ hostvars[entry.IP]['ansible_distribution_version'] | default('No disponible') }};{{ hostvars[entry.IP]['subscription_status'] | default('No definido') | trim }};{{ hostvars[entry.IP]['vulnerabilidades_altas'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilidades_medias'] | default(0) }};{{ hostvars[entry.IP]['vulnerabilidades_bajas'] | default(0) }};{{ hostvars[entry.IP]['num_processors'] | default('No disponible') }};{{ hostvars[entry.IP]['total_ram'] | default('No disponible') }};{{ hostvars[entry.IP]['total_disk'] | default('No disponible') }}
           {% endfor %}
           
 - name: Insertar registros en la tabla inventario en la base de datos
@@ -397,7 +397,7 @@
           '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}',
-          {{ hostvars[item.IP]['vulnerabilities_high'] | default(0) }},
+          {{ hostvars[item.IP]['vulnerabilidades_altas'] | default(0) }},
           {{ hostvars[item.IP]['vulnerabilidades_medium'] | default(0) }},
           {{ hostvars[item.IP]['vulnerabilidades_low'] | default(0) }},
           {{ hostvars[item.IP]['num_processors'] | default(1) }},
