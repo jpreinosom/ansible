@@ -6,7 +6,7 @@
   gather_facts: no
   vars:
     input_file: "{{ playbook_dir }}/inventario.csv"
-    grafana_file: "{{ playbook_dir }}/grafana.csv"
+    grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
   vars_files:
     - vars/eol_map.yml
