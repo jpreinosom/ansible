@@ -1,5 +1,5 @@
 ---
-# playbooks/instalar_herramientas_seguridad_ubuntu.yml
+# playbooks/instalar_gvm_ubuntu.yml
 
 - name: Leer y procesar el inventario CSV para instalar herramientas de seguridad
   hosts: localhost
@@ -81,6 +81,12 @@
     - name: Habilitar el repositorio Universe en Ubuntu/Debian
       apt_repository:
         repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} universe"
+        state: present
+      when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
+
+    - name: Agregar el PPA de Greenbone
+      apt_repository:
+        repo: ppa:mrazavi/gvm
         state: present
       when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
 
