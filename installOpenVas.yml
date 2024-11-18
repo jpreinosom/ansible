@@ -1,5 +1,5 @@
 ---
-# playbooks/instalar_herramientas_seguridad.yml
+# playbooks/instalar_herramientas_seguridad_ubuntu.yml
 
 - name: Leer y procesar el inventario CSV para instalar herramientas de seguridad
   hosts: localhost
@@ -63,9 +63,11 @@
       debug:
         var: csv_data
 
-- name: Instalar y configurar OpenVAS según el sistema operativo
+- name: Instalar y configurar GVM en Ubuntu/Debian
   hosts: dynamic_hosts_seguridad
   become: yes
+  vars:
+    gvm_setup_marker: "/var/lib/gvm/.gvm_setup_done"
   tasks:
     - name: Recopilar información del sistema
       setup:
@@ -73,70 +75,39 @@
           - distribution
       register: os_facts
 
-    # Tareas para Linux Ubuntu/Debian
-    - name: Instalar OpenVAS en Ubuntu/Debian
-      when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
+    - name: Instalar GVM en Ubuntu/Debian
       apt:
-        name:
-          - openvas
-          - openvas-scanner
-          - openvas-manager
-          - greenbone-security-assistant
+        name: gvm
         state: present
         update_cache: yes
-
-    - name: Configurar OpenVAS en Ubuntu/Debian
       when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
-      command: greenbone-nvt-sync
 
-    - name: Iniciar y habilitar OpenVAS Scanner en Ubuntu/Debian
+    - name: Configurar GVM en Ubuntu/Debian
+      command: gvm-setup
+      args:
+        creates: "{{ gvm_setup_marker }}"
       when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
+
+    - name: Crear marcador de configuración de GVM
+      file:
+        path: "{{ gvm_setup_marker }}"
+        state: touch
+      when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
+
+    - name: Iniciar y habilitar GVM Scanner en Ubuntu/Debian
       service:
-        name: openvas-scanner
+        name: gvmd
         state: started
         enabled: yes
-
-    - name: Inicializar la base de datos OpenVAS en Ubuntu/Debian
       when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
-      command: openvasmd --rebuild
+
+    - name: Inicializar la base de datos GVM en Ubuntu/Debian
+      command: gvmd --rebuild
+      when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
 
     - name: Iniciar y habilitar Greenbone Security Assistant en Ubuntu/Debian
+      service:
+        name: gsad
+        state: started
+        enabled: yes
       when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
-      service:
-        name: gsad
-        state: started
-        enabled: yes
-
-    # Tareas para CentOS/RHEL
-    - name: Instalar OpenVAS en CentOS/RHEL
-      when: os_facts.ansible_facts.ansible_distribution in ["CentOS", "RedHat"]
-      yum:
-        name:
-          - openvas
-          - openvas-scanner
-          - openvas-manager
-          - greenbone-security-assistant
-        state: present
-        update_cache: yes
-
-    - name: Configurar OpenVAS en CentOS/RHEL
-      when: os_facts.ansible_facts.ansible_distribution in ["CentOS", "RedHat"]
-      command: greenbone-nvt-sync
-
-    - name: Iniciar y habilitar OpenVAS Scanner en CentOS/RHEL
-      when: os_facts.ansible_facts.ansible_distribution in ["CentOS", "RedHat"]
-      service:
-        name: openvas-scanner
-        state: started
-        enabled: yes
-
-    - name: Inicializar la base de datos OpenVAS en CentOS/RHEL
-      when: os_facts.ansible_facts.ansible_distribution in ["CentOS", "RedHat"]
-      command: openvasmd --rebuild
-
-    - name: Iniciar y habilitar Greenbone Security Assistant en CentOS/RHEL
-      when: os_facts.ansible_facts.ansible_distribution in ["CentOS", "RedHat"]
-      service:
-        name: gsad
-        state: started
-        enabled: yes
