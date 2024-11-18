@@ -141,20 +141,20 @@
 
     - name: Instalar OpenVAS en Windows usando Docker
       when: os_facts.ansible_facts.ansible_distribution == "Windows"
-      win_chocolatey:
+      ansible.windows.win_chocolatey:
         name: docker-desktop
         state: present
 
     - name: Iniciar el servicio Docker en Windows
       when: os_facts.ansible_facts.ansible_distribution == "Windows"
-      win_service:
+      ansible.windows.win_service:
         name: docker
         state: started
         start_mode: auto
 
     - name: Ejecutar contenedor OpenVAS en Windows usando Docker
       when: os_facts.ansible_facts.ansible_distribution == "Windows"
-      win_docker_container:
+      ansible.windows.win_docker_container:
         name: openvas
         image: greenbone/openvas
         state: started
