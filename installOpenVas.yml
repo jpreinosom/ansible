@@ -84,11 +84,13 @@
         state: present
       when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
 
-    - name: Agregar el PPA de Greenbone
+    - name: Agregar el PPA de Greenbone (si es necesario)
       apt_repository:
         repo: ppa:mrazavi/gvm
         state: present
-      when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
+      when:
+        - os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
+        - ansible_distribution_release != "focal"  # Ejemplo: Ajusta según tu versión
 
     - name: Actualizar la caché de apt
       apt:
@@ -100,14 +102,15 @@
       apt:
         name:
           - gvm
-          - gsa
+          - gsa  # Greenbone Security Assistant
           - gvmd
           - openvas-scanner
         state: present
         update_cache: yes
       when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
 
-    - name: Sincronizar NVTs
+    - name: Sincronizar NVTs como usuario _gvm
+      become_user: _gvm
       command: greenbone-nvt-sync
       when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
       args:
