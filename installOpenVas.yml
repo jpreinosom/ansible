@@ -70,11 +70,12 @@
     - name: Recopilar información del sistema
       setup:
         gather_subset:
-          - os
+          - distribution
       register: os_facts
 
+    # Tareas para Linux Ubuntu/Debian
     - name: Instalar OpenVAS en Ubuntu/Debian
-      when: os_facts.ansible_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_facts.ansible_distribution == "Debian"
+      when: os_facts.ansible_facts.distribution in ["Ubuntu", "Debian"]
       apt:
         name:
           - openvas
@@ -85,29 +86,30 @@
         update_cache: yes
 
     - name: Configurar OpenVAS en Ubuntu/Debian
-      when: os_facts.ansible_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_facts.ansible_distribution == "Debian"
+      when: os_facts.ansible_facts.distribution in ["Ubuntu", "Debian"]
       command: greenbone-nvt-sync
 
-    - name: Iniciar OpenVAS en Ubuntu/Debian
-      when: os_facts.ansible_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_facts.ansible_distribution == "Debian"
+    - name: Iniciar OpenVAS Scanner en Ubuntu/Debian
+      when: os_facts.ansible_facts.distribution in ["Ubuntu", "Debian"]
       service:
         name: openvas-scanner
         state: started
         enabled: yes
 
     - name: Inicializar la base de datos OpenVAS en Ubuntu/Debian
-      when: os_facts.ansible_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_facts.ansible_distribution == "Debian"
+      when: os_facts.ansible_facts.distribution in ["Ubuntu", "Debian"]
       command: openvasmd --rebuild
 
     - name: Iniciar Greenbone Security Assistant en Ubuntu/Debian
-      when: os_facts.ansible_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_facts.ansible_distribution == "Debian"
+      when: os_facts.ansible_facts.distribution in ["Ubuntu", "Debian"]
       service:
         name: gsad
         state: started
         enabled: yes
 
+    # Tareas para CentOS/RHEL
     - name: Instalar OpenVAS en CentOS/RHEL
-      when: os_facts.ansible_facts.ansible_distribution == "CentOS" or os_facts.ansible_facts.ansible_distribution == "RedHat"
+      when: os_facts.ansible_facts.distribution in ["CentOS", "RedHat"]
       yum:
         name:
           - openvas
@@ -118,24 +120,25 @@
         update_cache: yes
 
     - name: Configurar OpenVAS en CentOS/RHEL
-      when: os_facts.ansible_facts.ansible_distribution == "CentOS" or os_facts.ansible_facts.ansible_distribution == "RedHat"
+      when: os_facts.ansible_facts.distribution in ["CentOS", "RedHat"]
       command: greenbone-nvt-sync
 
-    - name: Iniciar OpenVAS en CentOS/RHEL
-      when: os_facts.ansible_facts.ansible_distribution == "CentOS" or os_facts.ansible_facts.ansible_distribution == "RedHat"
+    - name: Iniciar OpenVAS Scanner en CentOS/RHEL
+      when: os_facts.ansible_facts.distribution in ["CentOS", "RedHat"]
       service:
         name: openvas-scanner
         state: started
         enabled: yes
 
     - name: Inicializar la base de datos OpenVAS en CentOS/RHEL
-      when: os_facts.ansible_facts.ansible_distribution == "CentOS" or os_facts.ansible_facts.ansible_distribution == "RedHat"
+      when: os_facts.ansible_facts.distribution in ["CentOS", "RedHat"]
       command: openvasmd --rebuild
 
     - name: Iniciar Greenbone Security Assistant en CentOS/RHEL
-      when: os_facts.ansible_facts.ansible_distribution == "CentOS" or os_facts.ansible_facts.ansible_distribution == "RedHat"
+      when: os_facts.ansible_facts.distribution in ["CentOS", "RedHat"]
       service:
         name: gsad
         state: started
         enabled: yes
-...
+
+    
