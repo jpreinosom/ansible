@@ -1,0 +1,122 @@
+---
+# playbooks/ejecutar_y_mostrar_vulnerabilidades.yml
+
+- name: Leer y procesar el inventario CSV para instalar herramientas de seguridad
+  hosts: localhost
+  gather_facts: no
+  vars:
+    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
+    delimiter: ";"
+  tasks:
+    - name: Verificar que el archivo existe
+      stat:
+        path: "{{ input_file }}"
+      register: file_check
+
+    - name: Fallar si el archivo de inventario no existe
+      fail:
+        msg: "El archivo de inventario {{ input_file }} no existe."
+      when: not file_check.stat.exists
+
+    - name: Leer contenido del archivo CSV
+      set_fact:
+        csv_content: "{{ lookup('file', input_file) }}"
+
+    - name: Extraer encabezados del CSV
+      set_fact:
+        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del CSV
+      set_fact:
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^#|^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != headers | length
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas para crear diccionarios
+      set_fact:
+        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts_seguridad'
+      add_host:
+        name: "{{ item.IP }}"
+        groups: dynamic_hosts_seguridad
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_become: yes
+        ansible_password: "{{ item.Contraseña }}"
+        ansible_connection: ssh
+        ansible_ssh_pass: "{{ item.Contraseña }}"
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+
+    - name: Mostrar estructura completa de csv_data
+      debug:
+        var: csv_data
+
+- name: Ejecutar escaneo y mostrar cantidades de vulnerabilidades por severidad
+  hosts: dynamic_hosts_seguridad
+  become: yes
+  tasks:
+    - name: Comprobar el sistema operativo de la máquina
+      ansible_facts:
+      register: os_facts
+
+    - name: Ejecutar el escaneo de OpenVAS (Ubuntu/Debian)
+      when: os_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_distribution == "Debian"
+      command: "openvas -s -i 127.0.0.1"
+      register: openvas_scan_results
+      ignore_errors: yes
+
+    - name: Ejecutar el escaneo de OpenVAS (CentOS/RHEL)
+      when: os_facts.ansible_distribution == "CentOS" or os_facts.ansible_distribution == "RedHat"
+      command: "openvas -s -i 127.0.0.1"
+      register: openvas_scan_results
+      ignore_errors: yes
+
+    - name: Ejecutar el escaneo de OpenVAS en Windows usando Docker
+      when: os_facts.ansible_distribution == "Windows"
+      win_docker_container:
+        name: openvas
+        image: greenbone/openvas
+        state: started
+        exposed_ports:
+          - "443"
+        command: "openvas -s -i 127.0.0.1"
+      register: openvas_scan_results
+      ignore_errors: yes
+
+    - name: Mostrar los resultados del escaneo (si es posible)
+      debug:
+        var: openvas_scan_results
+
+    - name: Obtener la cantidad de vulnerabilidades de alta severidad
+      shell: "openvas-nasl -T 1 -c -q | grep 'High' | wc -l"
+      register: high_vulns
+      ignore_errors: yes
+
+    - name: Obtener la cantidad de vulnerabilidades de severidad media
+      shell: "openvas-nasl -T 1 -c -q | grep 'Medium' | wc -l"
+      register: medium_vulns
+      ignore_errors: yes
+
+    - name: Obtener la cantidad de vulnerabilidades de baja severidad
+      shell: "openvas-nasl -T 1 -c -q | grep 'Low' | wc -l"
+      register: low_vulns
+      ignore_errors: yes
+
+    - name: Mostrar las vulnerabilidades clasificadas por severidad
+      debug:
+        msg:
+          - "Vulnerabilidades de alta severidad: {{ high_vulns.stdout }}"
+          - "Vulnerabilidades de severidad media: {{ medium_vulns.stdout }}"
+          - "Vulnerabilidades de baja severidad: {{ low_vulns.stdout }}"
