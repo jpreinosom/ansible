@@ -78,11 +78,23 @@
           - distribution
       register: os_facts
 
+    - name: Habilitar el repositorio Universe en Ubuntu/Debian
+      apt_repository:
+        repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} universe"
+        state: present
+      when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
+
+    - name: Actualizar la caché de apt
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600  # 1 hora
+      when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
+
     - name: Instalar GVM y dependencias en Ubuntu/Debian
       apt:
         name:
           - gvm
-          - greenbone-security-assistant
+          - gsa
           - gvmd
           - openvas-scanner
         state: present
@@ -106,6 +118,8 @@
       when:
         - os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
         - not lookup('file', gvm_admin_marker) is defined
+      args:
+        creates: "{{ gvm_admin_marker }}"
 
     - name: Crear marcador de usuario admin
       file:
@@ -128,7 +142,7 @@
 
     - name: Iniciar y habilitar Greenbone Security Assistant en Ubuntu/Debian
       service:
-        name: gsad
+        name: gsa
         state: started
         enabled: yes
       when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
