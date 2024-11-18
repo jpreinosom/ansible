@@ -110,8 +110,7 @@
       when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
 
     - name: Sincronizar NVTs como usuario _gvm
-      become_user: _gvm
-      command: greenbone-nvt-sync
+      command: runuser -u _gvm -- greenbone-nvt-sync
       when: os_facts.ansible_facts.ansible_distribution in ["Ubuntu", "Debian"]
       args:
         creates: "/var/lib/gvm/.nvt_sync_done"
