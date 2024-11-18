@@ -67,12 +67,14 @@
   hosts: dynamic_hosts_seguridad
   become: yes
   tasks:
-    - name: Comprobar el sistema operativo de la máquina
-      ansible_facts:
+    - name: Recopilar información del sistema
+      setup:
+        gather_subset:
+          - os
       register: os_facts
 
     - name: Instalar OpenVAS en Ubuntu/Debian
-      when: os_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_distribution == "Debian"
+      when: os_facts.ansible_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_facts.ansible_distribution == "Debian"
       apt:
         name:
           - openvas
@@ -83,29 +85,29 @@
         update_cache: yes
 
     - name: Configurar OpenVAS en Ubuntu/Debian
-      when: os_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_distribution == "Debian"
+      when: os_facts.ansible_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_facts.ansible_distribution == "Debian"
       command: greenbone-nvt-sync
 
     - name: Iniciar OpenVAS en Ubuntu/Debian
-      when: os_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_distribution == "Debian"
+      when: os_facts.ansible_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_facts.ansible_distribution == "Debian"
       service:
         name: openvas-scanner
         state: started
         enabled: yes
 
     - name: Inicializar la base de datos OpenVAS en Ubuntu/Debian
-      when: os_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_distribution == "Debian"
+      when: os_facts.ansible_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_facts.ansible_distribution == "Debian"
       command: openvasmd --rebuild
 
     - name: Iniciar Greenbone Security Assistant en Ubuntu/Debian
-      when: os_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_distribution == "Debian"
+      when: os_facts.ansible_facts.ansible_distribution == "Ubuntu" or os_facts.ansible_facts.ansible_distribution == "Debian"
       service:
         name: gsad
         state: started
         enabled: yes
 
     - name: Instalar OpenVAS en CentOS/RHEL
-      when: os_facts.ansible_distribution == "CentOS" or os_facts.ansible_distribution == "RedHat"
+      when: os_facts.ansible_facts.ansible_distribution == "CentOS" or os_facts.ansible_facts.ansible_distribution == "RedHat"
       yum:
         name:
           - openvas
@@ -116,42 +118,42 @@
         update_cache: yes
 
     - name: Configurar OpenVAS en CentOS/RHEL
-      when: os_facts.ansible_distribution == "CentOS" or os_facts.ansible_distribution == "RedHat"
+      when: os_facts.ansible_facts.ansible_distribution == "CentOS" or os_facts.ansible_facts.ansible_distribution == "RedHat"
       command: greenbone-nvt-sync
 
     - name: Iniciar OpenVAS en CentOS/RHEL
-      when: os_facts.ansible_distribution == "CentOS" or os_facts.ansible_distribution == "RedHat"
+      when: os_facts.ansible_facts.ansible_distribution == "CentOS" or os_facts.ansible_facts.ansible_distribution == "RedHat"
       service:
         name: openvas-scanner
         state: started
         enabled: yes
 
     - name: Inicializar la base de datos OpenVAS en CentOS/RHEL
-      when: os_facts.ansible_distribution == "CentOS" or os_facts.ansible_distribution == "RedHat"
+      when: os_facts.ansible_facts.ansible_distribution == "CentOS" or os_facts.ansible_facts.ansible_distribution == "RedHat"
       command: openvasmd --rebuild
 
     - name: Iniciar Greenbone Security Assistant en CentOS/RHEL
-      when: os_facts.ansible_distribution == "CentOS" or os_facts.ansible_distribution == "RedHat"
+      when: os_facts.ansible_facts.ansible_distribution == "CentOS" or os_facts.ansible_facts.ansible_distribution == "RedHat"
       service:
         name: gsad
         state: started
         enabled: yes
 
     - name: Instalar OpenVAS en Windows usando Docker
-      when: os_facts.ansible_distribution == "Windows"
+      when: os_facts.ansible_facts.ansible_distribution == "Windows"
       win_chocolatey:
         name: docker-desktop
         state: present
 
     - name: Iniciar el servicio Docker en Windows
-      when: os_facts.ansible_distribution == "Windows"
+      when: os_facts.ansible_facts.ansible_distribution == "Windows"
       win_service:
         name: docker
         state: started
         start_mode: auto
 
     - name: Ejecutar contenedor OpenVAS en Windows usando Docker
-      when: os_facts.ansible_distribution == "Windows"
+      when: os_facts.ansible_facts.ansible_distribution == "Windows"
       win_docker_container:
         name: openvas
         image: greenbone/openvas
