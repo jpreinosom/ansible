@@ -74,8 +74,8 @@
 
     - name: Parsear el resultado de la consulta y extraer los datos en formato adecuado
       set_fact:
-        # Aquí solo eliminamos la primera línea (cabecera), manteniendo los registros
-        inventario_data: "{{ inventario_query_result.stdout.split('\n')[2:] | map('split', '|') | map('map', 'trim') }}"
+        # Limpiamos las líneas vacías y nos aseguramos de que cada línea tenga al menos 6 elementos
+        inventario_data: "{{ inventario_query_result.stdout.split('\n')[2:] | map('split', '|') | map('map', 'trim') | selectattr('length', '>=', 6) | list }}"
 
     - name: Mostrar el contenido completo de inventario_data
       debug:
