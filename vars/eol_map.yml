@@ -186,5 +186,5 @@ eol_map:
     "rolling": "rolling"         # Void Linux (Rolling Release)
 
   # **Windows
-  Windows:
-    "2022": "2026-10-16"
+  Microsoft Windows Server 2022 Standard Evaluation:
+    "10.0.20348.0": "2026-10-16"
