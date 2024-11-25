@@ -172,13 +172,15 @@
       command: >
         psql -U grafana_user -d grafana_db -c "
         INSERT INTO inventario (
-          ip, distribucion, version, familia, soportada
+          ip, distribucion, version, familia, soportada, usuario, password
         ) VALUES (
           '{{ item.IP }}',
           '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['os_family'] | default('No disponible') }}',
-          '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}'
+          '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}',
+          '{{ item.Usuario }}',
+          '{{ item.Contraseña }}'
         )
         "
       loop: "{{ hostvars['localhost']['csv_data'] }}"
