@@ -71,6 +71,10 @@
       environment:
          PGPASSWORD: "grafana_password"
       become: no
+      
+    - name: Mostrar el resultado de la consulta SQL
+      debug:
+        var: inventario_query_result.stdout
 
     - name: Parsear el resultado de la consulta y extraer los datos en formato adecuado
       set_fact:
