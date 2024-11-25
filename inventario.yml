@@ -92,7 +92,7 @@
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
-        remote_tmp: /tmp/ansible
+        remote_tmp: "{{ 'C:/Windows/Temp' if 'Windows' in item.Familia else '/tmp/ansible' }}"
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
