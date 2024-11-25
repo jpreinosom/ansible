@@ -123,11 +123,7 @@
     - name: Obtener la fecha actual del sistema
       set_fact:
         current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
-    
-    - name: Mostrar información del sistema operativo
-      debug:
-        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: {{ os_family }}"
-    
+
     - name: Determinar la fecha de EoL para la versión de Windows
       set_fact:
         eol_date: >-
@@ -190,7 +186,7 @@
           '{{ item.Contraseña }}'
         )
         "
-      loop: "{{ hostvars['localhost']['grafana_csv_data'] }}"
+      loop: "{{ hostvars['localhost']['csv_data'] }}"
       loop_control:
         loop_var: item
       environment:
