@@ -85,7 +85,7 @@
         - name: Consultar datos de servidores para la familia {{ item }}
           command: >
             psql -U grafana_user -d grafana_db -c "SELECT ip, distribucion, version, familia, usuario, password FROM inventario WHERE familia = '{{ item }}'"
-          register: inventario_query_result
+          register: family_query_result
           environment:
             PGPASSWORD: "grafana_password"
           become: no
@@ -93,10 +93,13 @@
           loop_control:
             loop_var: item
 
+        - name: Acumular los resultados de las consultas
+          set_fact:
+            all_inventario_data: "{{ all_inventario_data | default([]) + [ family_query_result.stdout ] }}"
+
         - name: Parsear los resultados de la consulta y extraer los datos en formato adecuado
           set_fact:
-            # Asegurarse de que cada familia tiene los datos adecuados
-            inventario_data: "{{ inventario_query_result.stdout.split('\n')[2:] | map('split', '|') | map('map', 'trim') | reject('length', '<', 6) | list }}"
+            inventario_data: "{{ all_inventario_data | map('split', '\n') | map('select', 'match', '^[0-9]') | map('map', 'trim') | list }}"
 
         - name: Mostrar el contenido completo de inventario_data
           debug:
