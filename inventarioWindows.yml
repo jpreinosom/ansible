@@ -55,13 +55,6 @@
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
         ansible_shell_type: cmd
-        name: "{{ item.IP }}"
-        groups: windows_hosts
-        ansible_host: "{{ item.IP }}"
-        ansible_user: "{{ item.Usuario }}"
-        ansible_password: "{{ item.Contraseña }}"
-        ansible_connection: ssh
-        ansible_ssh_pass: "{{ item.Contraseña }}"
         remote_tmp: /tmp
       loop: "{{ csv_data }}"
       loop_control:
@@ -121,7 +114,7 @@
   hosts: windows_hosts
   gather_facts: yes
   vars_files:
-    - vars/eol_map.yml
+    - vars/eol_map_windows.yml
   tasks:
     - name: Determinar la familia del sistema operativo
       set_fact:
@@ -170,6 +163,13 @@
     - name: Mostrar información del sistema operativo
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: {{ os_family }}"
+
+    - name: Actualizar archivo de configuración EoL si faltan versiones
+      lineinfile:
+        path: "{{ playbook_dir }}/vars/eol_map_windows.yml"
+        line: "    '{{ ansible_distribution_version }}': {{ current_date | int + 50000 }}"
+        insertafter: "^  '{{ ansible_distribution }}':"
+      when: "eol_map.get(ansible_distribution, {}).get(ansible_distribution_version) is not defined"
 
 - name: Insertar registros en la tabla inventario en la base de datos
   hosts: grafana_hosts
