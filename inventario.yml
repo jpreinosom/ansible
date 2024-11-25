@@ -167,9 +167,20 @@
             Versión sin fecha establecida de EoL
           {% endif %}
 
-    - name: Mostrar subscription_status
+    - name: Establecer la familia del sistema operativo
+      set_fact:
+        os_family: >-
+          {% if ansible_system == "Linux" %}
+            Linux
+          {% elif ansible_system == "Windows" %}
+            Windows
+          {% else %}
+            Desconocido
+          {% endif %}
+
+    - name: Mostrar os_family
       debug:
-        var: subscription_status
+        var: os_family
 
 - name: Insertar registros en la tabla inventario en la base de datos
   hosts: grafana_hosts
@@ -179,14 +190,15 @@
       command: >
         psql -U grafana_user -d grafana_db -c "
         INSERT INTO inventario (
-          ip, distribucion, version, soportada
+          ip, distribucion, version, familia, soportada
         ) VALUES (
           '{{ item.IP }}',
           '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
+          '{{ hostvars[item.IP]['os_family'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}'
         )
-        "
+        ;"
       loop: "{{ hostvars['localhost']['csv_data'] }}"
       loop_control:
         loop_var: item
