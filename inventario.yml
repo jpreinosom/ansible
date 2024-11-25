@@ -156,25 +156,9 @@
             Versión sin fecha establecida de EoL
           {% endif %}
 
-    - name: Determinar la familia del sistema operativo
-      set_fact:
-        os_family: >-
-          {% if 'Windows' in ansible_os_family %}
-            Windows
-          {% else %}
-            Linux
-          {% endif %}
-          {% endif %}
-
-    - name: Actualizar conexión para Windows
-      set_fact:
-        ansible_connection: winrm
-      when: os_family == 'Windows'
-          {% endif %}
-
     - name: Mostrar información del sistema operativo
       debug:
-        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: {{ os_family }}"
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
 
 - name: Insertar registros en la tabla inventario en la base de datos
   hosts: grafana_hosts
@@ -184,12 +168,11 @@
       command: >
         psql -U grafana_user -d grafana_db -c "
         INSERT INTO inventario (
-          ip, distribucion, version, familia, soportada
+          ip, distribucion, version, soportada
         ) VALUES (
           '{{ item.IP }}',
           '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
-          '{{ hostvars[item.IP]['os_family'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}'
         )
         "
@@ -199,4 +182,3 @@
       environment:
         PGPASSWORD: "grafana_password"
       become: no
-...
