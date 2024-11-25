@@ -71,3 +71,7 @@
       environment:
          PGPASSWORD: "grafana_password"
       become: no
+
+    - name: Parsear el resultado de la consulta y extraer los datos en formato adecuado
+      set_fact:
+          inventario_data: "{{ inventario_query_result.stdout.split('\n')[2:-2] | map('split', '|') | map('map', 'trim') | map('zip', ['ip', 'distribucion', 'version', 'familia', 'usuario', 'password']) | map('items2dict') }}"
