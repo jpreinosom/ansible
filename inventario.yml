@@ -6,6 +6,7 @@
   gather_facts: no
   vars:
     input_file: "{{ playbook_dir }}/inventory/inventario.csv"
+    grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
   vars_files:
     - vars/eol_map.yml
@@ -47,6 +48,37 @@
       loop_control:
         loop_var: row
 
+    - name: Leer contenido del archivo Grafana CSV
+      set_fact:
+        grafana_csv_content: "{{ lookup('file', grafana_file) }}"
+
+    - name: Extraer encabezados del archivo Grafana CSV
+      set_fact:
+        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del archivo Grafana CSV
+      set_fact:
+        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != grafana_headers | length
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
+      set_fact:
+        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Definir grafana_db_host
+      set_fact:
+        grafana_db_host: "{{ grafana_csv_data[0]['IP'] }}"
+
     - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
       add_host:
         name: "{{ item.IP }}"
@@ -56,6 +88,9 @@
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
+        ansible_shell_type: cmd
+        ansible_shell_executable: /bin/cmd
+        remote_tmp: C:/Windows/Temp/ansible
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
@@ -63,7 +98,7 @@
 - name: Verificar versión de sistema operativo en los servidores
   hosts: dynamic_hosts
   gather_facts: yes
-  become: yes
+  become: no
   vars_files:
     - vars/eol_map.yml
   tasks:
@@ -123,7 +158,7 @@
 
     - name: Insertar información en la base de datos 'inventario' usando línea de comandos
       shell: |
-        PGPASSWORD="grafana_password" psql -h 192.168.100.58 -U grafana_user -d grafana_db -c "
+        PGPASSWORD="grafana_password" psql -h {{ grafana_db_host }} -U grafana_user -d grafana_db -c "
         INSERT INTO inventario (ip, distribucion, version, familia, soportada)
         VALUES ('{{ ansible_host }}', '{{ ansible_distribution }}', '{{ ansible_distribution_version }}', '{{ 'Linux' if ansible_os_family == 'Linux' else 'Windows' }}', '{{ subscription_status }}')
         ON CONFLICT (ip) DO UPDATE SET
