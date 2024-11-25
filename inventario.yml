@@ -186,6 +186,7 @@
           '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}'
         )
+        "
       loop: "{{ hostvars['localhost']['csv_data'] }}"
       loop_control:
         loop_var: item
