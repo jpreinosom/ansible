@@ -1,123 +1,84 @@
 ---
 # playbooks/analizar_vulnerabilidades_windows.yml
 
-- name: Leer y procesar el inventario CSV (Windows)
+- name: Leer y procesar el inventario CSV para Windows
   hosts: localhost
   gather_facts: no
   vars:
-    input_file_windows: "{{ playbook_dir }}/inventory/inventarioWindows.csv"
+    input_file: "{{ playbook_dir }}/inventory/inventario_windows.csv"
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
   tasks:
-    - name: Verificar que el archivo CSV de Windows existe
+    - name: Verificar que el archivo CSV existe
       stat:
-        path: "{{ input_file_windows }}"
-      register: file_check_windows
+        path: "{{ input_file }}"
+      register: file_check
 
-    - name: Fallar si el archivo de inventario Windows no existe
+    - name: Fallar si el archivo de inventario no existe
       fail:
-        msg: "El archivo de inventario Windows {{ input_file_windows }} no existe."
-      when: not file_check_windows.stat.exists
+        msg: "El archivo de inventario {{ input_file }} no existe."
+      when: not file_check.stat.exists
 
-    - name: Leer contenido del archivo CSV de Windows
+    - name: Leer contenido del archivo CSV
       set_fact:
-        csv_content_windows: "{{ lookup('file', input_file_windows) }}"
+        csv_content: "{{ lookup('file', input_file) }}"
 
-    - name: Extraer encabezados del CSV de Windows
+    - name: Extraer encabezados del CSV
       set_fact:
-        headers_windows: "{{ csv_content_windows.split('\n') | first | split(delimiter) | map('trim') | list }}"
+        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
 
-    - name: Extraer filas del CSV de Windows
+    - name: Extraer filas del CSV
       set_fact:
-        rows_windows: "{{ csv_content_windows.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
 
-    - name: Validar que cada fila del archivo de inventario Windows tenga el mismo número de campos que los encabezados
+    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
       fail:
         msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
-      when: row | length != headers_windows | length
-      loop: "{{ rows_windows }}"
+      when: row | length != headers | length
+      loop: "{{ rows }}"
       loop_control:
         loop_var: row
 
-    - name: Combinar encabezados con filas del CSV de Windows para crear diccionarios
+    - name: Combinar encabezados con filas para crear diccionarios
       set_fact:
-        csv_data_windows: "{{ csv_data_windows | default([]) + [ dict(headers_windows | zip(row)) ] }}"
-      loop: "{{ rows_windows }}"
+        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
+      loop: "{{ rows }}"
       loop_control:
         loop_var: row
 
-    # Usar win_command para crear el directorio si no existe
-    - name: Crear directorio temporal para ansible en C:\Temp\ansible (si no existe)
-      win_command: "if (-not (Test-Path C:\\Temp\\ansible)) { New-Item -Path C:\\Temp\\ansible -ItemType Directory }"
-      ignore_errors: yes
-
-    - name: Configurar permisos en el directorio C:\Temp\ansible para el usuario Administrator
-      win_acl:
-        path: C:\Temp\ansible
-        user: "Administrator"
-        permissions: "full_control"
-        state: present
-
-    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts' para Windows (con SSH)
+    - name: Agregar hosts dinámicamente al grupo 'windows_hosts'
       add_host:
         name: "{{ item.IP }}"
-        groups: dynamic_hosts
+        groups: windows_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_password: "{{ item.Contraseña }}"
-        ansible_connection: ssh  # Usamos SSH
-        ansible_remote_tmp: "C:/Temp/ansible"  # Ruta temporal adecuada para Windows
-      loop: "{{ csv_data_windows }}"
+        ansible_connection: winrm
+        ansible_winrm_transport: ntlm
+        ansible_port: 5985
+      loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
 
 - name: Obtener información y verificar EoL de los servidores Windows
-  hosts: dynamic_hosts
+  hosts: windows_hosts
   gather_facts: yes
-  vars:
-    ansible_remote_tmp: "C:/Temp/ansible"  # Aseguramos que se use la ruta correcta
+  vars_files:
+    - vars/eol_map_windows.yml
   tasks:
-    - name: Determinar la familia del sistema operativo para Windows
-      set_fact:
-        os_family: Windows
-
     - name: Obtener la fecha actual del sistema
       set_fact:
         current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
 
-    - name: Obtener facts del sistema para Windows usando SSH
-      setup:
-        gather_subset:
-          - system  # Solo recopilamos información sobre el sistema (como distribución, versión, etc.)
-
     - name: Determinar la fecha de EoL para la versión de Windows
       set_fact:
-        eol_date: >-
-          {{
-            (eol_map.get(ansible_distribution, {})
-            | dict2items
-            | selectattr('key', '==', ansible_distribution_version)
-            | map(attribute='value')
-            | list
-            | first)
-            | default(
-              (eol_map.get(ansible_distribution, {})
-              | dict2items
-              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
-              | map(attribute='value')
-              | list
-              | first),
-              None
-            )
-          }}
+        eol_date: "{{ eol_map[ansible_distribution_version] | default(None) }}"
 
-    - name: Establecer el estado de suscripción para Windows
+    - name: Establecer el estado de suscripción
       set_fact:
         subscription_status: >-
           {% if eol_date is defined %}
-            {% if eol_date == "rolling" %}
-              Rolling Release
-            {% elif current_date | int > (eol_date | regex_replace('-', '') | int) %}
+            {% if current_date | int > (eol_date | regex_replace('-', '') | int) %}
               Deprecado
             {% else %}
               Soportada
@@ -126,32 +87,28 @@
             Versión sin fecha establecida de EoL
           {% endif %}
 
-    - name: Mostrar información del sistema operativo para Windows
+    - name: Mostrar información del sistema operativo
       debug:
-        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: {{ os_family }}"
+        msg: "Sistema Operativo: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
 
 - name: Insertar registros en la tabla inventario en la base de datos
-  hosts: grafana_hosts
-  become: yes
+  hosts: windows_hosts
   tasks:
-    - name: Insertar registros desde csv_data_windows en la base de datos
+    - name: Insertar registros desde csv_data en la base de datos
       command: >
         psql -U grafana_user -d grafana_db -c "
         INSERT INTO inventario (
           ip, distribucion, version, familia, soportada, usuario, password
         ) VALUES (
-          '{{ item.IP }}',
-          '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
-          '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
-          '{{ hostvars[item.IP]['os_family'] | default('No disponible') }}',
-          '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}',
-          '{{ item.Usuario }}',  # Aquí se agrega el campo Usuario
-          '{{ item.Contraseña }}'  # Aquí se agrega el campo Contraseña
+          '{{ ansible_host }}',
+          '{{ ansible_distribution | default('No disponible') }}',
+          '{{ ansible_distribution_version | default('No disponible') }}',
+          'Windows',
+          '{{ subscription_status | default('No definido') | trim }}',
+          '{{ ansible_user }}',
+          '{{ ansible_password }}'
         )
         "
-      loop: "{{ hostvars['localhost']['csv_data_windows'] }}"
-      loop_control:
-        loop_var: item
       environment:
         PGPASSWORD: "grafana_password"
       become: no
