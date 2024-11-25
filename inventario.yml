@@ -111,11 +111,6 @@
       loop_control:
         loop_var: item
 
-    - name: Mostrar estructura completa de csv_data
-      debug:
-        var: csv_data
-
-      set_fact:
 - name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
   gather_facts: yes
@@ -184,14 +179,17 @@
       command: >
         psql -U grafana_user -d grafana_db -c "
         INSERT INTO inventario (
-          IP, Distribucion, Version, soportada
+          ip, distribucion, version, soportada
         ) VALUES (
           '{{ item.IP }}',
           '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
-          '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
-          '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}',
-        );"
+          '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}'
+        )
+        ON CONFLICT (ip) DO UPDATE SET
+        distribucion = EXCLUDED.distribucion,
+        version = EXCLUDED.version,
+        soportada = EXCLUDED.soportada;"
       loop: "{{ hostvars['localhost']['csv_data'] }}"
       loop_control:
         loop_var: item
