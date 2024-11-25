@@ -38,7 +38,7 @@
       loop_control:
         loop_var: row
 
-    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
+        - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
       set_fact:
         grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
       loop: "{{ grafana_rows }}"
@@ -74,8 +74,8 @@
 
     - name: Parsear el resultado de la consulta y extraer los datos en formato adecuado
       set_fact:
-        # Limpiamos el resultado eliminando las primeras y últimas líneas que no contienen datos relevantes
-        inventario_data: "{{ inventario_query_result.stdout.split('\n')[2:-2] | map('split', '|') | map('map', 'trim') }}"
+        # Aquí solo eliminamos la primera línea (cabecera), manteniendo los registros
+        inventario_data: "{{ inventario_query_result.stdout.split('\n')[2:] | map('split', '|') | map('map', 'trim') }}"
 
     - name: Mostrar el contenido completo de inventario_data
       debug:
