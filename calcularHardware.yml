@@ -1,4 +1,63 @@
-- name: Consultar la tabla inventario y obtener recursos de las máquinas
+---
+# playbooks/limpiar_tablas_grafana.yml
+
+- name: Leer y procesar el inventario CSV para Grafana
+  hosts: localhost
+  gather_facts: no
+  vars:
+    grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
+    delimiter: ";"
+  tasks:
+    - name: Verificar que el archivo Grafana CSV existe
+      stat:
+        path: "{{ grafana_file }}"
+      register: grafana_file_check
+
+    - name: Fallar si el archivo de inventario Grafana no existe
+      fail:
+        msg: "El archivo de inventario {{ grafana_file }} no existe."
+      when: not grafana_file_check.stat.exists
+
+    - name: Leer contenido del archivo Grafana CSV
+      set_fact:
+        grafana_csv_content: "{{ lookup('file', grafana_file) }}"
+
+    - name: Extraer encabezados del archivo Grafana CSV
+      set_fact:
+        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del archivo Grafana CSV
+      set_fact:
+        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != grafana_headers | length
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
+      set_fact:
+        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
+      add_host:
+        name: "{{ item.IP }}"
+        groups: grafana_hosts
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
+        ansible_connection: ssh
+        ansible_ssh_pass: "{{ item.Contraseña }}"
+      loop: "{{ grafana_csv_data }}"
+      loop_control:
+        loop_var: item
+- name: Consultar la tabla inventario en la base de datos de Grafana
   hosts: grafana_hosts
   gather_facts: no
   vars:
@@ -12,58 +71,6 @@
          PGPASSWORD: "grafana_password"
       become: no
 
-    - name: Parsear el resultado de la consulta y extraer las IPs
-      set_fact:
-        inventario_data: "{{ inventario_query_result.stdout.split('\n')[2:-2] | map('split', '|') | map('map', 'trim') | list }}"
-      
-    - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
-      add_host:
-        name: "{{ item[0] }}"  # Usamos la IP como nombre del host
-        groups: grafana_hosts
-        ansible_host: "{{ item[0] }}"
-        ansible_user: "{{ item[4] }}"  # Usuario desde la columna 'usuario'
-        ansible_password: "{{ item[5] }}"  # Contraseña desde la columna 'password'
-        ansible_connection: ssh
-        ansible_ssh_pass: "{{ item[5] }}"
-      loop: "{{ inventario_data }}"
-
-    - name: Obtener información de recursos (disco, RAM, CPU) desde los hosts
-      block:
-        - name: Obtener disco total en Linux
-          command: "df -h --total | grep total | awk '{print $2}'"
-          when: "'Linux' in item[3]"  # Verifica si es un sistema Linux
-          register: disk_linux
-          
-        - name: Obtener RAM total en Linux
-          command: "free -h | grep Mem | awk '{print $2}'"
-          when: "'Linux' in item[3]"  # Verifica si es un sistema Linux
-          register: ram_linux
-
-        - name: Obtener procesadores en Linux
-          command: "lscpu | grep 'Model name' | awk -F: '{print $2}'"
-          when: "'Linux' in item[3]"  # Verifica si es un sistema Linux
-          register: cpu_linux
-
-        - name: Obtener disco total en Windows
-          win_command: "Get-PSDrive C | Select-Object @{Name='Total';Expression={($_.Used + $_.Free)}}"
-          when: "'Windows' in item[3]"  # Verifica si es un sistema Windows
-          register: disk_windows
-
-        - name: Obtener RAM total en Windows
-          win_command: "Get-WmiObject Win32_ComputerSystem | Select-Object TotalPhysicalMemory"
-          when: "'Windows' in item[3]"  # Verifica si es un sistema Windows
-          register: ram_windows
-
-        - name: Obtener procesadores en Windows
-          win_command: "Get-WmiObject Win32_Processor | Select-Object -First 1 -Property Name"
-          when: "'Windows' in item[3]"  # Verifica si es un sistema Windows
-          register: cpu_windows
-
-    - name: Mostrar información de recursos para cada host
+    - name: Mostrar el resultado de la consulta SQL
       debug:
-        msg: >
-          Host: {{ item[0] }} | 
-          Disco: {{ disk_linux.stdout if 'Linux' in item[3] else disk_windows.stdout }} | 
-          RAM: {{ ram_linux.stdout if 'Linux' in item[3] else ram_windows.stdout }} | 
-          CPU: {{ cpu_linux.stdout if 'Linux' in item[3] else cpu_windows.stdout }}
-      loop: "{{ inventario_data }}"
+        var: inventario_query_result.stdout
