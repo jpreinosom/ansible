@@ -40,20 +40,20 @@
 
     - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
       set_fact:
-        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
+        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict({'ip': row[0], 'distribucion': row[1], 'version': row[2], 'familia': row[3], 'usuario': row[4], 'password': row[5]}) ] }}"
       loop: "{{ grafana_rows }}"
       loop_control:
         loop_var: row
 
     - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
       add_host:
-        name: "{{ item.IP }}"
+        name: "{{ item.ip }}"
         groups: grafana_hosts
-        ansible_host: "{{ item.IP }}"
-        ansible_user: "{{ item.Usuario }}"
-        ansible_password: "{{ item.Contraseña }}"
+        ansible_host: "{{ item.ip }}"
+        ansible_user: "{{ item.usuario }}"
+        ansible_password: "{{ item.password }}"
         ansible_connection: ssh
-        ansible_ssh_pass: "{{ item.Contraseña }}"
+        ansible_ssh_pass: "{{ item.password }}"
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
@@ -95,7 +95,7 @@
 
         - name: Acumular los resultados de las consultas
           set_fact:
-            all_inventario_data: "{{ all_inventario_data | default([]) + [ item.results[0].stdout ] }}"
+            all_inventario_data: "{{ all_inventario_data | default([]) + [ family_query_result.stdout ] }}"
 
         - name: Parsear los resultados de la consulta y extraer los datos en formato adecuado
           set_fact:
