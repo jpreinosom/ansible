@@ -184,3 +184,7 @@ eol_map:
   # **Void Linux**
   VoidLinux:
     "rolling": "rolling"         # Void Linux (Rolling Release)
+
+  # **Windows
+  Windows:
+    "2022": "2026-10-16"
