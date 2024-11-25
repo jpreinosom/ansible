@@ -40,20 +40,20 @@
 
     - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
       set_fact:
-        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
+        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict({'ip': row[0], 'distribucion': row[1], 'version': row[2], 'familia': row[3], 'usuario': row[4], 'password': row[5]}) ] }}"
       loop: "{{ grafana_rows }}"
       loop_control:
         loop_var: row
 
     - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
       add_host:
-        name: "{{ item.IP }}"
+        name: "{{ item.ip }}"
         groups: grafana_hosts
-        ansible_host: "{{ item.IP }}"
-        ansible_user: "{{ item.Usuario }}"
-        ansible_password: "{{ item.Contraseña }}"
+        ansible_host: "{{ item.ip }}"
+        ansible_user: "{{ item.usuario }}"
+        ansible_password: "{{ item.password }}"
         ansible_connection: ssh
-        ansible_ssh_pass: "{{ item.Contraseña }}"
+        ansible_ssh_pass: "{{ item.password }}"
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
@@ -64,33 +64,53 @@
   vars:
     db_name: "grafana_db"
   tasks:
-    - name: Realizar consulta SQL a la tabla inventario
+    - name: Realizar primera consulta SQL para obtener las familias
       command: >
-        psql -U grafana_user -d grafana_db -c "SELECT ip, distribucion, version, familia, usuario, password FROM inventario"
-      register: inventario_query_result
+        psql -U grafana_user -d grafana_db -c "SELECT DISTINCT familia FROM inventario"
+      register: familias_query_result
       environment:
-         PGPASSWORD: "grafana_password"
+        PGPASSWORD: "grafana_password"
       become: no
 
-    - name: Parsear el resultado de la consulta y extraer los datos en formato adecuado
-      set_fact:
-        # Limpiamos el resultado eliminando la primera fila de la cabecera y aseguramos que las filas tienen la longitud correcta
-        inventario_data: "{{ inventario_query_result.stdout.split('\n')[2:] | map('split', '|') | map('map', 'trim') | selectattr('length', '>=', 6) | list }}"
-
-    - name: Mostrar el contenido completo de inventario_data
+    - name: Mostrar el resultado de la consulta de familias
       debug:
-        msg: "{{ inventario_data }}"
+        var: familias_query_result.stdout
 
-    - name: Mostrar los servidores diferenciados por familia
+    - name: Procesar los resultados de las familias y hacer una consulta para cada familia
+      set_fact:
+        familias: "{{ familias_query_result.stdout.split('\n')[2:-2] | map('trim') | list }}"
+
+    - name: Realizar una consulta SQL para cada familia y obtener el resto de la información
       block:
-        - name: Servidores Linux
-          debug:
-            msg: "Servidor {{ item[0] }} es de familia Linux"
-          loop: "{{ inventario_data }}"
-          when: "'Linux' in item[3] | lower"  # Normaliza para comparar en minúsculas
+        - name: Consultar datos de servidores para la familia {{ item }}
+          command: >
+            psql -U grafana_user -d grafana_db -c "SELECT ip, distribucion, version, familia, usuario, password FROM inventario WHERE familia = '{{ item }}'"
+          register: inventario_query_result
+          environment:
+            PGPASSWORD: "grafana_password"
+          become: no
+          loop: "{{ familias }}"
+          loop_control:
+            loop_var: item
 
-        - name: Servidores Windows
+        - name: Parsear los resultados de la consulta y extraer los datos en formato adecuado
+          set_fact:
+            inventario_data: "{{ inventario_query_result.stdout.split('\n')[2:] | map('split', '|') | map('map', 'trim') | reject('length', '<', 6) | list }}"
+
+        - name: Mostrar el contenido completo de inventario_data
           debug:
-            msg: "Servidor {{ item[0] }} es de familia Windows"
-          loop: "{{ inventario_data }}"
-          when: "'Windows' in item[3] | lower"  # Normaliza para comparar en minúsculas
+            msg: "{{ inventario_data }}"
+
+        - name: Mostrar los servidores diferenciados por familia
+          block:
+            - name: Servidores Linux
+              debug:
+                msg: "Servidor {{ item[0] }} es de familia Linux"
+              loop: "{{ inventario_data }}"
+              when: "'Linux' in item[3] | lower"  # Normaliza para comparar en minúsculas
+
+            - name: Servidores Windows
+              debug:
+                msg: "Servidor {{ item[0] }} es de familia Windows"
+              loop: "{{ inventario_data }}"
+              when: "'Windows' in item[3] | lower"  # Normaliza para comparar en minúsculas
