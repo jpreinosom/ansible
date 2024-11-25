@@ -54,7 +54,7 @@
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
-        remote_tmp: C:\Windows\Temp\ansible
+        remote_tmp: /tmp/ansible
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
