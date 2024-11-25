@@ -70,7 +70,7 @@
   tasks:
     - name: Limpiar tabla en la base de datos
       command: >
-        psql -U grafana_user -d grafana_db -c  -c "TRUNCATE TABLE {{ item }} CASCADE"
+        psql -U grafana_user -d grafana_db -c "TRUNCATE TABLE {{ item }} CASCADE"
       loop: "{{ tables_to_clean }}"
       loop_control:
         loop_var: item
