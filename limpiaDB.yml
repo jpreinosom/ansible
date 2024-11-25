@@ -64,9 +64,9 @@
   vars:
     db_name: "grafana_db"
     tables_to_clean:
-      - "inventario"
       - "hardware"
       - "vulnerabilidades"
+      - "inventario"
   tasks:
     - name: Limpiar tabla en la base de datos
       command: >
