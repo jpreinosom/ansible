@@ -5,11 +5,9 @@
   hosts: localhost
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
+    input_file: "{{ playbook_dir }}/inventario.csv"
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
-  vars_files:
-    - vars/eol_map.yml
   tasks:
     - name: Verificar que el archivo CSV existe
       stat:
@@ -115,6 +113,8 @@
 - name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
   gather_facts: yes
+  vars_files:
+    - vars/eol_map.yml
   tasks:
     - name: Obtener la fecha actual del sistema
       set_fact:
