@@ -119,7 +119,6 @@
     - name: Determinar la familia del sistema operativo
       set_fact:
         os_family: Linux
-          {% endif %}
 
     - name: Obtener la fecha actual del sistema
       set_fact:
