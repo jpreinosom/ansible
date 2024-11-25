@@ -54,11 +54,13 @@
         ansible_user: "{{ item.Usuario }}"
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: winrm
-        ansible_winrm_transport: ntlm
+        ansible_winrm_transport: ntlm  # O 'credssp' si lo cambiaste
+        ansible_winrm_server_cert_validation: ignore
         ansible_port: 5985
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
+
 
 - name: Obtener información y verificar EoL de los servidores Windows
   hosts: windows_hosts
