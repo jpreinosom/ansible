@@ -54,7 +54,7 @@
         ansible_user: "{{ item.Usuario }}"
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh  # Usamos SSH
-        ansible_remote_tmp: "C:\\Users\\{{ item.Usuario }}\\AppData\\Local\\Temp\\ansible"
+        ansible_remote_tmp: "C:/Temp/ansible"  # Ruta temporal adecuada para Windows
       loop: "{{ csv_data_windows }}"
       loop_control:
         loop_var: item
@@ -63,7 +63,7 @@
   hosts: dynamic_hosts
   gather_facts: yes
   vars:
-    ansible_remote_tmp: "C:\\Users\\{{ ansible_user }}\\AppData\\Local\\Temp\\ansible"
+    ansible_remote_tmp: "C:/Temp/ansible"  # Aseguramos que se use la ruta correcta
   tasks:
     - name: Determinar la familia del sistema operativo para Windows
       set_fact:
