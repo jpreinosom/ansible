@@ -5,7 +5,7 @@
   hosts: localhost
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
+    input_file: "{{ playbook_dir }}/inventario.csv"
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
   vars_files:
@@ -94,6 +94,7 @@
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
+        remote_tmp: /tmp/ansible
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
@@ -113,13 +114,28 @@
 
 - name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
-  gather_facts: yes
-  vars_files:
-    - vars/eol_map.yml
+  gather_facts: no
   tasks:
-    - name: Mostrar distribución y versión de Linux
-      debug:
-        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
+    - name: Intentar recopilar hechos como Linux
+      block:
+        - name: Gather facts (Linux)
+          ansible.builtin.setup:
+          register: linux_facts
+        - name: Establecer la familia del sistema operativo como Linux
+          set_fact:
+            os_family: "Linux"
+      rescue:
+        - name: Intentar recopilar hechos como Windows
+          block:
+            - name: Gather facts (Windows)
+              ansible.builtin.setup:
+              vars:
+                ansible_shell_type: cmd
+                ansible_shell_executable: cmd
+              register: windows_facts
+            - name: Establecer la familia del sistema operativo como Windows
+              set_fact:
+                os_family: "Windows"
 
     - name: Obtener la fecha actual del sistema
       set_fact:
@@ -148,10 +164,6 @@
             )
           }}
 
-    - name: Mostrar eol_date
-      debug:
-        var: eol_date
-
     - name: Establecer el estado de suscripción
       set_fact:
         subscription_status: >-
@@ -167,20 +179,9 @@
             Versión sin fecha establecida de EoL
           {% endif %}
 
-    - name: Establecer la familia del sistema operativo
-      set_fact:
-        os_family: >-
-          {% if ansible_system == "Linux" %}
-            Linux
-          {% elif ansible_system == "Windows" %}
-            Windows
-          {% else %}
-            Desconocido
-          {% endif %}
-
-    - name: Mostrar os_family
+    - name: Mostrar información del sistema operativo
       debug:
-        var: os_family
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: {{ os_family }}"
 
 - name: Insertar registros en la tabla inventario en la base de datos
   hosts: grafana_hosts
@@ -198,7 +199,7 @@
           '{{ hostvars[item.IP]['os_family'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}'
         )
-        ;"
+        "
       loop: "{{ hostvars['localhost']['csv_data'] }}"
       loop_control:
         loop_var: item
