@@ -70,10 +70,10 @@
   tasks:
     - name: Limpiar tabla en la base de datos
       command: >
-        psql -U {{ ansible_user }} -d {{ db_name }} -c "TRUNCATE TABLE {{ item }} CASCADE"
+        psql -U grafana_user -d grafana_db -c  -c "TRUNCATE TABLE {{ item }} CASCADE"
       loop: "{{ tables_to_clean }}"
       loop_control:
         loop_var: item
       environment:
-        PGPASSWORD: "{{ ansible_password }}"
+         PGPASSWORD: "grafana_password"
       become: no
