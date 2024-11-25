@@ -54,7 +54,7 @@
         ansible_user: "{{ item.Usuario }}"
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh  # Usamos SSH
-        remote_tmp: C:\\tmp\\ansible
+        ansible_remote_tmp: "C:\\Users\\{{ item.Usuario }}\\AppData\\Local\\Temp\\ansible"
       loop: "{{ csv_data_windows }}"
       loop_control:
         loop_var: item
@@ -62,6 +62,8 @@
 - name: Obtener información y verificar EoL de los servidores Windows
   hosts: dynamic_hosts
   gather_facts: yes
+  vars:
+    ansible_remote_tmp: "C:\\Users\\{{ ansible_user }}\\AppData\\Local\\Temp\\ansible"
   tasks:
     - name: Determinar la familia del sistema operativo para Windows
       set_fact:
@@ -72,7 +74,7 @@
         current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
 
     - name: Obtener facts del sistema para Windows usando SSH
-      setup:  # Usamos el módulo setup para recopilar facts
+      setup:
         gather_subset:
           - system  # Solo recopilamos información sobre el sistema (como distribución, versión, etc.)
 
