@@ -1,5 +1,5 @@
 ---
-# playbooks/consultar_y_obtener_recursos.yml
+# playbooks/limpiar_tablas_grafana.yml
 
 - name: Leer y procesar el inventario CSV para Grafana
   hosts: localhost
@@ -57,13 +57,11 @@
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
-
 - name: Consultar la tabla inventario en la base de datos de Grafana
   hosts: grafana_hosts
   gather_facts: no
   vars:
     db_name: "grafana_db"
-    grafana_headers: "{{ grafana_headers }}"  # Aseguramos que grafana_headers esté disponible
   tasks:
     - name: Realizar consulta SQL a la tabla inventario
       command: >
@@ -73,11 +71,6 @@
          PGPASSWORD: "grafana_password"
       become: no
 
-    - name: Parsear el resultado de la consulta y extraer los datos en formato adecuado
-      set_fact:
-        inventario_data: "{{ inventario_query_result.stdout.split('\n')[2:-2] | map('split', '|') | map('map', 'trim') | map('zip', grafana_headers) | map('items2dict') }}"
-
-    - name: Mostrar el resultado de la consulta SQL en formato adecuado
+    - name: Mostrar el resultado de la consulta SQL
       debug:
-        var: inventario_data
-
+        var: inventario_query_result.stdout
