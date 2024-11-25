@@ -46,11 +46,10 @@
       loop_control:
         loop_var: row
 
+    # Usar win_command para crear el directorio si no existe
     - name: Crear directorio temporal para ansible en C:\Temp\ansible (si no existe)
-      win_file:
-        path: C:\Temp\ansible
-        state: directory
-        mode: '0777'  # Asegura permisos de lectura, escritura y ejecución
+      win_command: "if (-not (Test-Path C:\\Temp\\ansible)) { New-Item -Path C:\\Temp\\ansible -ItemType Directory }"
+      ignore_errors: yes
 
     - name: Configurar permisos en el directorio C:\Temp\ansible para el usuario Administrator
       win_acl:
