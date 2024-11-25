@@ -95,20 +95,30 @@
 
 - name: Verificar versión de sistema operativo en los servidores y agruparlos
   hosts: dynamic_hosts
-  gather_facts: yes
-  become: no
+  gather_facts: no
   tasks:
-    - name: Agrupar hosts Linux
-      add_host:
-        name: "{{ inventory_hostname }}"
-        groups: linux_hosts
-      when: ansible_os_family == "Linux"
-
-    - name: Agrupar hosts Windows
-      add_host:
-        name: "{{ inventory_hostname }}"
-        groups: windows_hosts
-      when: ansible_os_family == "Windows"
+    - name: Intentar recopilar hechos como Linux
+      block:
+        - name: Gather facts (Linux)
+          ansible.builtin.setup:
+          register: linux_facts
+        - name: Agrupar hosts Linux
+          add_host:
+            name: "{{ inventory_hostname }}"
+            groups: linux_hosts
+      rescue:
+        - name: Intentar recopilar hechos como Windows
+          block:
+            - name: Gather facts (Windows)
+              ansible.builtin.setup:
+              vars:
+                ansible_shell_type: cmd
+                ansible_shell_executable: /bin/cmd
+              register: windows_facts
+            - name: Agrupar hosts Windows
+              add_host:
+                name: "{{ inventory_hostname }}"
+                groups: windows_hosts
 
 - name: Verificar versión de sistema operativo en los servidores Linux
   hosts: linux_hosts
