@@ -1,11 +1,11 @@
 ---
-# playbooks/analizar_version_so.yml
+# playbooks/analizar_vulnerabilidades.yml
 
-- name: Leer y procesar el inventario CSV y verificar versiones de SO
+- name: Leer y procesar el inventario CSV
   hosts: localhost
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
+    input_file: "{{ playbook_dir }}/inventario.csv"
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
   vars_files:
@@ -48,6 +48,16 @@
       loop_control:
         loop_var: row
 
+    - name: Verificar que el archivo Grafana CSV existe
+      stat:
+        path: "{{ grafana_file }}"
+      register: grafana_file_check
+
+    - name: Fallar si el archivo de inventario Grafana no existe
+      fail:
+        msg: "El archivo de inventario {{ grafana_file }} no existe."
+      when: not grafana_file_check.stat.exists
+
     - name: Leer contenido del archivo Grafana CSV
       set_fact:
         grafana_csv_content: "{{ lookup('file', grafana_file) }}"
@@ -84,7 +94,6 @@
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
-        remote_tmp: /tmp/ansible
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
@@ -102,43 +111,20 @@
       loop_control:
         loop_var: item
 
-- name: Verificar versión de sistema operativo en los servidores y agruparlos
-  hosts: dynamic_hosts
-  gather_facts: no
-  tasks:
-    - name: Intentar recopilar hechos como Linux
-      block:
-        - name: Gather facts (Linux)
-          ansible.builtin.setup:
-          register: linux_facts
-        - name: Agrupar hosts Linux
-          add_host:
-            name: "{{ inventory_hostname }}"
-            groups: linux_hosts
-      rescue:
-        - name: Intentar recopilar hechos como Windows
-          block:
-            - name: Gather facts (Windows)
-              ansible.builtin.setup:
-              vars:
-                ansible_shell_type: cmd
-                ansible_shell_executable: /bin/cmd
-              register: windows_facts
-            - name: Agrupar hosts Windows
-              add_host:
-                name: "{{ inventory_hostname }}"
-                groups: windows_hosts
+    - name: Mostrar estructura completa de csv_data
+      debug:
+        var: csv_data
 
-- name: Verificar versión de sistema operativo en los servidores Linux
-  hosts: linux_hosts
+      set_fact:
+- name: Obtener información y verificar EoL de los servidores
+  hosts: dynamic_hosts
   gather_facts: yes
-  become: yes
   vars_files:
     - vars/eol_map.yml
   tasks:
-    - name: Mostrar distribución, versión y familia del sistema operativo (Linux)
+    - name: Mostrar distribución y versión de Linux
       debug:
-        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: Linux"
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
 
     - name: Obtener la fecha actual del sistema
       set_fact:
@@ -186,44 +172,29 @@
             Versión sin fecha establecida de EoL
           {% endif %}
 
-    - name: Registrar información del sistema operativo (Linux) en localhost
-      delegate_to: localhost
-      set_fact:
-        inventory_data: "{{ inventory_data | default([]) + [ { 'ip': ansible_host, 'distribucion': ansible_distribution, 'version': ansible_distribution_version, 'familia': 'Linux', 'soportada': subscription_status } ] }}"
-      when: subscription_status is defined
-
-- name: Verificar versión de sistema operativo en los servidores Windows
-  hosts: windows_hosts
-  gather_facts: yes
-  become: no
-  vars_files:
-    - vars/eol_map.yml
-  tasks:
-    - name: Mostrar distribución, versión y familia del sistema operativo (Windows)
+    - name: Mostrar subscription_status
       debug:
-        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: Windows"
-
-    - name: Registrar información del sistema operativo (Windows) en localhost
-      delegate_to: localhost
-      set_fact:
-        inventory_data: "{{ inventory_data | default([]) + [ { 'ip': ansible_host, 'distribucion': ansible_distribution, 'version': ansible_distribution_version, 'familia': 'Windows', 'soportada': 'Soportada' } ] }}"
-      when: ansible_distribution is defined
+        var: subscription_status
 
 - name: Insertar registros en la tabla inventario en la base de datos
   hosts: grafana_hosts
   become: yes
   tasks:
-    - name: Insertar registros desde inventory_data en la base de datos
+    - name: Insertar registros desde csv_data en la base de datos
       command: >
         psql -U grafana_user -d grafana_db -c "
-        INSERT INTO inventario (ip, distribucion, version, familia, soportada)
-        VALUES ('{{ item.ip }}', '{{ item.distribucion }}', '{{ item.version }}', '{{ item.familia }}', '{{ item.soportada }}')
-        ON CONFLICT (ip) DO UPDATE SET
-        distribucion = EXCLUDED.distribucion,
-        version = EXCLUDED.version,
-        familia = EXCLUDED.familia,
-        soportada = EXCLUDED.soportada;"
-      loop: "{{ hostvars['localhost']['inventory_data'] }}"
+        INSERT INTO inventario (
+          IP, Distribucion, Version, soportada
+        ) VALUES (
+          '{{ item.IP }}',
+          '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
+          '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
+          '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
+          '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}',
+        );"
+      loop: "{{ hostvars['localhost']['csv_data'] }}"
       loop_control:
         loop_var: item
-      become_user: grafana_user
+      environment:
+        PGPASSWORD: "grafana_password"
+      become: no
