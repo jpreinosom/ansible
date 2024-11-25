@@ -73,8 +73,10 @@
       set_fact:
         current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
 
-    - name: Obtener información del sistema para Windows
-      win_system_info:
+    - name: Obtener facts del sistema para Windows
+      setup:
+        gather_subset:
+          - system  # Solo recopila información sobre el sistema (como distribución, versión, etc.)
 
     - name: Determinar la fecha de EoL para la versión de Windows
       set_fact:
