@@ -46,6 +46,19 @@
       loop_control:
         loop_var: row
 
+    - name: Crear directorio temporal para ansible en C:\Temp\ansible (si no existe)
+      win_file:
+        path: C:\Temp\ansible
+        state: directory
+        mode: '0777'  # Asegura permisos de lectura, escritura y ejecución
+
+    - name: Configurar permisos en el directorio C:\Temp\ansible para el usuario Administrator
+      win_acl:
+        path: C:\Temp\ansible
+        user: "Administrator"
+        permissions: "full_control"
+        state: present
+
     - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts' para Windows (con SSH)
       add_host:
         name: "{{ item.IP }}"
