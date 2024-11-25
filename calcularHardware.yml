@@ -76,16 +76,20 @@
       set_fact:
         inventario_data: "{{ inventario_query_result.stdout.split('\n')[2:-2] | map('split', '|') | map('map', 'trim') }}"
 
+    - name: Mostrar el contenido completo de inventario_data
+      debug:
+        msg: "{{ inventario_data }}"
+
     - name: Mostrar los servidores diferenciados por familia
       block:
         - name: Servidores Linux
           debug:
             msg: "Servidor {{ item[0] }} es de familia Linux"
           loop: "{{ inventario_data }}"
-          when: "'Linux' in item[3] | lower"  # Aseguramos que 'Linux' sea comparado en minúsculas
+          when: "'Linux' in item[3] | lower"  # Normaliza para comparar en minúsculas
 
         - name: Servidores Windows
           debug:
             msg: "Servidor {{ item[0] }} es de familia Windows"
           loop: "{{ inventario_data }}"
-          when: "'Windows' in item[3] | lower"  # Aseguramos que 'Windows' sea comparado en minúsculas
+          when: "'Windows' in item[3] | lower"  # Normaliza para comparar en minúsculas
