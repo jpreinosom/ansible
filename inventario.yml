@@ -88,23 +88,37 @@
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
-        ansible_shell_type: cmd
-        ansible_shell_executable: /bin/cmd
-        remote_tmp: C:/Windows/Temp/ansible
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
 
-- name: Verificar versión de sistema operativo en los servidores
+- name: Verificar versión de sistema operativo en los servidores y agruparlos
   hosts: dynamic_hosts
   gather_facts: yes
   become: no
+  tasks:
+    - name: Agrupar hosts Linux
+      add_host:
+        name: "{{ inventory_hostname }}"
+        groups: linux_hosts
+      when: ansible_os_family == "Linux"
+
+    - name: Agrupar hosts Windows
+      add_host:
+        name: "{{ inventory_hostname }}"
+        groups: windows_hosts
+      when: ansible_os_family == "Windows"
+
+- name: Verificar versión de sistema operativo en los servidores Linux
+  hosts: linux_hosts
+  gather_facts: yes
+  become: yes
   vars_files:
     - vars/eol_map.yml
   tasks:
-    - name: Mostrar distribución, versión y familia del sistema operativo
+    - name: Mostrar distribución, versión y familia del sistema operativo (Linux)
       debug:
-        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: {{ 'Linux' if ansible_os_family == 'Linux' else 'Windows' }}"
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: Linux"
 
     - name: Obtener la fecha actual del sistema
       set_fact:
@@ -156,14 +170,37 @@
       debug:
         var: subscription_status
 
-    - name: Insertar información en la base de datos 'inventario' usando línea de comandos
+    - name: Insertar información en la base de datos 'inventario' usando línea de comandos (Linux)
       shell: |
         PGPASSWORD="grafana_password" psql -h {{ grafana_db_host }} -U grafana_user -d grafana_db -c "
         INSERT INTO inventario (ip, distribucion, version, familia, soportada)
-        VALUES ('{{ ansible_host }}', '{{ ansible_distribution }}', '{{ ansible_distribution_version }}', '{{ 'Linux' if ansible_os_family == 'Linux' else 'Windows' }}', '{{ subscription_status }}')
+        VALUES ('{{ ansible_host }}', '{{ ansible_distribution }}', '{{ ansible_distribution_version }}', 'Linux', '{{ subscription_status }}')
         ON CONFLICT (ip) DO UPDATE SET
         distribucion = EXCLUDED.distribucion,
         version = EXCLUDED.version,
         familia = EXCLUDED.familia,
         soportada = EXCLUDED.soportada;"
       when: subscription_status is defined
+
+- name: Verificar versión de sistema operativo en los servidores Windows
+  hosts: windows_hosts
+  gather_facts: yes
+  become: no
+  vars_files:
+    - vars/eol_map.yml
+  tasks:
+    - name: Mostrar distribución, versión y familia del sistema operativo (Windows)
+      debug:
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: Windows"
+
+    - name: Insertar información en la base de datos 'inventario' usando línea de comandos (Windows)
+      shell: |
+        PGPASSWORD="grafana_password" psql -h {{ grafana_db_host }} -U grafana_user -d grafana_db -c "
+        INSERT INTO inventario (ip, distribucion, version, familia, soportada)
+        VALUES ('{{ ansible_host }}', '{{ ansible_distribution }}', '{{ ansible_distribution_version }}', 'Windows', 'Soportada')
+        ON CONFLICT (ip) DO UPDATE SET
+        distribucion = EXCLUDED.distribucion,
+        version = EXCLUDED.version,
+        familia = EXCLUDED.familia,
+        soportada = EXCLUDED.soportada;"
+      when: ansible_distribution is defined
