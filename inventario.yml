@@ -186,7 +186,8 @@
             Versión sin fecha establecida de EoL
           {% endif %}
 
-    - name: Registrar información del sistema operativo (Linux)
+    - name: Registrar información del sistema operativo (Linux) en localhost
+      delegate_to: localhost
       set_fact:
         inventory_data: "{{ inventory_data | default([]) + [ { 'ip': ansible_host, 'distribucion': ansible_distribution, 'version': ansible_distribution_version, 'familia': 'Linux', 'soportada': subscription_status } ] }}"
       when: subscription_status is defined
@@ -202,7 +203,8 @@
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: Windows"
 
-    - name: Registrar información del sistema operativo (Windows)
+    - name: Registrar información del sistema operativo (Windows) en localhost
+      delegate_to: localhost
       set_fact:
         inventory_data: "{{ inventory_data | default([]) + [ { 'ip': ansible_host, 'distribucion': ansible_distribution, 'version': ansible_distribution_version, 'familia': 'Windows', 'soportada': 'Soportada' } ] }}"
       when: ansible_distribution is defined
