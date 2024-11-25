@@ -63,6 +63,7 @@
   gather_facts: no
   vars:
     db_name: "grafana_db"
+    grafana_headers: "{{ grafana_headers }}"  # Aseguramos que grafana_headers esté disponible
   tasks:
     - name: Realizar consulta SQL a la tabla inventario
       command: >
