@@ -5,7 +5,7 @@
   hosts: localhost
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventory//inventario.csv"
+    input_file: "{{ playbook_dir }}/inventario.csv"
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
   vars_files:
@@ -120,6 +120,7 @@
       block:
         - name: Gather facts (Linux)
           ansible.builtin.setup:
+          when: ansible_connection == 'ssh'
           register: linux_facts
         - name: Establecer la familia del sistema operativo como Linux
           set_fact:
@@ -127,11 +128,11 @@
       rescue:
         - name: Intentar recopilar hechos como Windows
           block:
+            - name: Cambiar conexión a WinRM para Windows
+              set_fact:
+                ansible_connection: winrm
             - name: Gather facts (Windows)
               ansible.builtin.setup:
-              vars:
-                ansible_shell_type: cmd
-                ansible_shell_executable: cmd
               register: windows_facts
             - name: Establecer la familia del sistema operativo como Windows
               set_fact:
