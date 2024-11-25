@@ -40,20 +40,20 @@
 
     - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
       set_fact:
-        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict({'ip': row[0], 'usuario': row[4], 'contraseña': row[5], 'familia': row[3]}) ] }}"
+        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
       loop: "{{ grafana_rows }}"
       loop_control:
         loop_var: row
 
     - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
       add_host:
-        name: "{{ item.ip }}"
+        name: "{{ item.IP }}"
         groups: grafana_hosts
-        ansible_host: "{{ item.ip }}"
-        ansible_user: "{{ item.usuario }}"
-        ansible_password: "{{ item.contraseña }}"
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
-        ansible_ssh_pass: "{{ item.contraseña }}"
+        ansible_ssh_pass: "{{ item.Contraseña }}"
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
@@ -76,9 +76,16 @@
       set_fact:
         inventario_data: "{{ inventario_query_result.stdout.split('\n')[2:-2] | map('split', '|') | map('map', 'trim') | map('zip', ['ip', 'distribucion', 'version', 'familia', 'usuario', 'password']) | map('items2dict') }}"
 
-    - name: Mostrar la familia de los servidores (Linux o Windows)
-      debug:
-        msg: "El servidor {{ item.ip }} es de familia {{ item.familia }}"
-      loop: "{{ inventario_data }}"
-      loop_control:
-        loop_var: item
+    - name: Mostrar los servidores diferenciados por familia
+      block:
+        - name: Servidores Linux
+          debug:
+            msg: "Servidor {{ item.ip }} es de familia Linux"
+          loop: "{{ inventario_data }}"
+          when: "'Linux' in item.familia"
+        
+        - name: Servidores Windows
+          debug:
+            msg: "Servidor {{ item.ip }} es de familia Windows"
+          loop: "{{ inventario_data }}"
+          when: "'Windows' in item.familia"
