@@ -5,7 +5,7 @@
   hosts: localhost
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
+    input_file: "{{ playbook_dir }}/inventario.csv"
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
   tasks:
@@ -90,7 +90,7 @@
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_password: "{{ item.Contraseña }}"
-        ansible_connection: ssh
+        ansible_connection: "{{ 'winrm' if 'Windows' in item.Familia else 'ssh' }}"
         ansible_ssh_pass: "{{ item.Contraseña }}"
         remote_tmp: "{{ 'C:/Windows/Temp' if 'Windows' in item.Familia else '/tmp/ansible' }}"
       loop: "{{ csv_data }}"
@@ -163,6 +163,12 @@
             Windows
           {% else %}
             Linux
+          {% endif %}
+
+    - name: Actualizar conexión para Windows
+      set_fact:
+        ansible_connection: winrm
+      when: os_family == 'Windows'
           {% endif %}
 
     - name: Mostrar información del sistema operativo
