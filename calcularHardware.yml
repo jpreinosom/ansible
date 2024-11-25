@@ -1,5 +1,5 @@
 ---
-# playbooks/crear_hosts_y_guardar_hardware.yml
+# playbooks/limpiar_tablas_grafana.yml
 
 - name: Leer y procesar el inventario CSV para Grafana
   hosts: localhost
@@ -57,76 +57,20 @@
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
-
-- name: Crear hosts dinámicos desde la base de datos inventario y recopilar datos de hardware
+- name: Consultar la tabla inventario en la base de datos de Grafana
   hosts: grafana_hosts
   gather_facts: no
   vars:
     db_name: "grafana_db"
-    db_user: "grafana_user"
-    db_password: "grafana_password"
   tasks:
-    - name: Leer registros desde la tabla inventario
+    - name: Realizar consulta SQL a la tabla inventario
       command: >
-        psql -U {{ db_user }} -d {{ db_name }} -t -c "SELECT ip, usuario, password, familia FROM inventario;"
-      register: query_result
+        psql -U grafana_user -d grafana_db -c "SELECT ip, distribucion, version, familia, usuario, password FROM inventario"
+      register: inventario_query_result
       environment:
-        PGPASSWORD: "{{ db_password }}"
-
-    - name: Procesar registros obtenidos
-      set_fact:
-        inventory_data: "{{ query_result.stdout_lines | select('search', '\S') | map('split', '|') | list }}"
-
-    - name: Crear hosts dinámicamente a partir de la información de la base de datos
-      add_host:
-        name: "{{ item[0] }}"
-        groups: "{{ 'windows_inventory' if item[3] == 'windows' else 'linux_inventory' }}"
-        ansible_host: "{{ item[0] }}"
-        ansible_user: "{{ item[1] }}"
-        ansible_password: "{{ item[2] }}"
-        ansible_connection: ssh
-        ansible_ssh_pass: "{{ item[2] }}"
-        ansible_shell_type: "cmd" if item[3] == 'windows' else "bash"
-      loop: "{{ inventory_data }}"
-      loop_control:
-        loop_var: item
-
-- name: Recopilar información de hardware de los hosts dinámicos
-  hosts: linux_inventory,windows_inventory
-  gather_facts: yes
-  tasks:
-    - name: Calcular total de RAM, disco y procesadores (Linux)
-      when: ansible_facts['os_family'] == 'Linux'
-      set_fact:
-        total_ram: "{{ ansible_memory_mb.real.total }}"
-        total_disk: "{{ ansible_devices | dict2items | selectattr('value.host', 'defined') | map(attribute='value.size') | map('float') | sum }}"
-        total_processors: "{{ ansible_processor_cores * ansible_processor_count }}"
-
-    - name: Insertar datos de hardware en la tabla hardware (Linux)
-      when: ansible_facts['os_family'] == 'Linux'
-      command: >
-        psql -U {{ db_user }} -d {{ db_name }} -c "
-        INSERT INTO hardware (ip, total_ram, total_disk, total_processors)
-        VALUES ('{{ inventory_hostname }}', '{{ total_ram }}', '{{ total_disk }}', '{{ total_processors }}');
-        "
-      environment:
-        PGPASSWORD: "{{ db_password }}"
+         PGPASSWORD: "grafana_password"
       become: no
 
-    - name: Calcular total de RAM, disco y procesadores (Windows)
-      when: ansible_facts['os_family'] == 'Windows'
-      set_fact:
-        total_ram: "{{ ansible_memory_mb.real.total }}"
-        total_disk: "{{ ansible_devices | dict2items | selectattr('value.media', 'search', 'fixed') | map(attribute='value.size_mb') | map('float') | sum }}"
-        total_processors: "{{ ansible_processor_cores * ansible_processor_count }}"
-
-    - name: Insertar datos de hardware en la tabla hardware (Windows)
-      when: ansible_facts['os_family'] == 'Windows'
-      command: >
-        psql -U {{ db_user }} -d {{ db_name }} -c "
-        INSERT INTO hardware (ip, total_ram, total_disk, total_processors)
-        VALUES ('{{ inventory_hostname }}', '{{ total_ram }}', '{{ total_disk }}', '{{ total_processors }}');
-        "
-      environment:
-        PGPASSWORD: "{{ db_password }}"
-      become: no
+    - name: Mostrar el resultado de la consulta SQL
+      debug:
+        var: inventario_query_result.stdout
