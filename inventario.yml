@@ -186,22 +186,9 @@
             Versión sin fecha establecida de EoL
           {% endif %}
 
-    - name: Mostrar subscription_status
-      debug:
-        var: subscription_status
-
-    - name: Insertar información en la base de datos 'inventario' usando línea de comandos (Linux)
-      shell: |
-        PGPASSWORD="grafana_password" psql -U grafana_user -d grafana_db -c "
-        INSERT INTO inventario (ip, distribucion, version, familia, soportada)
-        VALUES ('{{ ansible_host }}', '{{ ansible_distribution }}', '{{ ansible_distribution_version }}', 'Linux', '{{ subscription_status }}')
-        ON CONFLICT (ip) DO UPDATE SET
-        distribucion = EXCLUDED.distribucion,
-        version = EXCLUDED.version,
-        familia = EXCLUDED.familia,
-        soportada = EXCLUDED.soportada;"
-      become: yes
-      become_user: grafana_user
+    - name: Registrar información del sistema operativo (Linux)
+      set_fact:
+        inventory_data: "{{ inventory_data | default([]) + [ { 'ip': ansible_host, 'distribucion': ansible_distribution, 'version': ansible_distribution_version, 'familia': 'Linux', 'soportada': subscription_status } ] }}"
       when: subscription_status is defined
 
 - name: Verificar versión de sistema operativo en los servidores Windows
@@ -215,7 +202,26 @@
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: Windows"
 
-    - name: Insertar información en la base de datos 'inventario' usando línea de comandos (Windows)
-      shell: |
-        PGPASSWORD="grafana_password" psql -U grafana_user -d graf
-...
+    - name: Registrar información del sistema operativo (Windows)
+      set_fact:
+        inventory_data: "{{ inventory_data | default([]) + [ { 'ip': ansible_host, 'distribucion': ansible_distribution, 'version': ansible_distribution_version, 'familia': 'Windows', 'soportada': 'Soportada' } ] }}"
+      when: ansible_distribution is defined
+
+- name: Insertar registros en la tabla inventario en la base de datos
+  hosts: grafana_hosts
+  become: yes
+  tasks:
+    - name: Insertar registros desde inventory_data en la base de datos
+      command: >
+        psql -U grafana_user -d grafana_db -c "
+        INSERT INTO inventario (ip, distribucion, version, familia, soportada)
+        VALUES ('{{ item.ip }}', '{{ item.distribucion }}', '{{ item.version }}', '{{ item.familia }}', '{{ item.soportada }}')
+        ON CONFLICT (ip) DO UPDATE SET
+        distribucion = EXCLUDED.distribucion,
+        version = EXCLUDED.version,
+        familia = EXCLUDED.familia,
+        soportada = EXCLUDED.soportada;"
+      loop: "{{ hostvars['localhost']['inventory_data'] }}"
+      loop_control:
+        loop_var: item
+      become_user: grafana_user
