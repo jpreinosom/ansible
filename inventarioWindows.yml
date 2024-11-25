@@ -5,8 +5,7 @@
   hosts: localhost
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventory/inventarioWindows.csv"
-    grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
+    input_file: "{{ playbook_dir }}/inventory/inventario_windows.csv"
     delimiter: ";"
   tasks:
     - name: Verificar que el archivo CSV existe
@@ -54,13 +53,12 @@
         ansible_user: "{{ item.Usuario }}"
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: winrm
-        ansible_winrm_transport: ntlm  # O 'credssp' si lo cambiaste
+        ansible_winrm_transport: basic
         ansible_winrm_server_cert_validation: ignore
         ansible_port: 5985
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
-
 
 - name: Obtener información y verificar EoL de los servidores Windows
   hosts: windows_hosts
@@ -80,7 +78,7 @@
       set_fact:
         subscription_status: >-
           {% if eol_date is defined %}
-            {% if current_date | int > (eol_date | regex_replace('-', '') | int) %}
+            {% if current_date | int > (eol_date | int) %}
               Deprecado
             {% else %}
               Soportada
@@ -97,20 +95,22 @@
   hosts: windows_hosts
   tasks:
     - name: Insertar registros desde csv_data en la base de datos
-      command: >
-        psql -U grafana_user -d grafana_db -c "
-        INSERT INTO inventario (
-          ip, distribucion, version, familia, soportada, usuario, password
-        ) VALUES (
-          '{{ ansible_host }}',
-          '{{ ansible_distribution | default('No disponible') }}',
-          '{{ ansible_distribution_version | default('No disponible') }}',
-          'Windows',
-          '{{ subscription_status | default('No definido') | trim }}',
-          '{{ ansible_user }}',
-          '{{ ansible_password }}'
-        )
-        "
-      environment:
-        PGPASSWORD: "grafana_password"
       become: no
+      vars:
+        psql_command: |
+          INSERT INTO inventario (
+            ip, distribucion, version, familia, soportada, usuario, password
+          ) VALUES (
+            '{{ ansible_host }}',
+            '{{ ansible_distribution | default('No disponible') }}',
+            '{{ ansible_distribution_version | default('No disponible') }}',
+            'Windows',
+            '{{ subscription_status | default('No definido') | trim }}',
+            '{{ ansible_user }}',
+            '{{ ansible_password }}'
+          )
+      community.postgresql.postgresql_query:
+        db: grafana_db
+        login_user: grafana_user
+        login_password: grafana_password
+        query: "{{ psql_command }}"
