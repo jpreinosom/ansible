@@ -1,5 +1,5 @@
 ---
-# playbooks/limpiar_tablas_grafana.yml
+# playbooks/consultar_y_obtener_recursos.yml
 
 - name: Leer y procesar el inventario CSV para Grafana
   hosts: localhost
@@ -57,6 +57,7 @@
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
+
 - name: Consultar la tabla inventario en la base de datos de Grafana
   hosts: grafana_hosts
   gather_facts: no
@@ -74,3 +75,52 @@
     - name: Mostrar el resultado de la consulta SQL
       debug:
         var: inventario_query_result.stdout
+
+- name: Obtener información de recursos (disco, RAM, CPU) desde los hosts
+  hosts: grafana_hosts
+  gather_facts: no
+  tasks:
+    - name: Obtener disco total en Linux
+      command: "df -h --total | grep total | awk '{print $2}'"
+      when: "'Linux' in item.familia"  # Verifica si es un sistema Linux
+      register: disk_linux
+      loop: "{{ inventario_query_result.stdout.split('\n')[2:-2] | map('split', '|') | map('map', 'trim') | list }}"
+
+    - name: Obtener RAM total en Linux
+      command: "free -h | grep Mem | awk '{print $2}'"
+      when: "'Linux' in item.familia"  # Verifica si es un sistema Linux
+      register: ram_linux
+      loop: "{{ inventario_query_result.stdout.split('\n')[2:-2] | map('split', '|') | map('map', 'trim') | list }}"
+
+    - name: Obtener procesadores en Linux
+      command: "lscpu | grep 'Model name' | awk -F: '{print $2}'"
+      when: "'Linux' in item.familia"  # Verifica si es un sistema Linux
+      register: cpu_linux
+      loop: "{{ inventario_query_result.stdout.split('\n')[2:-2] | map('split', '|') | map('map', 'trim') | list }}"
+
+    - name: Obtener disco total en Windows
+      win_command: "Get-PSDrive C | Select-Object @{Name='Total';Expression={($_.Used + $_.Free)}}"
+      when: "'Windows' in item.familia"  # Verifica si es un sistema Windows
+      register: disk_windows
+      loop: "{{ inventario_query_result.stdout.split('\n')[2:-2] | map('split', '|') | map('map', 'trim') | list }}"
+
+    - name: Obtener RAM total en Windows
+      win_command: "Get-WmiObject Win32_ComputerSystem | Select-Object TotalPhysicalMemory"
+      when: "'Windows' in item.familia"  # Verifica si es un sistema Windows
+      register: ram_windows
+      loop: "{{ inventario_query_result.stdout.split('\n')[2:-2] | map('split', '|') | map('map', 'trim') | list }}"
+
+    - name: Obtener procesadores en Windows
+      win_command: "Get-WmiObject Win32_Processor | Select-Object -First 1 -Property Name"
+      when: "'Windows' in item.familia"  # Verifica si es un sistema Windows
+      register: cpu_windows
+      loop: "{{ inventario_query_result.stdout.split('\n')[2:-2] | map('split', '|') | map('map', 'trim') | list }}"
+
+    - name: Mostrar información de recursos para cada host
+      debug:
+        msg: >
+          Host: {{ item.IP }} | 
+          Disco: {{ disk_linux.stdout if 'Linux' in item.familia else disk_windows.stdout }} | 
+          RAM: {{ ram_linux.stdout if 'Linux' in item.familia else ram_windows.stdout }} | 
+          CPU: {{ cpu_linux.stdout if 'Linux' in item.familia else cpu_windows.stdout }}
+      loop: "{{ inventario_query_result.stdout.split('\n')[2:-2] | map('split', '|') | map('map', 'trim') | list }}"
