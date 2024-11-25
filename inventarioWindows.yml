@@ -28,19 +28,19 @@
 
     - name: Extraer filas del CSV
       set_fact:
-        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list }}"
 
     - name: Validar que cada fila tenga el mismo número de campos que los encabezados
       fail:
-        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
-      when: row | length != headers | length
+        msg: "La fila '{{ row }}' no tiene el mismo número de campos que los encabezados."
+      when: row.split(delimiter) | length != headers | length
       loop: "{{ rows }}"
       loop_control:
         loop_var: row
 
     - name: Combinar encabezados con filas para crear diccionarios
       set_fact:
-        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
+        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row.split(delimiter))) ] }}"
       loop: "{{ rows }}"
       loop_control:
         loop_var: row
@@ -68,17 +68,17 @@
   tasks:
     - name: Obtener la fecha actual del sistema
       set_fact:
-        current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
+        current_date: "{{ ansible_date_time.date | regex_replace('-', '') | int }}"  # YYYYMMDD as integer
 
     - name: Determinar la fecha de EoL para la versión de Windows
       set_fact:
-        eol_date: "{{ eol_map[ansible_distribution_version] | default(None) }}"
+        eol_date: "{{ eol_map.get(ansible_distribution_version, None) }}"
 
     - name: Establecer el estado de suscripción
       set_fact:
         subscription_status: >-
-          {% if eol_date is defined %}
-            {% if current_date | int > (eol_date | int) %}
+          {% if eol_date is defined and eol_date %}
+            {% if current_date > eol_date|int %}
               Deprecado
             {% else %}
               Soportada
@@ -87,30 +87,49 @@
             Versión sin fecha establecida de EoL
           {% endif %}
 
-    - name: Mostrar información del sistema operativo
-      debug:
-        msg: "Sistema Operativo: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
+    - name: Guardar información del host
+      set_fact:
+        host_info: {
+          'ip': ansible_host,
+          'distribucion': ansible_distribution | default('No disponible'),
+          'version': ansible_distribution_version | default('No disponible'),
+          'familia': 'Windows',
+          'soportada': subscription_status | default('No definido') | trim,
+          'usuario': ansible_user,
+          'password': ansible_password
+        }
 
-- name: Insertar registros en la tabla inventario en la base de datos
-  hosts: windows_hosts
+- name: Reunir información de hosts Windows
+  hosts: localhost
+  gather_facts: no
+  vars:
+    database_host: "tu_host_de_base_de_datos"  # Reemplaza con tu host de base de datos
+    database_name: "grafana_db"
+    database_user: "grafana_user"
+    database_password: "grafana_password"
   tasks:
-    - name: Insertar registros desde csv_data en la base de datos
-      become: no
-      vars:
-        psql_command: |
-          INSERT INTO inventario (
-            ip, distribucion, version, familia, soportada, usuario, password
-          ) VALUES (
-            '{{ ansible_host }}',
-            '{{ ansible_distribution | default('No disponible') }}',
-            '{{ ansible_distribution_version | default('No disponible') }}',
-            'Windows',
-            '{{ subscription_status | default('No definido') | trim }}',
-            '{{ ansible_user }}',
-            '{{ ansible_password }}'
-          )
-      community.postgresql.postgresql_query:
-        db: grafana_db
-        login_user: grafana_user
-        login_password: grafana_password
-        query: "{{ psql_command }}"
+    - name: Consolidar información de hosts Windows
+      set_fact:
+        all_windows_hosts_data: "{{ groups['windows_hosts'] | map('extract', hostvars, 'host_info') | list }}"
+
+    - name: Insertar registros en la base de datos
+      command: >
+        psql -h {{ database_host }} -U {{ database_user }} -d {{ database_name }} -c "
+        INSERT INTO inventario (
+          ip, distribucion, version, familia, soportada, usuario, password
+        ) VALUES (
+          '{{ item.ip }}',
+          '{{ item.distribucion }}',
+          '{{ item.version }}',
+          '{{ item.familia }}',
+          '{{ item.soportada }}',
+          '{{ item.usuario }}',
+          '{{ item.password }}'
+        )
+        "
+      loop: "{{ all_windows_hosts_data }}"
+      loop_control:
+        loop_var: item
+      environment:
+        PGPASSWORD: "{{ database_password }}"
+      no_log: true
