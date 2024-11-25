@@ -186,10 +186,6 @@
           '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}'
         )
-        ON CONFLICT (ip) DO UPDATE SET
-        distribucion = EXCLUDED.distribucion,
-        version = EXCLUDED.version,
-        soportada = EXCLUDED.soportada;"
       loop: "{{ hostvars['localhost']['csv_data'] }}"
       loop_control:
         loop_var: item
