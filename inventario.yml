@@ -5,7 +5,7 @@
   hosts: localhost
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventario.csv"
+    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
   vars_files:
@@ -114,30 +114,8 @@
 
 - name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
-  gather_facts: no
+  gather_facts: yes
   tasks:
-    - name: Intentar recopilar hechos como Linux
-      block:
-        - name: Gather facts (Linux)
-          ansible.builtin.setup:
-          when: ansible_connection == 'ssh'
-          register: linux_facts
-        - name: Establecer la familia del sistema operativo como Linux
-          set_fact:
-            os_family: "Linux"
-      rescue:
-        - name: Intentar recopilar hechos como Windows
-          block:
-            - name: Cambiar conexión a WinRM para Windows
-              set_fact:
-                ansible_connection: winrm
-            - name: Gather facts (Windows)
-              ansible.builtin.setup:
-              register: windows_facts
-            - name: Establecer la familia del sistema operativo como Windows
-              set_fact:
-                os_family: "Windows"
-
     - name: Obtener la fecha actual del sistema
       set_fact:
         current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
@@ -146,16 +124,14 @@
       set_fact:
         eol_date: >-
           {{
-            (eol_map[ansible_distribution]
-            | default({})
+            (eol_map.get(ansible_distribution, {})
             | dict2items
             | selectattr('key', '==', ansible_distribution_version)
             | map(attribute='value')
             | list
             | first)
             | default(
-              (eol_map[ansible_distribution]
-              | default({})
+              (eol_map.get(ansible_distribution, {})
               | dict2items
               | selectattr('key', '==', ansible_distribution_version.split('.')[0])
               | map(attribute='value')
@@ -178,6 +154,15 @@
             {% endif %}
           {% else %}
             Versión sin fecha establecida de EoL
+          {% endif %}
+
+    - name: Determinar la familia del sistema operativo
+      set_fact:
+        os_family: >-
+          {% if 'Windows' in ansible_os_family %}
+            Windows
+          {% else %}
+            Linux
           {% endif %}
 
     - name: Mostrar información del sistema operativo
