@@ -77,7 +77,7 @@
 
     - name: Definir grafana_db_host
       set_fact:
-        grafana_db_host: "{{ grafana_csv_data[0].Host }}"
+        grafana_db_host: "{{ grafana_csv_data[0]['Host'] }}"
 
     - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
       add_host:
