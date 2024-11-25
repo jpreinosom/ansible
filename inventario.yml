@@ -151,7 +151,7 @@
 
     - name: Insertar información en la base de datos 'inventario' usando línea de comandos (Linux)
       shell: |
-        PGPASSWORD="grafana_password" psql -h {{ grafana_db_host }} -U grafana_user -d grafana_db -c "
+        PGPASSWORD="grafana_password" psql -h 192.168.100.58 -U grafana_user -d grafana_db -c "
         INSERT INTO inventario (ip, distribucion, version, familia, soportada)
         VALUES ('{{ ansible_host }}', '{{ ansible_distribution }}', '{{ ansible_distribution_version }}', 'Linux', '{{ subscription_status }}')
         ON CONFLICT (ip) DO UPDATE SET
