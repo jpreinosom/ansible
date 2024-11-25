@@ -47,13 +47,13 @@
 
     - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
       add_host:
-        name: "{{ item.ip }}"
+        name: "{{ item.IP }}"
         groups: grafana_hosts
-        ansible_host: "{{ item.ip }}"
-        ansible_user: "{{ item.usuario }}"
-        ansible_password: "{{ item.password }}"
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
-        ansible_ssh_pass: "{{ item.password }}"
+        ansible_ssh_pass: "{{ item.Contraseña }}"
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
