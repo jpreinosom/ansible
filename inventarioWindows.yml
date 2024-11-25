@@ -90,9 +90,9 @@
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_password: "{{ item.Contraseña }}"
-        ansible_connection: "{{ 'winrm' if 'Windows' in item.Familia else 'ssh' }}"
+        ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
-        remote_tmp: "{{ 'C:/Windows/Temp' if 'Windows' in item.Familia else '/tmp/ansible' }}"
+        remote_tmp: /tmp/ansible
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
@@ -123,6 +123,7 @@
             Windows
           {% else %}
             Linux
+          {% endif %}
           {% endif %}
 
     - name: Obtener la fecha actual del sistema
