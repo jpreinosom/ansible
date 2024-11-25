@@ -122,18 +122,14 @@
       debug:
         var: subscription_status
 
-    - name: Insertar información en la base de datos 'inventario'
-      postgresql_query:
-        db: "grafana_db"
-        login_user: "grafana_user"
-        login_password: "grafana_password"
-        host: "{{ grafana_db_host }}"
-        query: |
-          INSERT INTO inventario (ip, distribucion, version, familia, soportada)
-          VALUES ('{{ ansible_host }}', '{{ ansible_distribution }}', '{{ ansible_distribution_version }}', '{{ 'Linux' if ansible_os_family == 'Linux' else 'Windows' }}', '{{ subscription_status }}')
-          ON CONFLICT (ip) DO UPDATE SET
-          distribucion = EXCLUDED.distribucion,
-          version = EXCLUDED.version,
-          familia = EXCLUDED.familia,
-          soportada = EXCLUDED.soportada;
+    - name: Insertar información en la base de datos 'inventario' usando línea de comandos
+      shell: |
+        PGPASSWORD="grafana_password" psql -h {{ grafana_db_host }} -U grafana_user -d grafana_db -c "
+        INSERT INTO inventario (ip, distribucion, version, familia, soportada)
+        VALUES ('{{ ansible_host }}', '{{ ansible_distribution }}', '{{ ansible_distribution_version }}', '{{ 'Linux' if ansible_os_family == 'Linux' else 'Windows' }}', '{{ subscription_status }}')
+        ON CONFLICT (ip) DO UPDATE SET
+        distribucion = EXCLUDED.distribucion,
+        version = EXCLUDED.version,
+        familia = EXCLUDED.familia,
+        soportada = EXCLUDED.soportada;"
       when: subscription_status is defined
