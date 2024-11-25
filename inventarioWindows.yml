@@ -121,7 +121,7 @@
   hosts: windows_hosts
   gather_facts: yes
   vars_files:
-    - vars/eol_map_windows.yml
+    - vars/eol_map.yml
   tasks:
     - name: Determinar la familia del sistema operativo
       set_fact:
