@@ -111,17 +111,17 @@
   hosts: dynamic_hosts
   gather_facts: yes
   tasks:
-    - name: Mostrar el total de disco
-      debug:
-        msg: "El total de disco es: {{ ansible_facts['ansible_mounts'] | map(attribute='size_total') | sum | default('No disponible') }}"
+    - name: Obtener el número de procesadores
+      set_fact:
+        num_processors: "{{ ansible_processor_vcpus }}"
 
-    - name: Mostrar el total de RAM
-      debug:
-        msg: "El total de RAM es: {{ ansible_facts['memtotal_mb'] | default('No disponible') }} MB"
+    - name: Obtener la cantidad de memoria RAM
+      set_fact:
+        total_ram: "{{ ansible_memtotal_mb }}"
 
-    - name: Mostrar el total de procesadores
-      debug:
-        msg: "El total de procesadores es: {{ ansible_facts['processor_cores'] | default('No disponible') }}"
+    - name: Obtener el espacio en disco
+      set_fact:
+        total_disk: "{{ ansible_mounts[0].size_total | int / 1024 / 1024 }}"  # En MB
 
 - name: Obtener información consolidada de los hosts dinámicos
   hosts: dynamic_hosts
@@ -129,9 +129,9 @@
   tasks:
     - name: Recopilar información de todos los hosts
       set_fact:
-        total_disk: "{{ total_disk | default(0) + (ansible_facts['ansible_mounts'] | map(attribute='size_total') | sum | default(0)) }}"
-        total_ram: "{{ total_ram | default(0) + (ansible_facts['memtotal_mb'] | default(0)) }}"
-        total_processors: "{{ total_processors | default(0) + (ansible_facts['processor_cores'] | default(0)) }}"
+        total_disk: "{{ total_disk | default(0) + (ansible_mounts[0].size_total | int / 1024 / 1024) }}"
+        total_ram: "{{ total_ram | default(0) + ansible_memtotal_mb }}"
+        total_processors: "{{ total_processors | default(0) + ansible_processor_vcpus }}"
       run_once: true
       delegate_to: localhost
 
