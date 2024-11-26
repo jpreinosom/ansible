@@ -142,7 +142,7 @@
           disco_total, ram_total, procesador_total, ip
         ) VALUES (
           '{{ total_disk }}',
-          '{{ total_ram }} MB',
+          '{{ total_ram }}',
           '{{ total_processors }}',
           '{{ inventory_hostname }}'
         )
