@@ -123,9 +123,9 @@
       set_fact:
         total_disk: "{{ ansible_mounts[0].size_total | int / 1024 / 1024 }}"  # En MB
 
-- name: Obtener información consolidada e insertar en la base de datos
+- name: Insertar información de hardware en la base de datos
   hosts: dynamic_hosts
-  gather_facts: yes
+  gather_facts: no
   tasks:
     - name: Insertar información de hardware de cada host en la base de datos
       delegate_to: "{{ groups['grafana_hosts'][0] }}"
@@ -143,7 +143,3 @@
       environment:
         PGPASSWORD: "grafana_password"
       become: no
-      loop: "{{ ansible_play_hosts }}"
-      loop_control:
-        loop_var: host
-      when: host in groups['dynamic_hosts']
