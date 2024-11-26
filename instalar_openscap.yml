@@ -71,10 +71,10 @@
     distribuciones_paquetes:
       Ubuntu:
         - libopenscap8
-        - scap-security-guide
+        - wget
       Debian:
         - libopenscap8
-        - scap-security-guide
+        - wget
       CentOS:
         - openscap-scanner
         - scap-security-guide
@@ -114,6 +114,13 @@
         name: "{{ paquetes_a_instalar }}"
         state: present
         update_cache: yes
+
+    # Descargar scap-security-guide para Ubuntu/Debian
+    - name: Descargar scap-security-guide para Ubuntu/Debian
+      when: ansible_distribution in ["Ubuntu", "Debian"]
+      command: "wget -O /usr/share/openscap/ssg-ubuntu-lts-ds.xml https://github.com/ComplianceAsCode/content/releases/download/v0.1.58/ssg-ubuntu-20.04-ds.xml"
+      args:
+        creates: "/usr/share/openscap/ssg-ubuntu-lts-ds.xml"
 
     # Instalación de SUSE Manager para SUSE
     - name: Instalar paquetes necesarios para SUSE
