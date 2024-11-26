@@ -70,9 +70,13 @@
   vars:
     distribuciones_paquetes:
       Ubuntu:
-        - usg
+        - libopenscap8 
+        - openscap 
+        - openscap-utils
       Debian:
-        - usg
+        - libopenscap8 
+        - openscap 
+        - openscap-utils
       CentOS:
         - openscap-scanner
         - scap-security-guide
@@ -84,9 +88,6 @@
         - scap-security-guide
       SUSE:
         - suse-manager-client
-    # Variables específicas para SUSE Manager
-    suse_manager_repo_url: "https://download.opensuse.org/repositories/systemsmanagement:SUSE_Manager/standard/"
-    suse_manager_repo_gpg: "https://download.opensuse.org/repositories/systemsmanagement:SUSE_Manager/standard/repodata/repomd.xml.key"
   tasks:
     - name: Depurar la distribución del sistema
       debug:
@@ -108,119 +109,32 @@
         name: "{{ paquetes_a_instalar }}"
         state: present
 
-    # Instalación de USG para Ubuntu/Debian
-    - name: Instalar USG en Ubuntu/Debian
+    # Instalación de OpenSCAP para Ubuntu/Debian
+    - name: Instalar paquetes necesarios para Ubuntu/Debian
       when: ansible_distribution in ["Ubuntu", "Debian"]
-      block:
-        - name: Instalar Ubuntu Advantage Tools
-          apt:
-            name: ubuntu-advantage-tools
-            state: present
-          become: yes
-
-        - name: Hacer que el usuario sea sudoer
-          command: "usermod -aG sudo {{ ansible_user }}"
-          become: yes
-
-        - name: Habilitar Ubuntu Advantage USG
-          command: "/usr/bin/ua enable usg"
-          become: yes
-          register: ua_enable_result
-          retries: 3
-          delay: 10
-          until: ua_enable_result.rc == 0
-          ignore_errors: yes
-
-        - name: Verificar habilitación de USG
-          fail:
-            msg: "No se pudo habilitar USG en {{ ansible_distribution }} {{ ansible_distribution_version }}."
-          when: ua_enable_result.rc != 0
-
-        - name: Actualizar la lista de paquetes
-          apt:
-            update_cache: yes
-            cache_valid_time: 3600  # 1 hora
-          become: yes
-
-        - name: Instalar USG
-          apt:
-            name: usg
-            state: present
-          become: yes
+      apt:
+        name: "{{ paquetes_a_instalar }}"
+        state: present
+        update_cache: yes
 
     # Instalación de SUSE Manager para SUSE
-    - name: Instalar SUSE Manager Client en SUSE
-      when: ansible_distribution == "SUSE Linux Enterprise Server"
-      block:
-        - name: Verificar si el repositorio de SUSE Manager ya está agregado
-          command: "zypper repos --details | grep 'SUSE_Manager'"
-          register: repo_exists
-          ignore_errors: yes
-
-        - name: Agregar repositorio de SUSE Manager si no existe
-          when: repo_exists.rc != 0
-          block:
-            - name: Agregar repositorio de SUSE Manager
-              command: "zypper addrepo {{ suse_manager_repo_url }} SUSE_Manager"
-              args:
-                creates: "/etc/zypp/repos.d/SUSE_Manager.repo"
-
-            - name: Importar clave GPG del repositorio de SUSE Manager
-              command: "rpm --import {{ suse_manager_repo_gpg }}"
-              args:
-                creates: "/etc/pki/rpm-gpg/RPM-GPG-KEY-SUSE_Manager"
-
-            - name: Actualizar la lista de repositorios
-              command: "zypper refresh"
-              register: zypper_refresh
-              changed_when: "'Refreshing ' in zypper_refresh.stdout"
-
-        - name: Instalar paquetes SUSE Manager
-          command: "zypper install -y {{ paquetes_a_instalar | join(' ') }}"
-          args:
-            creates: "/usr/bin/rhnreg_ks"  # Asumiendo que este binario se crea al instalar suse-manager-client
+    - name: Instalar paquetes necesarios para SUSE
+      when: ansible_distribution == "SUSE"
+      zypper:
+        name: "{{ paquetes_a_instalar }}"
+        state: present
 
     # Verificar instalación de la herramienta de seguridad
     - name: Verificar instalación de la herramienta de seguridad
-      block:
-        - name: Verificar instalación de OpenSCAP
-          command: which oscap
-          register: openscap_installed
-          ignore_errors: yes
-          when: ansible_distribution in ["CentOS", "RedHat", "Fedora"]
+      command: "which oscap"
+      register: openscap_installed
+      ignore_errors: yes
 
-        - name: Verificar instalación de USG
-          command: which usg
-          register: usg_installed
-          ignore_errors: yes
-          when: ansible_distribution in ["Ubuntu", "Debian"]
+    - name: Asegurarse de que la herramienta de seguridad está instalada
+      fail:
+        msg: "La herramienta de seguridad no se pudo instalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      when: openscap_installed.rc != 0
 
-        - name: Verificar instalación de SUSE Manager Client
-          command: which rhnreg_ks
-          register: suse_manager_installed
-          ignore_errors: yes
-          when: ansible_distribution == "SUSE Linux Enterprise Server"
-
-        - name: Establecer el estado de instalación de OpenSCAP
-          set_fact:
-            herramienta_instalada: "{{ openscap_installed.rc == 0 }}"
-          when: openscap_installed.rc is defined
-
-        - name: Establecer el estado de instalación de USG
-          set_fact:
-            herramienta_instalada: "{{ usg_installed.rc == 0 }}"
-          when: usg_installed.rc is defined
-
-        - name: Establecer el estado de instalación de SUSE Manager
-          set_fact:
-            herramienta_instalada: "{{ suse_manager_installed.rc == 0 }}"
-          when: suse_manager_installed.rc is defined
-
-        - name: Asegurarse de que la herramienta de seguridad está instalada
-          fail:
-            msg: "La herramienta de seguridad no se pudo instalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-          when: not herramienta_instalada
-
-        - name: Mostrar mensaje de éxito
-          debug:
-            msg: "La herramienta de seguridad se instaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+    - name: Mostrar mensaje de éxito
+      debug:
+        msg: "La herramienta de seguridad se instaló correctamente en {{ ansible_distribution }} {{ ansible_distribution_version }}"
