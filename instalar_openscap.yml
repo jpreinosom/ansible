@@ -71,20 +71,8 @@
     distribuciones_paquetes:
       Ubuntu:
         - libopenscap8
-        - git
-        - cmake
-        - make
-        - gcc
-        - bzip2
-        - libxml2-utils
       Debian:
         - libopenscap8
-        - git
-        - cmake
-        - make
-        - gcc
-        - bzip2
-        - libxml2-utils
       CentOS:
         - openscap-scanner
         - scap-security-guide
@@ -110,66 +98,20 @@
       debug:
         msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ paquetes_a_instalar }}"
 
-    # Habilitar repositorios universe para Ubuntu
-    - name: Habilitar repositorios universe
-      when: ansible_distribution == "Ubuntu"
-      apt_repository:
-        repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} universe"
-        state: present
-
-    # Actualizar la lista de paquetes para Ubuntu/Debian
-    - name: Actualizar la lista de paquetes
-      when: ansible_distribution in ["Ubuntu", "Debian"]
-      apt:
-        update_cache: yes
-
-    # Instalación de dependencias para Ubuntu/Debian
-    - name: Instalar dependencias para Ubuntu/Debian
-      when: ansible_distribution in ["Ubuntu", "Debian"]
-      apt:
-        name: "{{ paquetes_a_instalar }}"
-        state: present
-        environment:
-          DEBIAN_FRONTEND: noninteractive
-
-    # Clonar el repositorio de SCAP Security Guide
-    - name: Clonar el repositorio de SCAP Security Guide
-      when: ansible_distribution in ["Ubuntu", "Debian"]
-      git:
-        repo: https://github.com/ComplianceAsCode/content.git
-        dest: /tmp/scap-security-guide
-        version: master
-
-    # Compilar SCAP Security Guide
-    - name: Compilar SCAP Security Guide
-      when: ansible_distribution in ["Ubuntu", "Debian"]
-      shell: |
-        cd /tmp/scap-security-guide
-        if [ ! -d "build" ]; then
-          mkdir build
-        fi
-        cd build
-        cmake ..
-        make -j4
-      args:
-        chdir: /tmp/scap-security-guide
-      environment:
-        DEBIAN_FRONTEND: noninteractive
-
-    # Copiar DataStream a /usr/share/openscap
-    - name: Copiar DataStream SCAP a /usr/share/openscap
-      when: ansible_distribution in ["Ubuntu", "Debian"]
-      copy:
-        src: /tmp/scap-security-guide/build/ssg-ubuntu-*.xml
-        dest: /usr/share/openscap/
-        mode: '0644'
-
     # Instalación de OpenSCAP para CentOS/RHEL/Fedora
     - name: Instalar paquetes necesarios para CentOS/RHEL/Fedora
       when: ansible_distribution in ["CentOS", "RedHat", "Fedora"]
       package:
         name: "{{ paquetes_a_instalar }}"
         state: present
+
+    # Instalación de OpenSCAP para Ubuntu/Debian
+    - name: Instalar paquetes necesarios para Ubuntu/Debian
+      when: ansible_distribution in ["Ubuntu", "Debian"]
+      apt:
+        name: "{{ paquetes_a_instalar }}"
+        state: present
+        update_cache: yes
 
     # Instalación de SUSE Manager para SUSE
     - name: Instalar paquetes necesarios para SUSE
@@ -178,16 +120,16 @@
         name: "{{ paquetes_a_instalar }}"
         state: present
 
-    # Verificar instalación de oscap
-    - name: Verificar instalación de oscap
-      command: which oscap
-      register: scap_installed
+    # Verificar instalación de la herramienta de seguridad
+    - name: Verificar instalación de la herramienta de seguridad
+      command: "which oscap"
+      register: openscap_installed
       ignore_errors: yes
 
-    - name: Asegurarse de que oscap está instalado
+    - name: Asegurarse de que la herramienta de seguridad está instalada
       fail:
-        msg: "oscap no se pudo instalar en {{ inventory_hostname }}"
-      when: scap_installed.rc != 0
+        msg: "La herramienta de seguridad no se pudo instalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      when: openscap_installed.rc != 0
 
     - name: Mostrar mensaje de éxito
       debug:
