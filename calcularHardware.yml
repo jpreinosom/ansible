@@ -103,9 +103,6 @@
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
-      loop: "{{ grafana_csv_data }}"
-      loop_control:
-        loop_var: item
 
 - name: Obtener información de los hosts dinámicos
   hosts: dynamic_hosts
@@ -113,7 +110,7 @@
   tasks:
     - name: Mostrar el total de disco
       debug:
-        msg: "El total de disco es: {{ ansible_facts['ansible_mounts'][0]['size_total'] | human_readable }}"
+        msg: "El total de disco es: {{ ansible_facts['ansible_facts']['devices']['sda']['size'] | default('No disponible') }}"
 
     - name: Mostrar el total de RAM
       debug:
@@ -129,7 +126,7 @@
   tasks:
     - name: Recopilar información de todos los hosts
       set_fact:
-        total_disk: "{{ total_disk | default(0) + ansible_facts['ansible_mounts'][0]['size_total'] }}"
+        total_disk: "{{ total_disk | default(0) + (ansible_facts['ansible_facts']['devices']['sda']['size'] | default(0)) }}"
         total_ram: "{{ total_ram | default(0) + ansible_facts['ansible_memtotal_mb'] }}"
         total_processors: "{{ total_processors | default(0) + ansible_facts['ansible_processor_count'] }}"
       run_once: true
