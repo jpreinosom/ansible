@@ -120,8 +120,12 @@
         total_ram: "{{ ansible_memtotal_mb | int }}"
 
     - name: Obtener el espacio en disco
+      win_shell: "Get-PSDrive -PSProvider 'FileSystem' | Select-Object -ExpandProperty Used"
+      register: disk_usage
+
+    - name: Establecer el total de espacio en disco
       set_fact:
-        total_disk: "{{ ansible_mounts[0].size_total | int / 1024 / 1024 }}"  # En MB
+        total_disk: "{{ disk_usage.stdout | int / 1024 / 1024 }}"  # En MB  # En MB
 
 - name: Insertar información de hardware en la base de datos
   hosts: windows_hosts
