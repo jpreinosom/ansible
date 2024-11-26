@@ -104,35 +104,38 @@
       debug:
         msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ paquetes_a_instalar }}"
 
+    # Habilitar repositorios universe para Ubuntu
+    - name: Habilitar repositorios universe
+      when: ansible_distribution == "Ubuntu"
+      apt_repository:
+        repo: "deb http://archive.ubuntu.com/ubuntu/ {{ ansible_distribution_release }} universe"
+        state: present
+
+    # Actualizar la lista de paquetes para Ubuntu/Debian
+    - name: Actualizar la lista de paquetes
+      when: ansible_distribution in ["Ubuntu", "Debian"]
+      apt:
+        update_cache: yes
+
+    # Instalación de OpenSCAP y SCAP Security Guide para Ubuntu/Debian
+    - name: Instalar SCAP Security Guide y OpenSCAP para Ubuntu/Debian
+      when: ansible_distribution in ["Ubuntu", "Debian"]
+      apt:
+        name:
+          - ssg-base
+          - ssg-debderived
+          - ssg-debian
+          - ssg-nondebian
+          - ssg-applications
+          - openscap-scanner
+        state: present
+
     # Instalación de OpenSCAP para CentOS/RHEL/Fedora
     - name: Instalar paquetes necesarios para CentOS/RHEL/Fedora
       when: ansible_distribution in ["CentOS", "RedHat", "Fedora"]
       package:
         name: "{{ paquetes_a_instalar }}"
         state: present
-
-    # Instalación de OpenSCAP para Ubuntu/Debian
-    - name: Instalar paquetes necesarios para Ubuntu/Debian
-      when: ansible_distribution in ["Ubuntu", "Debian"]
-      apt:
-        name: "{{ paquetes_a_instalar }}"
-        state: present
-        update_cache: yes
-
-    # Descargar scap-security-guide y extraer contenido para Ubuntu/Debian
-    - name: Descargar scap-security-guide para Ubuntu/Debian
-      when: ansible_distribution in ["Ubuntu", "Debian"]
-      get_url:
-        url: "https://github.com/ComplianceAsCode/content/releases/download/v0.1.75/scap-security-guide-0.1.75.tar.bz2"
-        dest: "/tmp/scap-security-guide-0.1.75.tar.bz2"
-        mode: '0644'
-
-    - name: Extraer scap-security-guide para Ubuntu/Debian
-      when: ansible_distribution in ["Ubuntu", "Debian"]
-      unarchive:
-        src: "/tmp/scap-security-guide-0.1.75.tar.bz2"
-        dest: "/usr/share/openscap/"
-        remote_src: yes
 
     # Instalación de SUSE Manager para SUSE
     - name: Instalar paquetes necesarios para SUSE
@@ -141,16 +144,16 @@
         name: "{{ paquetes_a_instalar }}"
         state: present
 
-    # Verificar instalación de la herramienta de seguridad
-    - name: Verificar instalación de la herramienta de seguridad
-      command: "which oscap"
-      register: openscap_installed
+    # Verificar instalación de oscap
+    - name: Verificar instalación de oscap
+      command: which oscap
+      register: scap_installed
       ignore_errors: yes
 
-    - name: Asegurarse de que la herramienta de seguridad está instalada
+    - name: Asegurarse de que oscap está instalado
       fail:
-        msg: "La herramienta de seguridad no se pudo instalar en {{ ansible_distribution }} {{ ansible_distribution_version }}"
-      when: openscap_installed.rc != 0
+        msg: "oscap no se pudo instalar en {{ inventory_hostname }}"
+      when: scap_installed.rc != 0
 
     - name: Mostrar mensaje de éxito
       debug:
