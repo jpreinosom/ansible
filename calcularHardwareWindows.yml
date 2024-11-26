@@ -1,0 +1,145 @@
+- name: Leer y procesar el inventario CSV para Windows
+  hosts: localhost
+  gather_facts: no
+  vars:
+    input_file: "{{ playbook_dir }}/inventory/inventarioWindows.csv"
+    delimiter: ";"
+  tasks:
+    - name: Verificar que el archivo CSV existe
+      stat:
+        path: "{{ input_file }}"
+      register: file_check
+
+    - name: Fallar si el archivo de inventario no existe
+      fail:
+        msg: "El archivo de inventario {{ input_file }} no existe."
+      when: not file_check.stat.exists
+
+    - name: Leer contenido del archivo CSV
+      set_fact:
+        csv_content: "{{ lookup('file', input_file) }}"
+
+    - name: Extraer encabezados del CSV
+      set_fact:
+        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del CSV
+      set_fact:
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != headers | length
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas para crear diccionarios
+      set_fact:
+        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Agregar hosts dinámicamente al grupo 'windows_hosts'
+      add_host:
+        name: "{{ item.IP }}"
+        groups: windows_hosts
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
+        ansible_connection: ssh
+        ansible_ssh_pass: "{{ item.Contraseña }}"
+        ansible_shell_type: cmd
+        remote_tmp: /tmp
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+
+    - name: Verificar que el archivo Grafana CSV existe
+      stat:
+        path: "{{ playbook_dir }}/inventory/grafana.csv"
+      register: grafana_file_check
+
+    - name: Fallar si el archivo de inventario Grafana no existe
+      fail:
+        msg: "El archivo de inventario {{ playbook_dir }}/inventory/grafana.csv no existe."
+      when: not grafana_file_check.stat.exists
+
+    - name: Leer contenido del archivo Grafana CSV
+      set_fact:
+        grafana_csv_content: "{{ lookup('file', playbook_dir + '/inventory/grafana.csv') }}"
+
+    - name: Extraer encabezados del archivo Grafana CSV
+      set_fact:
+        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del archivo Grafana CSV
+      set_fact:
+        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != grafana_headers | length
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
+      set_fact:
+        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
+      add_host:
+        name: "{{ item.IP }}"
+        groups: grafana_hosts
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
+        ansible_connection: ssh
+        ansible_ssh_pass: "{{ item.Contraseña }}"
+      loop: "{{ grafana_csv_data }}"
+      loop_control:
+        loop_var: item
+
+- name: Obtener información de los hosts dinámicos de Windows
+  hosts: windows_hosts
+  gather_facts: yes
+  tasks:
+    - name: Obtener el número de procesadores
+      set_fact:
+        num_processors: "{{ ansible_processor_vcpus }}"
+
+    - name: Obtener la cantidad de memoria RAM
+      set_fact:
+        total_ram: "{{ ansible_memtotal_mb | int }}"
+
+    - name: Obtener el espacio en disco
+      set_fact:
+        total_disk: "{{ ansible_mounts[0].size_total | int / 1024 / 1024 }}"  # En MB
+
+- name: Insertar información de hardware en la base de datos
+  hosts: windows_hosts
+  gather_facts: no
+  tasks:
+    - name: Insertar información de hardware de cada host en la base de datos
+      delegate_to: "{{ groups['grafana_hosts'][0] }}"
+      command: >
+        /usr/bin/psql -U grafana_user -d grafana_db -c "
+        INSERT INTO hardware (
+          disco_total, ram_total, procesador_total, ip
+        ) VALUES (
+          '{{ total_disk }}',
+          '{{ total_ram }}',
+          '{{ num_processors }}',
+          '{{ inventory_hostname }}'
+        )
+        "
+      environment:
+        PGPASSWORD: "grafana_password"
+      become: no
