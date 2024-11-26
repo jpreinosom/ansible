@@ -117,11 +117,11 @@
 
     - name: Mostrar el total de RAM
       debug:
-        msg: "El total de RAM es: {{ ansible_facts['ansible_memtotal_mb'] }} MB"
+        msg: "El total de RAM es: {{ ansible_facts['ansible_facts']['memtotal_mb'] | default('No disponible') }} MB"
 
     - name: Mostrar el total de procesadores
       debug:
-        msg: "El total de procesadores es: {{ ansible_facts['ansible_processor_count'] }}"
+        msg: "El total de procesadores es: {{ ansible_facts['ansible_facts']['processor_count'] | default('No disponible') }}"
 
 - name: Obtener información consolidada de los hosts dinámicos
   hosts: dynamic_hosts
@@ -130,8 +130,8 @@
     - name: Recopilar información de todos los hosts
       set_fact:
         total_disk: "{{ total_disk | default(0) + (ansible_facts['ansible_facts']['devices']['sda']['size'] | default(0)) }}"
-        total_ram: "{{ total_ram | default(0) + ansible_facts['ansible_memtotal_mb'] }}"
-        total_processors: "{{ total_processors | default(0) + ansible_facts['ansible_processor_count'] }}"
+        total_ram: "{{ total_ram | default(0) + (ansible_facts['ansible_facts']['memtotal_mb'] | default(0)) }}"
+        total_processors: "{{ total_processors | default(0) + (ansible_facts['ansible_facts']['processor_count'] | default(0)) }}"
       run_once: true
       delegate_to: localhost
 
