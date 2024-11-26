@@ -71,13 +71,17 @@
     distribuciones_paquetes:
       Ubuntu:
         - libopenscap8
-        - wget
-        - tar
+        - git
+        - cmake
+        - make
+        - gcc
         - bzip2
       Debian:
         - libopenscap8
-        - wget
-        - tar
+        - git
+        - cmake
+        - make
+        - gcc
         - bzip2
       CentOS:
         - openscap-scanner
@@ -117,18 +121,40 @@
       apt:
         update_cache: yes
 
-    # Instalación de OpenSCAP y SCAP Security Guide para Ubuntu/Debian
-    - name: Instalar SCAP Security Guide y OpenSCAP para Ubuntu/Debian
+    # Instalación de dependencias para Ubuntu/Debian
+    - name: Instalar dependencias para Ubuntu/Debian
       when: ansible_distribution in ["Ubuntu", "Debian"]
       apt:
-        name:
-          - ssg-base
-          - ssg-debderived
-          - ssg-debian
-          - ssg-nondebian
-          - ssg-applications
-          - openscap-scanner
+        name: "{{ paquetes_a_instalar }}"
         state: present
+
+    # Clonar el repositorio de SCAP Security Guide
+    - name: Clonar el repositorio de SCAP Security Guide
+      when: ansible_distribution in ["Ubuntu", "Debian"]
+      git:
+        repo: https://github.com/ComplianceAsCode/content.git
+        dest: /tmp/scap-security-guide
+        version: master
+
+    # Compilar SCAP Security Guide
+    - name: Compilar SCAP Security Guide
+      when: ansible_distribution in ["Ubuntu", "Debian"]
+      shell: |
+        cd /tmp/scap-security-guide
+        mkdir build
+        cd build
+        cmake ..
+        make -j4
+      args:
+        chdir: /tmp/scap-security-guide
+
+    # Copiar DataStream a /usr/share/openscap
+    - name: Copiar DataStream SCAP a /usr/share/openscap
+      when: ansible_distribution in ["Ubuntu", "Debian"]
+      copy:
+        src: /tmp/scap-security-guide/build/ssg-ubuntu-*.xml
+        dest: /usr/share/openscap/
+        mode: '0644'
 
     # Instalación de OpenSCAP para CentOS/RHEL/Fedora
     - name: Instalar paquetes necesarios para CentOS/RHEL/Fedora
