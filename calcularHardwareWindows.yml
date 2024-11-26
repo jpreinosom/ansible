@@ -120,7 +120,7 @@
         total_ram: "{{ ansible_memtotal_mb | int }}"
 
     - name: Obtener el espacio en disco
-      win_shell: "Get-PSDrive -PSProvider 'FileSystem' | Where-Object { \$_.Used -gt 0 } | Measure-Object -Property Used -Sum | Select-Object -ExpandProperty Sum"
+      win_shell: "Get-PSDrive -PSProvider 'FileSystem' | Where-Object { $_.Used -gt 0 } | Measure-Object -Property Used -Sum | Select-Object -ExpandProperty Sum"
       register: disk_usage
 
     - name: Establecer el total de espacio en disco
