@@ -132,6 +132,33 @@
         state: present
         update_cache: yes
 
+    # Descargar y configurar SCAP Security Guide para Ubuntu 22.04
+    - name: Descargar SCAP Security Guide para Ubuntu 22.04
+      when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04"
+      get_url:
+        url: "https://github.com/ComplianceAsCode/content/releases/download/v0.1.76/scap-security-guide-0.1.76.tar.bz2"
+        dest: "/tmp/scap-security-guide.tar.bz2"
+        mode: '0644'
+
+    - name: Extraer SCAP Security Guide
+      when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04"
+      unarchive:
+        src: "/tmp/scap-security-guide.tar.bz2"
+        dest: "/usr/share/xml/scap/ssg/"
+        remote_src: yes
+        extra_opts: [--strip-components=1]
+
+    - name: Verificar que el archivo ssg-ubuntu-22.04-ds.xml está presente
+      when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04"
+      stat:
+        path: "/usr/share/xml/scap/ssg/ssg-ubuntu22.04-ds.xml"
+      register: ssg_xml
+
+    - name: Fallar si el archivo ssg-ubuntu22.04-ds.xml no está presente
+      when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04" and not ssg_xml.stat.exists
+      fail:
+        msg: "El archivo ssg-ubuntu22.04-ds.xml no se pudo encontrar después de la extracción."
+
     # Instalación de paquetes para CentOS/RHEL/Fedora
     - name: Instalar paquetes necesarios para CentOS/RHEL/Fedora
       when: ansible_distribution in ["CentOS", "RedHat", "Fedora"]
