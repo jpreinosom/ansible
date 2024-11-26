@@ -73,10 +73,12 @@
         - libopenscap8
         - wget
         - tar
+        - bzip2
       Debian:
         - libopenscap8
         - wget
         - tar
+        - bzip2
       CentOS:
         - openscap-scanner
         - scap-security-guide
