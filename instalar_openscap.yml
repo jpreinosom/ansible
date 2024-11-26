@@ -134,7 +134,7 @@
     - name: Descargar SCAP Security Guide para Ubuntu 22.04
       when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04"
       get_url:
-        url: "https://github.com/ComplianceAsCode/content/releases/download/v0.1.76/scap-security-guide-0.1.76.tar.bz2"
+        url: "https://github.com/ComplianceAsCode/content/releases/download/v0.1.75/scap-security-guide-0.1.75.tar.bz2"
         dest: "/tmp/scap-security-guide.tar.bz2"
         mode: '0644'
 
