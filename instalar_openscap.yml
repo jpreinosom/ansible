@@ -129,6 +129,8 @@
       apt:
         name: "{{ paquetes_a_instalar }}"
         state: present
+        environment:
+          DEBIAN_FRONTEND: noninteractive
 
     # Clonar el repositorio de SCAP Security Guide
     - name: Clonar el repositorio de SCAP Security Guide
@@ -151,6 +153,8 @@
         make -j4
       args:
         chdir: /tmp/scap-security-guide
+      environment:
+        DEBIAN_FRONTEND: noninteractive
 
     # Copiar DataStream a /usr/share/openscap
     - name: Copiar DataStream SCAP a /usr/share/openscap
