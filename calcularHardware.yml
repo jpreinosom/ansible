@@ -103,6 +103,9 @@
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
+      loop: "{{ grafana_csv_data }}"
+      loop_control:
+        loop_var: item
 
 - name: Obtener información de los hosts dinámicos
   hosts: dynamic_hosts
