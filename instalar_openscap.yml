@@ -76,6 +76,7 @@
         - make
         - gcc
         - bzip2
+        - libxml2-utils
       Debian:
         - libopenscap8
         - git
@@ -83,6 +84,7 @@
         - make
         - gcc
         - bzip2
+        - libxml2-utils
       CentOS:
         - openscap-scanner
         - scap-security-guide
@@ -141,7 +143,9 @@
       when: ansible_distribution in ["Ubuntu", "Debian"]
       shell: |
         cd /tmp/scap-security-guide
-        mkdir build
+        if [ ! -d "build" ]; then
+          mkdir build
+        fi
         cd build
         cmake ..
         make -j4
