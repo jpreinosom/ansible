@@ -120,7 +120,7 @@
     # Instalación de SUSE Manager para SUSE
     - name: Instalar paquetes necesarios para SUSE
       when: ansible_distribution == "SUSE"
-      zypper:
+      package:
         name: "{{ paquetes_a_instalar }}"
         state: present
 
