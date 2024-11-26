@@ -72,11 +72,9 @@
       Ubuntu:
         - libopenscap8
         - python3-openscap
-        - scap-security-guide
       Debian:
         - libopenscap8
         - python3-openscap
-        - scap-security-guide
       CentOS:
         - openscap-scanner
         - scap-security-guide
