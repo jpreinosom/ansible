@@ -137,7 +137,6 @@
 
 - name: Insertar información de hardware en la base de datos
   hosts: grafana_hosts
-  become: yes
   command: >
     /usr/bin/psql -U grafana_user -d grafana_db -c "
     INSERT INTO hardware (
@@ -152,5 +151,4 @@
   environment:
     PGPASSWORD: "grafana_password"
   become: no
-  run_once: true
-  delegate_to: grafana_hosts
+...
