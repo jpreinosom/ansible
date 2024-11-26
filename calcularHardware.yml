@@ -123,8 +123,8 @@
       set_fact:
         total_disk: "{{ ansible_mounts[0].size_total | int / 1024 / 1024 }}"  # En MB
 
-- name: Obtener información consolidada de los hosts de Grafana
-  hosts: grafana_hosts
+- name: Obtener información consolidada e insertar en la base de datos
+  hosts: dynamic_hosts
   gather_facts: yes
   tasks:
     - name: Recopilar información de todos los hosts
@@ -132,23 +132,25 @@
         total_disk: "{{ total_disk | default(0) | int + (ansible_mounts[0].size_total | int / 1024 / 1024) }}"
         total_ram: "{{ total_ram | default(0) | int + ansible_memtotal_mb | int }}"
         total_processors: "{{ total_processors | default(0) | int + ansible_processor_vcpus | int }}"
-      run_once: true
+      
       
 
-    - name: Insertar información de hardware en la base de datos
-      command: >
-        /usr/bin/psql -U grafana_user -d grafana_db -c "
-        INSERT INTO hardware (
-          disco_total, ram_total, procesador_total, ip
-        ) VALUES (
-          '{{ total_disk }}',
-          '{{ total_ram }}',
-          '{{ total_processors }}',
-          '{{ inventory_hostname }}'
-        )
-        "
-      environment:
-        PGPASSWORD: "grafana_password"
-      become: no
-      run_once: true
-      delegate_to: localhost
+- name: Insertar información de hardware en la base de datos
+  hosts: grafana_hosts
+  become: yes
+  command: >
+    /usr/bin/psql -U grafana_user -d grafana_db -c "
+    INSERT INTO hardware (
+      disco_total, ram_total, procesador_total, ip
+    ) VALUES (
+      '{{ total_disk }}',
+      '{{ total_ram }}',
+      '{{ total_processors }}',
+      '{{ inventory_hostname }}'
+    )
+    "
+  environment:
+    PGPASSWORD: "grafana_password"
+  become: no
+  run_once: true
+  delegate_to: grafana_hosts
