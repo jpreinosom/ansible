@@ -71,11 +71,11 @@
     distribuciones_paquetes:
       Ubuntu:
         - libopenscap8
-        - openscap-utils
+        - openscap
         - scap-security-guide
       Debian:
         - libopenscap8
-        - openscap-utils
+        - openscap
         - scap-security-guide
       CentOS:
         - openscap-scanner
