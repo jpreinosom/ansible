@@ -135,20 +135,13 @@
       run_once: true
       delegate_to: localhost
 
-    - name: Mostrar información consolidada
-      debug:
-        msg:
-          - "Total de disco de todos los hosts: {{ total_disk | human_readable }}"
-          - "Total de RAM de todos los hosts: {{ total_ram }} MB"
-          - "Total de procesadores de todos los hosts: {{ total_processors }}"
-
     - name: Insertar información de hardware en la base de datos
       command: >
         psql -U grafana_user -d grafana_db -c "
         INSERT INTO inventario_hardware (
           disco_total, ram_total, procesador_total, ip
         ) VALUES (
-          '{{ total_disk | human_readable }}',
+          '{{ total_disk }}',
           '{{ total_ram }} MB',
           '{{ total_processors }}',
           '{{ inventory_hostname }}'
