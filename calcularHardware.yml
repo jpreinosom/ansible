@@ -127,28 +127,23 @@
   hosts: dynamic_hosts
   gather_facts: yes
   tasks:
-    - name: Recopilar información de todos los hosts
-      set_fact:
-        total_disk: "{{ total_disk | default(0) | int + (ansible_mounts[0].size_total | int / 1024 / 1024) }}"
-        total_ram: "{{ total_ram | default(0) | int + ansible_memtotal_mb | int }}"
-        total_processors: "{{ total_processors | default(0) | int + ansible_processor_vcpus | int }}"
-      
-      
-
-- name: Insertar información de hardware en la base de datos
-  hosts: grafana_hosts
-  command: >
-    /usr/bin/psql -U grafana_user -d grafana_db -c "
-    INSERT INTO hardware (
-      disco_total, ram_total, procesador_total, ip
-    ) VALUES (
-      '{{ total_disk }}',
-      '{{ total_ram }}',
-      '{{ total_processors }}',
-      '{{ inventory_hostname }}'
-    )
-    "
-  environment:
-    PGPASSWORD: "grafana_password"
-  become: no
-...
+    - name: Insertar información de hardware de cada host en la base de datos
+      delegate_to: "{{ groups['grafana_hosts'][0] }}"
+      command: >
+        /usr/bin/psql -U grafana_user -d grafana_db -c "
+        INSERT INTO hardware (
+          disco_total, ram_total, procesador_total, ip
+        ) VALUES (
+          '{{ total_disk }}',
+          '{{ total_ram }}',
+          '{{ num_processors }}',
+          '{{ inventory_hostname }}'
+        )
+        "
+      environment:
+        PGPASSWORD: "grafana_password"
+      become: no
+      loop: "{{ ansible_play_hosts }}"
+      loop_control:
+        loop_var: host
+      when: host in groups['dynamic_hosts']
