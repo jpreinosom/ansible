@@ -72,9 +72,11 @@
       Ubuntu:
         - libopenscap8
         - python3-openscap
+        - scap-security-guide
       Debian:
         - libopenscap8
         - python3-openscap
+        - scap-security-guide
       CentOS:
         - openscap-scanner
         - scap-security-guide
@@ -131,10 +133,19 @@
         update_cache: yes
 
     # Descargar y configurar SCAP Security Guide para Ubuntu 22.04
+    - name: Crear directorio para SCAP Security Guide
+      when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04"
+      file:
+        path: "/usr/share/xml/scap/ssg/"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
     - name: Descargar SCAP Security Guide para Ubuntu 22.04
       when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04"
       get_url:
-        url: "https://github.com/ComplianceAsCode/content/releases/download/v0.1.75/scap-security-guide-0.1.75.tar.bz2"
+        url: "https://github.com/ComplianceAsCode/content/releases/download/v0.1.76/scap-security-guide-0.1.76.tar.bz2"
         dest: "/tmp/scap-security-guide.tar.bz2"
         mode: '0644'
 
@@ -146,7 +157,7 @@
         remote_src: yes
         extra_opts: [--strip-components=1]
 
-    - name: Verificar que el archivo ssg-ubuntu-22.04-ds.xml está presente
+    - name: Verificar que el archivo ssg-ubuntu22.04-ds.xml está presente
       when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04"
       stat:
         path: "/usr/share/xml/scap/ssg/ssg-ubuntu22.04-ds.xml"
