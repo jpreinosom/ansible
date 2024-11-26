@@ -1,13 +1,48 @@
----
-# playbooks/limpiar_tablas_grafana.yml
-
-- name: Leer y procesar el inventario CSV para Grafana
+- name: Leer y procesar el inventario CSV
   hosts: localhost
   gather_facts: no
   vars:
+    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
   tasks:
+    - name: Verificar que el archivo CSV existe
+      stat:
+        path: "{{ input_file }}"
+      register: file_check
+
+    - name: Fallar si el archivo de inventario no existe
+      fail:
+        msg: "El archivo de inventario {{ input_file }} no existe."
+      when: not file_check.stat.exists
+
+    - name: Leer contenido del archivo CSV
+      set_fact:
+        csv_content: "{{ lookup('file', input_file) }}"
+
+    - name: Extraer encabezados del CSV
+      set_fact:
+        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del CSV
+      set_fact:
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != headers | length
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas para crear diccionarios
+      set_fact:
+        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
     - name: Verificar que el archivo Grafana CSV existe
       stat:
         path: "{{ grafana_file }}"
@@ -45,6 +80,20 @@
       loop_control:
         loop_var: row
 
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
+      add_host:
+        name: "{{ item.IP }}"
+        groups: dynamic_hosts
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
+        ansible_connection: ssh
+        ansible_ssh_pass: "{{ item.Contraseña }}"
+        remote_tmp: /tmp/ansible
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+
     - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
       add_host:
         name: "{{ item.IP }}"
@@ -54,67 +103,56 @@
         ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
         ansible_ssh_pass: "{{ item.Contraseña }}"
-      loop: "{{ grafana_csv_data }}"
-      loop_control:
-        loop_var: item
 
-- name: Consultar la tabla inventario en la base de datos de Grafana
-  hosts: grafana_hosts
-  gather_facts: no
-  vars:
-    db_name: "grafana_db"
+- name: Obtener información de los hosts dinámicos
+  hosts: dynamic_hosts
+  gather_facts: yes
   tasks:
-    - name: Realizar primera consulta SQL para obtener las familias
+    - name: Mostrar el total de disco
+      debug:
+        msg: "El total de disco es: {{ ansible_facts['ansible_mounts'][0]['size_total'] | human_readable }}"
+
+    - name: Mostrar el total de RAM
+      debug:
+        msg: "El total de RAM es: {{ ansible_facts['ansible_memtotal_mb'] }} MB"
+
+    - name: Mostrar el total de procesadores
+      debug:
+        msg: "El total de procesadores es: {{ ansible_facts['ansible_processor_count'] }}"
+
+- name: Obtener información consolidada de los hosts dinámicos
+  hosts: dynamic_hosts
+  gather_facts: yes
+  tasks:
+    - name: Recopilar información de todos los hosts
+      set_fact:
+        total_disk: "{{ total_disk | default(0) + ansible_facts['ansible_mounts'][0]['size_total'] }}"
+        total_ram: "{{ total_ram | default(0) + ansible_facts['ansible_memtotal_mb'] }}"
+        total_processors: "{{ total_processors | default(0) + ansible_facts['ansible_processor_count'] }}"
+      run_once: true
+      delegate_to: localhost
+
+    - name: Mostrar información consolidada
+      debug:
+        msg:
+          - "Total de disco de todos los hosts: {{ total_disk | human_readable }}"
+          - "Total de RAM de todos los hosts: {{ total_ram }} MB"
+          - "Total de procesadores de todos los hosts: {{ total_processors }}"
+
+    - name: Insertar información de hardware en la base de datos
       command: >
-        psql -U grafana_user -d grafana_db -c "SELECT DISTINCT familia FROM inventario"
-      register: familias_query_result
+        psql -U grafana_user -d grafana_db -c "
+        INSERT INTO inventario_hardware (
+          disco_total, ram_total, procesador_total, ip
+        ) VALUES (
+          '{{ total_disk | human_readable }}',
+          '{{ total_ram }} MB',
+          '{{ total_processors }}',
+          '{{ inventory_hostname }}'
+        )
+        "
       environment:
         PGPASSWORD: "grafana_password"
       become: no
-
-    - name: Mostrar el resultado de la consulta de familias
-      debug:
-        var: familias_query_result.stdout
-
-    - name: Procesar los resultados de las familias y hacer una consulta para cada familia
-      set_fact:
-        familias: "{{ familias_query_result.stdout.split('\n')[2:-2] | map('trim') | list }}"
-
-    - name: Realizar una consulta SQL para cada familia y obtener el resto de la información
-      block:
-        - name: Consultar datos de servidores para la familia {{ item }}
-          command: >
-            psql -U grafana_user -d grafana_db -c "SELECT ip, distribucion, version, familia, usuario, password FROM inventario WHERE familia = '{{ item }}'"
-          register: family_query_result
-          environment:
-            PGPASSWORD: "grafana_password"
-          become: no
-          loop: "{{ familias }}"
-          loop_control:
-            loop_var: item
-
-        - name: Acumular los resultados de las consultas
-          set_fact:
-            all_inventario_data: "{{ all_inventario_data | default([]) + [ family_query_result.stdout ] }}"
-
-        - name: Parsear los resultados de la consulta y extraer los datos en formato adecuado
-          set_fact:
-            inventario_data: "{{ all_inventario_data | map('split', '\n') | map('select', 'match', '^[0-9]') | map('map', 'trim') | list }}"
-
-        - name: Mostrar el contenido completo de inventario_data
-          debug:
-            msg: "{{ inventario_data }}"
-
-        - name: Mostrar los servidores diferenciados por familia
-          block:
-            - name: Servidores Linux
-              debug:
-                msg: "Servidor {{ item[0] }} es de familia Linux"
-              loop: "{{ inventario_data }}"
-              when: "'Linux' in item[3] | lower"  # Normaliza para comparar en minúsculas
-
-            - name: Servidores Windows
-              debug:
-                msg: "Servidor {{ item[0] }} es de familia Windows"
-              loop: "{{ inventario_data }}"
-              when: "'Windows' in item[3] | lower"  # Normaliza para comparar en minúsculas
+      run_once: true
+      delegate_to: localhost
