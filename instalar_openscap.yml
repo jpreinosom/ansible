@@ -71,10 +71,8 @@
     distribuciones_paquetes:
       Ubuntu:
         - libopenscap8
-        - openscap-utils
       Debian:
         - libopenscap8
-        - openscap-utils
       CentOS:
         - openscap-scanner
         - scap-security-guide
