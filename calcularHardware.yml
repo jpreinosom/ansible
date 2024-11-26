@@ -113,15 +113,15 @@
   tasks:
     - name: Mostrar el total de disco
       debug:
-        msg: "El total de disco es: {{ ansible_facts['ansible_facts']['devices']['sda']['size'] | default('No disponible') }}"
+        msg: "El total de disco es: {{ ansible_facts['ansible_mounts'] | map(attribute='size_total') | sum | default('No disponible') }}"
 
     - name: Mostrar el total de RAM
       debug:
-        msg: "El total de RAM es: {{ ansible_facts['ansible_facts']['memtotal_mb'] | default('No disponible') }} MB"
+        msg: "El total de RAM es: {{ ansible_facts['memtotal_mb'] | default('No disponible') }} MB"
 
     - name: Mostrar el total de procesadores
       debug:
-        msg: "El total de procesadores es: {{ ansible_facts['ansible_facts']['processor_count'] | default('No disponible') }}"
+        msg: "El total de procesadores es: {{ ansible_facts['processor_cores'] | default('No disponible') }}"
 
 - name: Obtener información consolidada de los hosts dinámicos
   hosts: dynamic_hosts
@@ -129,16 +129,16 @@
   tasks:
     - name: Recopilar información de todos los hosts
       set_fact:
-        total_disk: "{{ total_disk | default(0) + (ansible_facts['ansible_facts']['devices']['sda']['size'] | default(0)) }}"
-        total_ram: "{{ total_ram | default(0) + (ansible_facts['ansible_facts']['memtotal_mb'] | default(0)) }}"
-        total_processors: "{{ total_processors | default(0) + (ansible_facts['ansible_facts']['processor_count'] | default(0)) }}"
+        total_disk: "{{ total_disk | default(0) + (ansible_facts['ansible_mounts'] | map(attribute='size_total') | sum | default(0)) }}"
+        total_ram: "{{ total_ram | default(0) + (ansible_facts['memtotal_mb'] | default(0)) }}"
+        total_processors: "{{ total_processors | default(0) + (ansible_facts['processor_cores'] | default(0)) }}"
       run_once: true
       delegate_to: localhost
 
     - name: Insertar información de hardware en la base de datos
       command: >
         psql -U grafana_user -d grafana_db -c "
-        INSERT INTO inventario_hardware (
+        INSERT INTO hardware (
           disco_total, ram_total, procesador_total, ip
         ) VALUES (
           '{{ total_disk }}',
