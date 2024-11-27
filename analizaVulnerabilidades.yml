@@ -128,7 +128,7 @@
           - '/tmp/openscap-results.xml'
           - '--report'
           - '/tmp/openscap-report.html'
-          - '/usr/share/xml/scap/ssg-rhel9-ds.xml'
+          - '/usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml'
       register: scan_result_centos
       changed_when: false
       failed_when: false
@@ -147,12 +147,31 @@
           - '/tmp/openscap-results.xml'
           - '--report'
           - '/tmp/openscap-report.html'
-          - '/usr/share/xml/scap/ssg-cs9-ds.xml'
+          - '/usr/share/xml/scap/ssg/content/ssg-cs9-ds.xml'
       register: scan_result_centos
       changed_when: false
       failed_when: false
       become: yes
       when: ansible_distribution in ["CentOS"]
+
+    - name: Ejecutar análisis de vulnerabilidades con Ubuntu Debian  (CentOS)
+      command:
+        argv:
+          - oscap
+          - xccdf
+          - eval
+          - '--profile'
+          - 'profile xccdf_org.ssgproject.content_profile_cis_level2_server'
+          - '--results'
+          - '/tmp/openscap-results.xml'
+          - '--report'
+          - '/tmp/openscap-report.html'
+          - '/usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds-1.2.xml'
+      register: scan_result_centos
+      changed_when: false
+      failed_when: false
+      become: yes
+      when: ansible_distribution in ["Ubuntu", "Debian"]
 
     # Verificar si el archivo de resultados existe (CentOS)
     - name: Verificar si el archivo de resultados existe (CentOS)
@@ -187,21 +206,21 @@
         - ansible_distribution in ["Ubuntu", "Debian"]
         - results_file_check_ubuntu.stat.exists
 
-    # Extraer valores del archivo de resultados XML utilizando expresiones regulares (todas las distribuciones)
+    # Extraer valores del archivo de resultados XML para todas las distribuciones
     - name: Extraer valores del archivo de resultados XML (todas las distribuciones)
+      xml:
+        content: "{{ (slurped_xml.content if ansible_distribution in ['CentOS', 'RedHat', 'OracleLinux', 'AlmaLinux', 'RockyLinux'] else slurped_xml_ubuntu.content) | b64decode }}"
+        xpath: "/rule-result"
+        content_key: "rule_results"
+      register: xml_parsed_all
+      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux", "Ubuntu", "Debian"]
+
+    - name: Guardar valores de idref, result y severity (todas las distribuciones)
       set_fact:
         vulnerability_data_all: |
-          {% set results = [] %}
-          {% for line in (slurped_xml.content if ansible_distribution in ['CentOS', 'RedHat', 'OracleLinux', 'AlmaLinux', 'RockyLinux'] else slurped_xml_ubuntu.content) | b64decode | split('\n') %}
-          {%   if '<rule-result' in line %}
-          {%     set idref = line.split('idref="')[1].split('"')[0] %}
-          {%     set severity = line.split('severity="')[1].split('"')[0] %}
-          {%   elif '<result>' in line %}
-          {%     set result = line.split('>')[1].split('<')[0] %}
-          {%     results.append({'idref': idref, 'severity': severity, 'result': result, 'ip': inventory_hostname}) %}
-          {%   endif %}
-          {% endfor %}
-          {{ results }}
+          {{ xml_parsed_all.matches | map(attribute='@idref') | list }}
+          {{ xml_parsed_all.matches | map(attribute='result') | list }}
+          {{ xml_parsed_all.matches | map(attribute='@severity') | list }}
       when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux", "Ubuntu", "Debian"]
 
 - name: Guardar vulnerabilidades en la base de datos
@@ -220,7 +239,7 @@
           '{{ item.ip }}'
         )
         "
-      loop: "{{ vulnerability_data_all }}"
+      loop: "{{ xml_parsed_all.matches | map(attribute='@idref', '@severity', 'result') | list }}"
       loop_control:
         loop_var: item
       environment:
