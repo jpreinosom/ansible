@@ -356,31 +356,8 @@
           {% endfor %}
       when: all_vulnerability_data | length > 0
 
-    - name: Mostrar contenido del archivo SQL generado
-      command: cat /tmp/insert_vulnerabilities.sql
-      register: sql_file_content
-      when: all_vulnerability_data | length > 0
-
-    - name: Depurar contenido del archivo SQL
-      debug:
-        var: sql_file_content.stdout
-      when: all_vulnerability_data | length > 0
-
     - name: Ejecutar archivo SQL
       command: psql -U {{ vulnerability_user }} -d {{ vulnerability_db }} -f /tmp/insert_vulnerabilities.sql
       environment:
         PGPASSWORD: "{{ vulnerability_password }}"
-      register: psql_result
-      when: all_vulnerability_data | length > 0
-      ignore_errors: yes
-
-    - name: Depurar resultado de la ejecución de SQL
-      debug:
-        var: psql_result
-      when: all_vulnerability_data | length > 0
-
-    - name: Verificar éxito de la inserción SQL
-      fail:
-        msg: "Error al ejecutar el archivo SQL: {{ psql_result.stderr }}"
-      when: psql_result.rc != 0
       when: all_vulnerability_data | length > 0
