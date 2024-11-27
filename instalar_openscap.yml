@@ -75,10 +75,6 @@
         - ssg-debian
         - ssg-nondebian
         - ssg-applications
-        - openscap-scanner
-        - libxml2
-        - xmlsec1
-        - libxmlsec1-openssl
       Debian:
         - libopenscap8
         - ssg-base
@@ -87,9 +83,6 @@
         - ssg-nondebian
         - ssg-applications
         - openscap-scanner
-        - libxml2
-        - xmlsec1
-        - libxmlsec1-openssl
   tasks:
     - name: Depurar la distribución del sistema
       debug:
