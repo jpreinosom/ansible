@@ -66,33 +66,31 @@
 - name: Instalar herramientas de seguridad en los hosts dinámicos
   hosts: dynamic_hosts_seguridad
   gather_facts: yes
-  become: yes  # Se asume que el usuario tiene privilegios sudo sin contraseña
+  become: yes
   vars:
     distribuciones_paquetes:
       Ubuntu:
         - libopenscap8
-        - python3-openscap
+        - ssg-base
+        - ssg-debderived
+        - ssg-debian
+        - ssg-nondebian
+        - ssg-applications
+        - openscap-scanner
+        - libxml2
+        - xmlsec1
+        - libxmlsec1-openssl
       Debian:
         - libopenscap8
-        - python3-openscap
-      CentOS:
+        - ssg-base
+        - ssg-debderived
+        - ssg-debian
+        - ssg-nondebian
+        - ssg-applications
         - openscap-scanner
-        - scap-security-guide
-      RedHat:
-        - openscap-scanner
-        - scap-security-guide
-      Fedora:
-        - openscap
-        - scap-security-guide
-      SLES:
-        - openscap
-        - scap-security-guide
-      openSUSE Leap:
-        - openscap
-        - scap-security-guide
-      openSUSE Tumbleweed:
-        - openscap
-        - scap-security-guide
+        - libxml2
+        - xmlsec1
+        - libxmlsec1-openssl
   tasks:
     - name: Depurar la distribución del sistema
       debug:
@@ -107,18 +105,24 @@
       debug:
         msg: "Paquetes a instalar para {{ ansible_distribution }}: {{ paquetes_a_instalar }}"
 
-    # Habilitar repositorio 'universe' en Ubuntu
-    - name: Habilitar repositorio 'universe' en Ubuntu
-      when: ansible_distribution == "Ubuntu"
+    # Habilitar repositorio para Debian en Ubuntu/Debian
+    - name: Habilitar repositorio para Debian en Ubuntu/Debian
+      when: ansible_distribution in ["Ubuntu", "Debian"]
       apt_repository:
-        repo: 'deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }} universe'
+        repo: 'deb http://deb.debian.org/debian stable main'
         state: present
-        filename: 'universe.list'
-      register: add_universe
+        filename: 'debian.list'
 
-    # Actualizar la caché de APT después de habilitar 'universe'
-    - name: Actualizar la caché de APT después de habilitar 'universe'
-      when: ansible_distribution == "Ubuntu" and add_universe.changed
+    - name: Añadir las claves GPG necesarias para los paquetes
+      apt_key:
+        keyserver: keyserver.ubuntu.com
+        id: "{{ item }}"
+      loop:
+        - 0E98404D386FA1D9
+        - 6ED0E7B82643E131
+        - F8D2585B8783D481
+
+    - name: Actualizar la caché de APT
       apt:
         update_cache: yes
 
@@ -129,56 +133,6 @@
         name: "{{ paquetes_a_instalar }}"
         state: present
         update_cache: yes
-
-    # Descargar y configurar SCAP Security Guide para Ubuntu 22.04
-    - name: Crear directorio para SCAP Security Guide
-      when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04"
-      file:
-        path: "/usr/share/xml/scap/ssg/"
-        state: directory
-        owner: root
-        group: root
-        mode: '0755'
-
-    - name: Descargar SCAP Security Guide para Ubuntu 22.04
-      when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04"
-      get_url:
-        url: "https://github.com/ComplianceAsCode/content/releases/download/v0.1.75/scap-security-guide-0.1.75.tar.bz2"
-        dest: "/tmp/scap-security-guide.tar.bz2"
-        mode: '0644'
-
-    - name: Extraer SCAP Security Guide
-      when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04"
-      unarchive:
-        src: "/tmp/scap-security-guide.tar.bz2"
-        dest: "/usr/share/xml/scap/ssg/"
-        remote_src: yes
-        extra_opts: [--strip-components=1]
-
-    - name: Verificar que el archivo ssg-ubuntu22.04-ds.xml está presente
-      when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04"
-      stat:
-        path: "/usr/share/xml/scap/ssg/ssg-ubuntu22.04-ds.xml"
-      register: ssg_xml
-
-    - name: Fallar si el archivo ssg-ubuntu22.04-ds.xml no está presente
-      when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "22.04" and not ssg_xml.stat.exists
-      fail:
-        msg: "El archivo ssg-ubuntu22.04-ds.xml no se pudo encontrar después de la extracción."
-
-    # Instalación de paquetes para CentOS/RHEL/Fedora
-    - name: Instalar paquetes necesarios para CentOS/RHEL/Fedora
-      when: ansible_distribution in ["CentOS", "RedHat", "Fedora"]
-      yum:
-        name: "{{ paquetes_a_instalar }}"
-        state: present
-
-    # Instalación de paquetes para SUSE
-    - name: Instalar paquetes necesarios para SUSE
-      when: ansible_distribution in ["SLES", "openSUSE Leap", "openSUSE Tumbleweed"]
-      package:
-        name: "{{ paquetes_a_instalar }}"
-        state: present
 
     # Verificar instalación de la herramienta de seguridad
     - name: Verificar instalación de la herramienta de seguridad
