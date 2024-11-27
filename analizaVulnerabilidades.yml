@@ -111,7 +111,7 @@
         loop_var: item
 
 - name: Ejecutar análisis de vulnerabilidades con OpenSCAP
-  hosts: dynamic_hosts
+  hosts: dynamic_hosts,grafana_hosts  # Ejecutar en ambos grupos
   gather_facts: yes
   become: yes
   tasks:
@@ -331,7 +331,7 @@
     - name: Recolectar todos los datos de vulnerabilidades de los hosts dinámicos
       set_fact:
         all_vulnerability_data: "{{ all_vulnerability_data | default([]) + hostvars[item].host_vulnerabilities }}"
-      loop: "{{ groups['dynamic_hosts'] }}"
+      loop: "{{ groups['dynamic_hosts'] + groups['grafana_hosts'] }}"
       when: hostvars[item].host_vulnerabilities is defined
 
     - name: Depurar all_vulnerability_data
