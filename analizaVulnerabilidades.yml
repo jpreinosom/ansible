@@ -115,34 +115,34 @@
   gather_facts: yes
   become: yes
   tasks:
-    - name: Verificar si xmllint está instalado (RHEL/CentOS)
-      command: which xmllint
-      register: xmllint_check_rhel
+    - name: Verificar si awk está instalado (RHEL/CentOS)
+      command: which awk
+      register: awk_check_rhel
       ignore_errors: yes
       when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
 
-    - name: Instalar xmllint si no está instalado (RHEL/CentOS)
+    - name: Instalar awk si no está instalado (RHEL/CentOS)
       yum:
-        name: libxml2
+        name: gawk
         state: present
       when:
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - xmllint_check_rhel.failed
+        - awk_check_rhel.failed
 
-    - name: Verificar si xmllint está instalado (Ubuntu/Debian)
-      command: which xmllint
-      register: xmllint_check_ubuntu
+    - name: Verificar si awk está instalado (Ubuntu/Debian)
+      command: which awk
+      register: awk_check_ubuntu
       ignore_errors: yes
       when: ansible_distribution in ["Ubuntu", "Debian"]
 
-    - name: Instalar xmllint si no está instalado (Ubuntu/Debian)
+    - name: Instalar awk si no está instalado (Ubuntu/Debian)
       apt:
-        name: libxml2-utils
+        name: gawk
         state: present
         update_cache: yes
       when:
         - ansible_distribution in ["Ubuntu", "Debian"]
-        - xmllint_check_ubuntu.failed
+        - awk_check_ubuntu.failed
 
     - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (RHEL/AlmaLinux/RockyLinux)
       command:
@@ -226,9 +226,21 @@
 
     - name: Extraer valores del archivo de resultados XML (RHEL/CentOS)
       shell: |
-        xmllint --xpath "//*[local-name()='rule-result']" /tmp/openscap-results.xml 2>/dev/null | \
-        grep -o 'idref="[^"]*" result="[^"]*" severity="[^"]*"' | \
-        sed 's/idref="\([^"]*\)" result="\([^"]*\)" severity="\([^"]*\)"/\1,\2,\3/'
+        awk '
+          /<rule-result / {
+            match($0, /idref="([^"]+)"/, a)
+            idref = a[1]
+            match($0, /severity="([^"]+)"/, b)
+            severity = b[1]
+          }
+          /<result>/ {
+            match($0, /<result>([^<]+)<\/result>/, c)
+            result = c[1]
+            if (result == "fail" || result == "pass") {
+              print idref "," result "," severity
+            }
+          }
+        ' /tmp/openscap-results.xml
       register: xml_vuln_data_rhel
       when:
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
@@ -236,46 +248,59 @@
 
     - name: Extraer valores del archivo de resultados XML (Ubuntu/Debian)
       shell: |
-        xmllint --xpath "//*[local-name()='rule-result']" /tmp/openscap-results.xml 2>/dev/null | \
-        grep -o 'idref="[^"]*" result="[^"]*" severity="[^"]*"' | \
-        sed 's/idref="\([^"]*\)" result="\([^"]*\)" severity="\([^"]*\)"/\1,\2,\3/'
+        awk '
+          /<rule-result / {
+            match($0, /idref="([^"]+)"/, a)
+            idref = a[1]
+            match($0, /severity="([^"]+)"/, b)
+            severity = b[1]
+          }
+          /<result>/ {
+            match($0, /<result>([^<]+)<\/result>/, c)
+            result = c[1]
+            if (result == "fail" || result == "pass") {
+              print idref "," result "," severity
+            }
+          }
+        ' /tmp/openscap-results.xml
       register: xml_vuln_data_ubuntu
       when:
         - ansible_distribution in ["Ubuntu", "Debian"]
         - results_file_check_ubuntu.stat.exists
 
-    - name: Depurar xml_vuln_data_rhel.stdout_lines
+    - name: Depurar xml_vuln_data_rhel.stdout
       debug:
-        var: xml_vuln_data_rhel.stdout_lines
+        var: xml_vuln_data_rhel.stdout
       when:
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - xml_vuln_data_rhel.stdout_lines is defined
+        - xml_vuln_data_rhel.stdout is defined
 
-    - name: Depurar xml_vuln_data_ubuntu.stdout_lines
+    - name: Depurar xml_vuln_data_ubuntu.stdout
       debug:
-        var: xml_vuln_data_ubuntu.stdout_lines
+        var: xml_vuln_data_ubuntu.stdout
       when:
         - ansible_distribution in ["Ubuntu", "Debian"]
-        - xml_vuln_data_ubuntu.stdout_lines is defined
+        - xml_vuln_data_ubuntu.stdout is defined
 
     - name: Parse vulnerability data (RHEL/CentOS)
       set_fact:
-        vulnerability_data_host: "{{ xml_vuln_data_rhel.stdout_lines | map('regex_search', 'idref=\"([^\"]+)\" result=\"([^\"]+)\" severity=\"([^\"]+)\"', '\\1,\\2,\\3') | select('match', '.*') | map('split', ',') | map('zip', ['idref', 'result', 'severity']) | map('dict') | map('combine', {'ip': ansible_host}) | list }}"
+        vulnerability_data_host: "{{ xml_vuln_data_rhel.stdout | split('\n') | map('regex_search', '([^,]+),([^,]+),([^,]+)', '\\1,\\2,\\3') | select('match', '.*') | map('split', ',') | map('zip', ['idref', 'result', 'severity']) | map('dict') | map('combine', {'ip': ansible_host}) | list }}"
       when:
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - xml_vuln_data_rhel.stdout_lines
+        - xml_vuln_data_rhel.stdout
 
     - name: Parse vulnerability data (Ubuntu/Debian)
       set_fact:
-        vulnerability_data_host: "{{ xml_vuln_data_ubuntu.stdout_lines | map('regex_search', 'idref=\"([^\"]+)\" result=\"([^\"]+)\" severity=\"([^\"]+)\"', '\\1,\\2,\\3') | select('match', '.*') | map('split', ',') | map('zip', ['idref', 'result', 'severity']) | map('dict') | map('combine', {'ip': ansible_host}) | list }}"
+        vulnerability_data_host: "{{ xml_vuln_data_ubuntu.stdout | split('\n') | map('regex_search', '([^,]+),([^,]+),([^,]+)', '\\1,\\2,\\3') | select('match', '.*') | map('split', ',') | map('zip', ['idref', 'result', 'severity']) | map('dict') | map('combine', {'ip': ansible_host}) | list }}"
       when:
         - ansible_distribution in ["Ubuntu", "Debian"]
-        - xml_vuln_data_ubuntu.stdout_lines
+        - xml_vuln_data_ubuntu.stdout
 
     - name: Guardar vulnerabilidades en una variable para cada host
       set_fact:
         host_vulnerabilities: "{{ vulnerability_data_host }}"
       when: vulnerability_data_host is defined
+
 - name: Guardar vulnerabilidades en la base de datos
   hosts: grafana_hosts
   gather_facts: no
