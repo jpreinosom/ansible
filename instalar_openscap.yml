@@ -112,9 +112,10 @@
         state: present
         filename: 'debian.list'
 
-    - name: Añadir las claves GPG necesarias para los paquetes usando apt-key de forma compatible
+    - name: Añadir las claves GPG necesarias usando apt-key (alternativa para problemas de firma)
       when: ansible_distribution in ["Ubuntu", "Debian"]
-      command: "apt-key adv --keyserver keyserver.ubuntu.com --recv-keys {{ item }}"
+      shell: |
+        apt-key adv --keyserver keyserver.ubuntu.com --recv-keys {{ item }} || true
       loop:
         - 0E98404D386FA1D9
         - 6ED0E7B82643E131
