@@ -115,6 +115,10 @@
   gather_facts: yes
   become: yes
   tasks:
+    - name: Depurar ansible_distribution
+      debug:
+        var: ansible_distribution
+
     - name: Verificar si awk está instalado (RHEL/CentOS)
       command: which awk
       register: awk_check_rhel
@@ -348,4 +352,3 @@
       environment:
         PGPASSWORD: "{{ vulnerability_password }}"
       when: all_vulnerability_data | length > 0
-...
