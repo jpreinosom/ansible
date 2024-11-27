@@ -108,7 +108,7 @@
     - name: Habilitar repositorio para Debian en Ubuntu/Debian
       when: ansible_distribution in ["Ubuntu", "Debian"]
       apt_repository:
-        repo: 'deb http://deb.debian.org/debian stable main'
+        repo: 'deb [trusted=yes] http://deb.debian.org/debian stable main'
         state: present
         filename: 'debian.list'
 
