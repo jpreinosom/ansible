@@ -235,7 +235,7 @@
       when: vulnerability_data_host is defined
 
 - name: Guardar vulnerabilidades en la base de datos
-  hosts: localhost
+  hosts: grafana_hosts
   gather_facts: no
   vars:
     vulnerability_user: "grafana_user"
