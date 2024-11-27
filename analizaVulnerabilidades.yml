@@ -9,7 +9,7 @@
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
   tasks:
-    - name: Verificar que el archivo CSV existe
+    - name: Verificar que el archivo CSV de inventario existe
       stat:
         path: "{{ input_file }}"
       register: file_check
@@ -19,15 +19,15 @@
         msg: "El archivo de inventario {{ input_file }} no existe."
       when: not file_check.stat.exists
 
-    - name: Leer contenido del archivo CSV
+    - name: Leer contenido del archivo CSV de inventario
       set_fact:
         csv_content: "{{ lookup('file', input_file) }}"
 
-    - name: Extraer encabezados del CSV
+    - name: Extraer encabezados del CSV de inventario
       set_fact:
         headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
 
-    - name: Extraer filas del CSV
+    - name: Extraer filas del CSV de inventario
       set_fact:
         rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
 
@@ -51,9 +51,9 @@
         path: "{{ grafana_file }}"
       register: grafana_file_check
 
-    - name: Fallar si el archivo de inventario Grafana no existe
+    - name: Fallar si el archivo Grafana CSV no existe
       fail:
-        msg: "El archivo de inventario {{ grafana_file }} no existe."
+        msg: "El archivo Grafana CSV {{ grafana_file }} no existe."
       when: not grafana_file_check.stat.exists
 
     - name: Leer contenido del archivo Grafana CSV
@@ -68,15 +68,15 @@
       set_fact:
         grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
 
-    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
+    - name: Validar que cada fila del Grafana CSV tenga el mismo número de campos que los encabezados
       fail:
-        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados en Grafana CSV."
       when: row | length != grafana_headers | length
       loop: "{{ grafana_rows }}"
       loop_control:
         loop_var: row
 
-    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
+    - name: Combinar encabezados con filas del Grafana CSV para crear diccionarios
       set_fact:
         grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
       loop: "{{ grafana_rows }}"
@@ -115,7 +115,6 @@
   gather_facts: yes
   become: yes
   tasks:
-    # Análisis con OpenSCAP para CentOS/RHEL/AlmaLinux/RockyLinux
     - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (RHEL/AlmaLinux/RockyLinux)
       command:
         argv:
@@ -129,10 +128,9 @@
           - '--report'
           - '/tmp/openscap-report.html'
           - '/usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml'
-      register: scan_result_centos
+      register: scan_result_rhel
       changed_when: false
       failed_when: false
-      become: yes
       when: ansible_distribution in ["RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
 
     - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS)
@@ -151,97 +149,131 @@
       register: scan_result_centos
       changed_when: false
       failed_when: false
-      become: yes
-      when: ansible_distribution in ["CentOS"]
+      when: ansible_distribution == "CentOS"
 
-    - name: Ejecutar análisis de vulnerabilidades con Ubuntu Debian  (CentOS)
+    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (Ubuntu/Debian)
       command:
         argv:
           - oscap
           - xccdf
           - eval
           - '--profile'
-          - 'profile xccdf_org.ssgproject.content_profile_cis_level2_server'
+          - 'xccdf_org.ssgproject.content_profile_cis_level2_server'
           - '--results'
           - '/tmp/openscap-results.xml'
           - '--report'
           - '/tmp/openscap-report.html'
           - '/usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds-1.2.xml'
-      register: scan_result_centos
+      register: scan_result_ubuntu
       changed_when: false
       failed_when: false
-      become: yes
       when: ansible_distribution in ["Ubuntu", "Debian"]
 
-    # Verificar si el archivo de resultados existe (CentOS)
-    - name: Verificar si el archivo de resultados existe (CentOS)
+    - name: Verificar si el archivo de resultados existe (RHEL/CentOS)
       stat:
         path: /tmp/openscap-results.xml
-      register: results_file_check
+      register: results_file_check_rhel
       when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
 
-    # Fallar si el análisis no generó el archivo de resultados (CentOS)
-    - name: Fallar si el análisis no generó el archivo de resultados (CentOS)
+    - name: Verificar si el archivo de resultados existe (Ubuntu/Debian)
+      stat:
+        path: /tmp/openscap-results.xml
+      register: results_file_check_ubuntu
+      when: ansible_distribution in ["Ubuntu", "Debian"]
+
+    - name: Fallar si el análisis no generó el archivo de resultados (RHEL/CentOS)
       fail:
         msg: "El archivo de resultados de OpenSCAP no se generó en {{ inventory_hostname }}."
       when:
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - not results_file_check.stat.exists
+        - not results_file_check_rhel.stat.exists
 
-    # Leer el archivo de resultados XML para OpenSCAP (CentOS)
-    - name: Leer el archivo de resultados XML (CentOS)
+    - name: Fallar si el análisis no generó el archivo de resultados (Ubuntu/Debian)
+      fail:
+        msg: "El archivo de resultados de OpenSCAP no se generó en {{ inventory_hostname }}."
+      when:
+        - ansible_distribution in ["Ubuntu", "Debian"]
+        - not results_file_check_ubuntu.stat.exists
+
+    - name: Leer el archivo de resultados XML (RHEL/CentOS)
       slurp:
         src: /tmp/openscap-results.xml
-      register: slurped_xml
+      register: slurped_xml_rhel
       when:
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - results_file_check.stat.exists
+        - results_file_check_rhel.stat.exists
 
-    # Leer el archivo de resultados XML para OpenSCAP (Ubuntu/Debian)
     - name: Leer el archivo de resultados XML (Ubuntu/Debian)
       slurp:
-        src: /home/ubuntu/result.xml
+        src: /tmp/openscap-results.xml
       register: slurped_xml_ubuntu
       when:
         - ansible_distribution in ["Ubuntu", "Debian"]
         - results_file_check_ubuntu.stat.exists
 
-    # Extraer valores del archivo de resultados XML para todas las distribuciones
-    - name: Extraer valores del archivo de resultados XML (todas las distribuciones)
-      xml:
-        content: "{{ (slurped_xml.content if ansible_distribution in ['CentOS', 'RedHat', 'OracleLinux', 'AlmaLinux', 'RockyLinux'] else slurped_xml_ubuntu.content) | b64decode }}"
-        xpath: "/rule-result"
-        content_key: "rule_results"
-      register: xml_parsed_all
-      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux", "Ubuntu", "Debian"]
+    - name: Extraer valores del archivo de resultados XML (RHEL/CentOS)
+      shell: |
+        echo "{{ slurped_xml_rhel.content | b64decode }}" | xmllint --xpath "//rule-result" - 2>/dev/null | \
+        grep -o 'idref="[^"]*" result="[^"]*" severity="[^"]*"' | \
+        sed 's/idref="\([^"]*\)" result="\([^"]*\)" severity="\([^"]*\)"/\1,\2,\3/'
+      register: xml_vuln_data_rhel
+      when:
+        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+        - results_file_check_rhel.stat.exists
 
-    - name: Guardar valores de idref, result y severity (todas las distribuciones)
+    - name: Extraer valores del archivo de resultados XML (Ubuntu/Debian)
+      shell: |
+        echo "{{ slurped_xml_ubuntu.content | b64decode }}" | xmllint --xpath "//rule-result" - 2>/dev/null | \
+        grep -o 'idref="[^"]*" result="[^"]*" severity="[^"]*"' | \
+        sed 's/idref="\([^"]*\)" result="\([^"]*\)" severity="\([^"]*\)"/\1,\2,\3/'
+      register: xml_vuln_data_ubuntu
+      when:
+        - ansible_distribution in ["Ubuntu", "Debian"]
+        - results_file_check_ubuntu.stat.exists
+
+    - name: Parse vulnerability data (RHEL/CentOS)
       set_fact:
-        vulnerability_data_all: |
-          {{ xml_parsed_all.matches | map(attribute='@idref') | list }}
-          {{ xml_parsed_all.matches | map(attribute='result') | list }}
-          {{ xml_parsed_all.matches | map(attribute='@severity') | list }}
-      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux", "Ubuntu", "Debian"]
+        vulnerability_data_all: "{{ xml_vuln_data_rhel.stdout_lines | map('regex_search', 'idref=\"([^\"]+)\" result=\"([^\"]+)\" severity=\"([^\"]+)\"', '\\1,\\2,\\3') | map('split', ',') | map('zip', ['idref', 'result', 'severity']) | map('dict') | map('combine', {'ip': ansible_host}) | list }}"
+      when:
+        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+        - xml_vuln_data_rhel.stdout_lines
+
+    - name: Parse vulnerability data (Ubuntu/Debian)
+      set_fact:
+        vulnerability_data_all: "{{ xml_vuln_data_ubuntu.stdout_lines | map('regex_search', 'idref=\"([^\"]+)\" result=\"([^\"]+)\" severity=\"([^\"]+)\"', '\\1,\\2,\\3') | map('split', ',') | map('zip', ['idref', 'result', 'severity']) | map('dict') | map('combine', {'ip': ansible_host}) | list }}"
+      when:
+        - ansible_distribution in ["Ubuntu", "Debian"]
+        - xml_vuln_data_ubuntu.stdout_lines
+
+    - name: Guardar vulnerabilidades en una variable para cada host
+      set_fact:
+        host_vulnerabilities: "{{ vulnerability_data_all }}"
+      when: vulnerability_data_all is defined
 
 - name: Guardar vulnerabilidades en la base de datos
-  hosts: localhost
+  hosts: grafana_hosts
   gather_facts: no
+  vars:
+    vulnerability_user: "grafana_user"
+    vulnerability_db: "grafana_bd"
+    vulnerability_password: "grafana_password"
   tasks:
+    - name: Recolectar todos los datos de vulnerabilidades de los hosts dinámicos
+      set_fact:
+        all_vulnerability_data: "{{ all_vulnerability_data | default([]) + hostvars[item].host_vulnerabilities }}"
+      loop: "{{ groups['dynamic_hosts'] }}"
+      when: hostvars[item].host_vulnerabilities is defined
+
     - name: Insertar registros en la tabla vulnerabilidades en la base de datos
       command: >
-        psql -U vulnerability_user -d vulnerability_db -c "
-        INSERT INTO vulnerabilidades (
-          detalle, categoria, resultado, ip
-        ) VALUES (
-          '{{ item.idref }}',
-          '{{ item.severity }}',
-          '{{ item.result }}',
-          '{{ item.ip }}'
-        )
-        "
-      loop: "{{ xml_parsed_all.matches | map(attribute='@idref', '@severity', 'result') | list }}"
+        psql -U {{ vulnerability_user }} -d {{ vulnerability_db }} -c "INSERT INTO vulnerabilidades (detalle, categoria, resultado, ip) VALUES ('{{ item.idref }}', '{{ item.severity }}', '{{ item.result }}', '{{ item.ip }}');"
+      loop: "{{ all_vulnerability_data }}"
       loop_control:
         loop_var: item
       environment:
-        PGPASSWORD: "vulnerability_password"
-      become: no
+        PGPASSWORD: "{{ vulnerability_password }}"
+      when:
+        - item.idref is defined
+        - item.severity is defined
+        - item.result is defined
+        - item.ip is defined
