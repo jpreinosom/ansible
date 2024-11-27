@@ -311,8 +311,13 @@
         host_vulnerabilities: "{{ vulnerability_data_host }}"
       when: vulnerability_data_host is defined
 
+    - name: Depurar host_vulnerabilities
+      debug:
+        var: host_vulnerabilities
+      when: host_vulnerabilities is defined
+
 - name: Guardar vulnerabilidades en la base de datos
-  hosts: grafana_hosts
+  hosts: grafana_host
   gather_facts: no
   vars:
     vulnerability_user: "grafana_user"
