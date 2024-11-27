@@ -115,6 +115,35 @@
   gather_facts: yes
   become: yes
   tasks:
+    - name: Verificar si xmllint está instalado (RHEL/CentOS)
+      command: which xmllint
+      register: xmllint_check_rhel
+      ignore_errors: yes
+      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+
+    - name: Instalar xmllint si no está instalado (RHEL/CentOS)
+      yum:
+        name: libxml2
+        state: present
+      when:
+        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+        - xmllint_check_rhel.failed
+
+    - name: Verificar si xmllint está instalado (Ubuntu/Debian)
+      command: which xmllint
+      register: xmllint_check_ubuntu
+      ignore_errors: yes
+      when: ansible_distribution in ["Ubuntu", "Debian"]
+
+    - name: Instalar xmllint si no está instalado (Ubuntu/Debian)
+      apt:
+        name: libxml2-utils
+        state: present
+        update_cache: yes
+      when:
+        - ansible_distribution in ["Ubuntu", "Debian"]
+        - xmllint_check_ubuntu.failed
+
     - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (RHEL/AlmaLinux/RockyLinux)
       command:
         argv:
@@ -197,7 +226,7 @@
 
     - name: Extraer valores del archivo de resultados XML (RHEL/CentOS)
       shell: |
-        xmllint --xpath "//rule-result" /tmp/openscap-results.xml 2>/dev/null | \
+        xmllint --xpath "//*[local-name()='rule-result']" /tmp/openscap-results.xml 2>/dev/null | \
         grep -o 'idref="[^"]*" result="[^"]*" severity="[^"]*"' | \
         sed 's/idref="\([^"]*\)" result="\([^"]*\)" severity="\([^"]*\)"/\1,\2,\3/'
       register: xml_vuln_data_rhel
@@ -207,7 +236,7 @@
 
     - name: Extraer valores del archivo de resultados XML (Ubuntu/Debian)
       shell: |
-        xmllint --xpath "//rule-result" /tmp/openscap-results.xml 2>/dev/null | \
+        xmllint --xpath "//*[local-name()='rule-result']" /tmp/openscap-results.xml 2>/dev/null | \
         grep -o 'idref="[^"]*" result="[^"]*" severity="[^"]*"' | \
         sed 's/idref="\([^"]*\)" result="\([^"]*\)" severity="\([^"]*\)"/\1,\2,\3/'
       register: xml_vuln_data_ubuntu
@@ -215,16 +244,30 @@
         - ansible_distribution in ["Ubuntu", "Debian"]
         - results_file_check_ubuntu.stat.exists
 
+    - name: Depurar xml_vuln_data_rhel.stdout_lines
+      debug:
+        var: xml_vuln_data_rhel.stdout_lines
+      when:
+        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+        - xml_vuln_data_rhel.stdout_lines is defined
+
+    - name: Depurar xml_vuln_data_ubuntu.stdout_lines
+      debug:
+        var: xml_vuln_data_ubuntu.stdout_lines
+      when:
+        - ansible_distribution in ["Ubuntu", "Debian"]
+        - xml_vuln_data_ubuntu.stdout_lines is defined
+
     - name: Parse vulnerability data (RHEL/CentOS)
       set_fact:
-        vulnerability_data_host: "{{ xml_vuln_data_rhel.stdout_lines | map('regex_search', 'idref=\"([^\"]+)\" result=\"([^\"]+)\" severity=\"([^\"]+)\"', '\\1,\\2,\\3') | map('split', ',') | map('zip', ['idref', 'result', 'severity']) | map('dict') | map('combine', {'ip': ansible_host}) | list }}"
+        vulnerability_data_host: "{{ xml_vuln_data_rhel.stdout_lines | map('regex_search', 'idref=\"([^\"]+)\" result=\"([^\"]+)\" severity=\"([^\"]+)\"', '\\1,\\2,\\3') | select('match', '.*') | map('split', ',') | map('zip', ['idref', 'result', 'severity']) | map('dict') | map('combine', {'ip': ansible_host}) | list }}"
       when:
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
         - xml_vuln_data_rhel.stdout_lines
 
     - name: Parse vulnerability data (Ubuntu/Debian)
       set_fact:
-        vulnerability_data_host: "{{ xml_vuln_data_ubuntu.stdout_lines | map('regex_search', 'idref=\"([^\"]+)\" result=\"([^\"]+)\" severity=\"([^\"]+)\"', '\\1,\\2,\\3') | map('split', ',') | map('zip', ['idref', 'result', 'severity']) | map('dict') | map('combine', {'ip': ansible_host}) | list }}"
+        vulnerability_data_host: "{{ xml_vuln_data_ubuntu.stdout_lines | map('regex_search', 'idref=\"([^\"]+)\" result=\"([^\"]+)\" severity=\"([^\"]+)\"', '\\1,\\2,\\3') | select('match', '.*') | map('split', ',') | map('zip', ['idref', 'result', 'severity']) | map('dict') | map('combine', {'ip': ansible_host}) | list }}"
       when:
         - ansible_distribution in ["Ubuntu", "Debian"]
         - xml_vuln_data_ubuntu.stdout_lines
@@ -233,31 +276,3 @@
       set_fact:
         host_vulnerabilities: "{{ vulnerability_data_host }}"
       when: vulnerability_data_host is defined
-
-- name: Guardar vulnerabilidades en la base de datos
-  hosts: grafana_hosts
-  gather_facts: no
-  vars:
-    vulnerability_user: "grafana_user"
-    vulnerability_db: "grafana_db"
-    vulnerability_password: "grafana_password"
-  tasks:
-    - name: Recolectar todos los datos de vulnerabilidades de los hosts dinámicos
-      set_fact:
-        all_vulnerability_data: "{{ all_vulnerability_data | default([]) + hostvars[item].host_vulnerabilities }}"
-      loop: "{{ groups['dynamic_hosts'] }}"
-      when: hostvars[item].host_vulnerabilities is defined
-
-    - name: Insertar registros en la tabla vulnerabilidades en la base de datos
-      command: >
-        psql -U {{ vulnerability_user }} -d {{ vulnerability_db }} -c "INSERT INTO vulnerabilidades (detalle, categoria, resultado, ip) VALUES ('{{ item.idref }}', '{{ item.severity }}', '{{ item.result }}', '{{ item.ip }}');"
-      loop: "{{ all_vulnerability_data }}"
-      loop_control:
-        loop_var: item
-      environment:
-        PGPASSWORD: "{{ vulnerability_password }}"
-      when:
-        - item.idref is defined
-        - item.severity is defined
-        - item.result is defined
-        - item.ip is defined
