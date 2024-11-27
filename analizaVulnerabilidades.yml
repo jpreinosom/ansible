@@ -276,3 +276,34 @@
       set_fact:
         host_vulnerabilities: "{{ vulnerability_data_host }}"
       when: vulnerability_data_host is defined
+- name: Guardar vulnerabilidades en la base de datos
+  hosts: grafana_hosts
+  gather_facts: no
+  vars:
+    vulnerability_user: "grafana_user"
+    vulnerability_db: "grafana_db"
+    vulnerability_password: "grafana_password"
+  tasks:
+    - name: Recolectar todos los datos de vulnerabilidades de los hosts dinámicos
+      set_fact:
+        all_vulnerability_data: "{{ all_vulnerability_data | default([]) + hostvars[item].host_vulnerabilities }}"
+      loop: "{{ groups['dynamic_hosts'] }}"
+      when: hostvars[item].host_vulnerabilities is defined
+
+    - name: Depurar all_vulnerability_data
+      debug:
+        var: all_vulnerability_data
+
+    - name: Insertar registros en la tabla vulnerabilidades en la base de datos
+      command: >
+        psql -U {{ vulnerability_user }} -d {{ vulnerability_db }} -c "INSERT INTO vulnerabilidades (detalle, categoria, resultado, ip) VALUES ('{{ item.idref }}', '{{ item.severity }}', '{{ item.result }}', '{{ item.ip }}');"
+      loop: "{{ all_vulnerability_data }}"
+      loop_control:
+        loop_var: item
+      environment:
+        PGPASSWORD: "{{ vulnerability_password }}"
+      when:
+        - item.idref is defined
+        - item.severity is defined
+        - item.result is defined
+        - item.ip is defined
