@@ -75,6 +75,7 @@
         - ssg-debian
         - ssg-nondebian
         - ssg-applications
+        - openscap-scanner
       Debian:
         - libopenscap8
         - ssg-base
@@ -127,6 +128,8 @@
         name: "{{ paquetes_a_instalar }}"
         state: present
         update_cache: yes
+        force: yes
+        allow_unauthenticated: yes
 
     # Instalación de paquetes para CentOS/RHEL/Fedora
     - name: Instalar paquetes necesarios para CentOS/RHEL/Fedora
