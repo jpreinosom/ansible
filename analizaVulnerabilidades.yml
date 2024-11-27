@@ -284,14 +284,24 @@
 
     - name: Parse vulnerability data (RHEL/CentOS)
       set_fact:
-        vulnerability_data_host: "{{ xml_vuln_data_rhel.stdout | split('\n') | map('regex_search', '([^,]+),([^,]+),([^,]+)', '\\1,\\2,\\3') | select('match', '.*') | map('split', ',') | map('zip', ['idref', 'result', 'severity']) | map('dict') | map('combine', {'ip': ansible_host}) | list }}"
+        vulnerability_data_host: "{{ vulnerability_data_host | default([]) + [{'idref': idref, 'result': result, 'severity': severity, 'ip': ansible_host}] }}"
+      vars:
+        idref: "{{ item.split(',')[0] }}"
+        result: "{{ item.split(',')[1] }}"
+        severity: "{{ item.split(',')[2] }}"
+      loop: "{{ xml_vuln_data_rhel.stdout.split('\n') }}"
       when:
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
         - xml_vuln_data_rhel.stdout
 
     - name: Parse vulnerability data (Ubuntu/Debian)
       set_fact:
-        vulnerability_data_host: "{{ xml_vuln_data_ubuntu.stdout | split('\n') | map('regex_search', '([^,]+),([^,]+),([^,]+)', '\\1,\\2,\\3') | select('match', '.*') | map('split', ',') | map('zip', ['idref', 'result', 'severity']) | map('dict') | map('combine', {'ip': ansible_host}) | list }}"
+        vulnerability_data_host: "{{ vulnerability_data_host | default([]) + [{'idref': idref, 'result': result, 'severity': severity, 'ip': ansible_host}] }}"
+      vars:
+        idref: "{{ item.split(',')[0] }}"
+        result: "{{ item.split(',')[1] }}"
+        severity: "{{ item.split(',')[2] }}"
+      loop: "{{ xml_vuln_data_ubuntu.stdout.split('\n') }}"
       when:
         - ansible_distribution in ["Ubuntu", "Debian"]
         - xml_vuln_data_ubuntu.stdout
@@ -302,12 +312,12 @@
       when: vulnerability_data_host is defined
 
 - name: Guardar vulnerabilidades en la base de datos
-  hosts: grafana_hosts
+  hosts: localhost
   gather_facts: no
   vars:
-    vulnerability_user: "grafana_user"
-    vulnerability_db: "grafana_db"
-    vulnerability_password: "grafana_password"
+    vulnerability_user: "vulnerability_user"
+    vulnerability_db: "vulnerability_db"
+    vulnerability_password: "vulnerability_password"
   tasks:
     - name: Recolectar todos los datos de vulnerabilidades de los hosts dinámicos
       set_fact:
@@ -319,16 +329,17 @@
       debug:
         var: all_vulnerability_data
 
-    - name: Insertar registros en la tabla vulnerabilidades en la base de datos
-      command: >
-        psql -U {{ vulnerability_user }} -d {{ vulnerability_db }} -c "INSERT INTO vulnerabilidades (detalle, categoria, resultado, ip) VALUES ('{{ item.idref }}', '{{ item.severity }}', '{{ item.result }}', '{{ item.ip }}');"
-      loop: "{{ all_vulnerability_data }}"
-      loop_control:
-        loop_var: item
+    - name: Generar archivo SQL para inserciones
+      copy:
+        dest: /tmp/insert_vulnerabilities.sql
+        content: |
+          {% for vuln in all_vulnerability_data %}
+          INSERT INTO vulnerabilidades (detalle, categoria, resultado, ip) VALUES ('{{ vuln.idref | replace("'", "''") }}', '{{ vuln.severity | replace("'", "''") }}', '{{ vuln.result | replace("'", "''") }}', '{{ vuln.ip }}');
+          {% endfor %}
+      when: all_vulnerability_data | length > 0
+
+    - name: Ejecutar archivo SQL
+      command: psql -U {{ vulnerability_user }} -d {{ vulnerability_db }} -f /tmp/insert_vulnerabilities.sql
       environment:
         PGPASSWORD: "{{ vulnerability_password }}"
-      when:
-        - item.idref is defined
-        - item.severity is defined
-        - item.result is defined
-        - item.ip is defined
+      when: all_vulnerability_data | length > 0
