@@ -72,18 +72,10 @@
         - libopenscap8
         - ssg-base
         - ssg-debderived
-        - ssg-debian
-        - ssg-nondebian
-        - ssg-applications
-        - openscap-scanner
       Debian:
         - libopenscap8
         - ssg-base
         - ssg-debderived
-        - ssg-debian
-        - ssg-nondebian
-        - ssg-applications
-        - openscap-scanner
   tasks:
     - name: Depurar la distribución del sistema
       debug:
