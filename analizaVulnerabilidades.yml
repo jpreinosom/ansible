@@ -317,12 +317,12 @@
       when: host_vulnerabilities is defined
 
 - name: Guardar vulnerabilidades en la base de datos
-  hosts: localhost
+  hosts: grafana_hosts
   gather_facts: no
   vars:
-    vulnerability_user: "vulnerability_user"
-    vulnerability_db: "vulnerability_db"
-    vulnerability_password: "vulnerability_password"
+    vulnerability_user: "grafana_user"
+    vulnerability_db: "grafana_db"
+    vulnerability_password: "grafana_password"
   tasks:
     - name: Recolectar todos los datos de vulnerabilidades de los hosts dinámicos
       set_fact:
