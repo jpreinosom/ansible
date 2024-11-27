@@ -113,16 +113,17 @@
         state: present
         filename: 'debian.list'
 
-    - name: Añadir las claves GPG necesarias para los paquetes
-      apt_key:
-        keyserver: keyserver.ubuntu.com
-        id: "{{ item }}"
+    - name: Añadir las claves GPG necesarias para los paquetes usando apt-key de forma compatible
+      when: ansible_distribution in ["Ubuntu", "Debian"]
+      command: "apt-key adv --keyserver keyserver.ubuntu.com --recv-keys {{ item }}"
       loop:
         - 0E98404D386FA1D9
         - 6ED0E7B82643E131
         - F8D2585B8783D481
+      ignore_errors: yes
 
     - name: Actualizar la caché de APT
+      when: ansible_distribution in ["Ubuntu", "Debian"]
       apt:
         update_cache: yes
 
@@ -133,6 +134,13 @@
         name: "{{ paquetes_a_instalar }}"
         state: present
         update_cache: yes
+
+    # Instalación de paquetes para CentOS/RHEL/Fedora
+    - name: Instalar paquetes necesarios para CentOS/RHEL/Fedora
+      when: ansible_distribution in ["CentOS", "RedHat", "Fedora"]
+      yum:
+        name: "{{ paquetes_a_instalar }}"
+        state: present
 
     # Verificar instalación de la herramienta de seguridad
     - name: Verificar instalación de la herramienta de seguridad
