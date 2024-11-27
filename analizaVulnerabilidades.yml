@@ -289,7 +289,7 @@
         idref: "{{ item.split(',')[0] }}"
         result: "{{ item.split(',')[1] }}"
         severity: "{{ item.split(',')[2] }}"
-      loop: "{{ xml_vuln_data_rhel.stdout.split('\n') }}"
+      loop: "{{ xml_vuln_data_rhel.stdout_lines }}"
       when:
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
         - xml_vuln_data_rhel.stdout
@@ -301,7 +301,7 @@
         idref: "{{ item.split(',')[0] }}"
         result: "{{ item.split(',')[1] }}"
         severity: "{{ item.split(',')[2] }}"
-      loop: "{{ xml_vuln_data_ubuntu.stdout.split('\n') }}"
+      loop: "{{ xml_vuln_data_ubuntu.stdout_lines }}"
       when:
         - ansible_distribution in ["Ubuntu", "Debian"]
         - xml_vuln_data_ubuntu.stdout
@@ -312,12 +312,12 @@
       when: vulnerability_data_host is defined
 
 - name: Guardar vulnerabilidades en la base de datos
-  hosts: grafana_hosts
+  hosts: localhost
   gather_facts: no
   vars:
-    vulnerability_user: "grafana_user"
-    vulnerability_db: "grafana_db"
-    vulnerability_password: "grafana_password"
+    vulnerability_user: "vulnerability_user"
+    vulnerability_db: "vulnerability_db"
+    vulnerability_password: "vulnerability_password"
   tasks:
     - name: Recolectar todos los datos de vulnerabilidades de los hosts dinámicos
       set_fact:
