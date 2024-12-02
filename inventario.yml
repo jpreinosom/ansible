@@ -190,11 +190,13 @@
 
 - name: Verificar los valores antes de la inserción
   hosts: grafana_hosts
-  debug:
-    msg: "IP: {{ item.IP }}, Distribución: {{ item.distribucion | default('No disponible') }}, Version: {{ item.version | default('No disponible') }}, EOL: {{ item.eol_date | default('No definido') }}, Release: {{ item.release_date | default('No definido') }}"
-  loop: "{{ hostvars['localhost']['csv_data'] }}"
-  loop_control:
-    loop_var: item
+  tasks:
+    - name:  Verificar los valores
+      debug:
+        msg: "IP: {{ item.IP }}, Distribución: {{ item.distribucion | default('No disponible') }}, Version: {{ item.version | default('No disponible') }}, EOL: {{ item.eol_date | default('No definido') }}, Release: {{ item.release_date | default('No definido') }}"
+      loop: "{{ hostvars['localhost']['csv_data'] }}"
+      loop_control:
+        loop_var: item
 
 - name: Insertar registros en la tabla inventario en la base de datos
   hosts: grafana_hosts
