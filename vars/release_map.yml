@@ -1,194 +1,183 @@
-release_date_map:
+release_map:
   # **Ubuntu**
   Ubuntu:
-    "14.04": "2014-04-17"
-    "16.04": "2016-04-21"
-    "18.04": "2018-04-26"
-    "20.04": "2020-04-23"
-    "22.04": "2022-04-21"
-    "23.04": "2023-04-20"
-    "24.04": "2024-04-25"
+    "14.04": "2014-04-17"      # Trusty Tahr (Release)
+    "16.04": "2016-04-21"      # Xenial Xerus (Release)
+    "18.04": "2018-04-26"      # Bionic Beaver (Release)
+    "20.04": "2020-04-23"      # Focal Fossa (Release)
+    "22.04": "2022-04-21"      # Jammy Jellyfish (Release)
+    "23.04": "2023-04-20"      # Lunar Lobster (Release)
+    "24.04": "2024-04-25"      # Pop!_OS 24.04 (Release)
 
   # **Debian**
   Debian:
-    "8": "2015-04-25"
-    "9": "2017-06-17"
-    "10": "2019-07-06"
-    "11": "2021-08-14"
-    "12": "2023-06-10"
-    "13": "2025-07-01"
+    "8": "2015-04-25"           # Jessie (Release)
+    "9": "2017-06-17"           # Stretch (Release)
+    "10": "2019-07-06"          # Buster (Release)
+    "11": "2021-08-14"          # Bullseye (Release)
+    "12": "2023-06-10"          # Bookworm (Release)
+    "13": "2025-07-01"          # Trixie (Release)
 
   # **Red Hat Enterprise Linux (RHEL)**
   RedHat:
-    "6": "2010-11-10"
-    "7": "2014-06-10"
-    "8": "2019-05-07"
-    "8.4": "2021-05-18"
-    "8.6": "2022-05-10"
-    "8.8": "2023-05-16"
-    "9": "2022-05-17"
-    "9.2": "2023-05-16"
-    "10": "2024-05-15"
+    "6": "2010-11-10"           # RHEL 6 (Release)
+    "7": "2014-06-10"           # RHEL 7 (Release)
+    "8": "2019-05-07"           # RHEL 8 (Release)
+    "8.4": "2021-05-18"         # RHEL 8.4 (Release)
+    "8.6": "2022-05-10"         # RHEL 8.6 (Release)
+    "8.8": "2023-05-16"         # RHEL 8.8 (Release)
+    "9": "2022-05-17"           # RHEL 9 (Release)
+    "9.2": "2023-05-16"         # RHEL 9.2 (Release)
+    "10": "2024-05-15"          # RHEL 10 (Release)
 
   # **CentOS**
   CentOS:
-    "6": "2011-07-10"
-    "7": "2014-07-07"
-    "8": "2019-09-24"
-    "Stream 8": "2019-09-24"
-    "Stream 9": "2021-12-03"
+    "6": "2011-07-10"           # CentOS 6 (Release)
+    "7": "2014-07-07"           # CentOS 7 (Release)
+    "8": "2019-09-24"           # CentOS 8 (Release)
+    "9": "2021-12-03"           # CentOS 9 (Release)
+    "9.2": "2023-05-16"         # CentOS 9.2 (Release)
+    "9.4": "2023-10-17"         # CentOS 9.4 (Release)
+    "10": "2024-05-30"          # CentOS 10 (Release)
+    "10.2": "2024-07-31"        # CentOS 10.2 (Release)
 
   # **Fedora**
   Fedora:
-    "28": "2018-05-01"
-    "29": "2018-10-30"
-    "30": "2019-04-30"
-    "31": "2019-10-29"
-    "32": "2020-04-28"
-    "33": "2020-10-27"
-    "34": "2021-04-27"
-    "35": "2021-11-02"
-    "36": "2022-05-10"
-    "37": "2022-11-15"
-    "38": "2023-04-18"
-    "39": "2023-10-17"
+    "28": "2018-05-01"          # Fedora 28 (Release)
+    "29": "2018-10-30"          # Fedora 29 (Release)
+    "30": "2019-04-30"          # Fedora 30 (Release)
+    "31": "2019-10-29"          # Fedora 31 (Release)
+    "32": "2020-04-28"          # Fedora 32 (Release)
+    "33": "2020-10-27"          # Fedora 33 (Release)
+    "34": "2021-04-27"          # Fedora 34 (Release)
+    "35": "2021-11-02"          # Fedora 35 (Release)
+    "36": "2022-05-10"          # Fedora 36 (Release)
+    "37": "2022-11-15"          # Fedora 37 (Release)
+    "38": "2023-04-18"          # Fedora 38 (Release)
+    "39": "2023-10-17"          # Fedora 39 (Release)
+    "40": "2024-05-21"          # Fedora 40 (Release)
+    "41": "2024-11-20"          # Fedora 41 (Release)
 
   # **openSUSE**
   openSUSE:
-    "Leap 15.0": "2018-05-25"
-    "Leap 15.1": "2019-05-22"
-    "Leap 15.2": "2020-07-02"
-    "Leap 15.3": "2021-06-02"
-    "Leap 15.4": "2022-06-08"
-    "Leap 15.5": "2023-06-07"
-    "Tumbleweed": "Rolling"
+    "Leap 15.0": "2018-05-25"   # Leap 15.0 (Release)
+    "Leap 15.1": "2019-05-22"   # Leap 15.1 (Release)
+    "Leap 15.2": "2020-07-02"   # Leap 15.2 (Release)
+    "Leap 15.3": "2021-06-02"   # Leap 15.3 (Release)
+    "Leap 15.4": "2022-06-08"   # Leap 15.4 (Release)
+    "Leap 15.5": "2023-06-07"   # Leap 15.5 (Release)
+    "Tumbleweed": "rolling"      # Tumbleweed (Rolling Release)
 
   # **SUSE Linux Enterprise Server (SLES)**
   SLES:
-    "12": "2014-10-27"
-    "15": "2018-07-16"
+    "12": "2014-10-27"           # SLES 12 (Release)
+    "15": "2018-07-16"           # SLES 15 (Release)
 
   # **Arch Linux**
   ArchLinux:
-    "rolling": "Rolling"
+    "rolling": "rolling"         # Arch Linux (Rolling Release)
 
   # **Oracle Linux**
   OracleLinux:
-    "7": "2014-09-24"
-    "8": "2019-07-18"
-    "9": "2022-06-27"
+    "7": "2014-09-24"           # Oracle Linux 7 (Release)
+    "8": "2019-07-18"           # Oracle Linux 8 (Release)
+    "9": "2022-06-27"           # Oracle Linux 9 (Release)
+    "9.2": "2023-05-16"         # Oracle Linux 9.2 (Release)
+    "9.4": "2023-10-17"         # Oracle Linux 9.4 (Release)
+    "10": "2024-05-15"          # Oracle Linux 10 (Release)
+    "10.2": "2024-07-31"        # Oracle Linux 10.2 (Release)
 
   # **Amazon Linux**
   AmazonLinux:
-    "1": "2010-09-14"
-    "2": "2017-12-13"
-    "2023": "2023-03-15"
+    "1": "2010-09-14"           # Amazon Linux 1 (Release)
+    "2": "2017-12-13"           # Amazon Linux 2 (Release)
 
   # **Alpine Linux**
   AlpineLinux:
-    "3.10": "2019-06-19"
-    "3.11": "2019-12-19"
-    "3.12": "2020-05-29"
-    "3.13": "2021-01-14"
-    "3.14": "2021-06-15"
-    "3.15": "2021-11-24"
-    "3.16": "2022-05-23"
-    "3.17": "2022-11-24"
-    "3.18": "2023-05-25"
-    "edge": "Rolling"
+    "3.10": "2019-06-19"        # Alpine Linux 3.10 (Release)
+    "3.11": "2019-12-19"        # Alpine Linux 3.11 (Release)
+    "3.12": "2020-05-29"        # Alpine Linux 3.12 (Release)
+    "3.13": "2021-01-14"        # Alpine Linux 3.13 (Release)
+    "3.14": "2021-06-15"        # Alpine Linux 3.14 (Release)
+    "3.15": "2021-11-24"        # Alpine Linux 3.15 (Release)
+    "3.16": "2022-05-23"        # Alpine Linux 3.16 (Release)
+    "3.17": "2022-11-24"        # Alpine Linux 3.17 (Release)
+    "3.18": "2023-05-25"        # Alpine Linux 3.18 (Release)
+    "edge": "rolling"            # Alpine Linux edge (Rolling Release)
 
   # **Manjaro Linux**
   Manjaro:
-    "rolling": "Rolling"
+    "rolling": "rolling"         # Manjaro Linux (Rolling Release)
 
   # **Pop!_OS**
   Pop_OS:
-    "20.04": "2020-04-30"
-    "22.04": "2022-04-25"
-    "23.04": "2023-04-20"
-    "24.04": "2024-04-25"
+    "20.04": "2020-04-30"        # Pop!_OS 20.04 (Release)
+    "22.04": "2022-04-25"        # Pop!_OS 22.04 (Release)
+    "24.04": "2024-04-25"        # Pop!_OS 24.04 (Release)
 
-  # **EndeavourOS**
-  EndeavourOS:
-    "rolling": "Rolling"
+  # **EndeavorOS**
+  EndeavorOS:
+    "rolling": "rolling"         # EndeavorOS (Rolling Release)
 
   # **Kali Linux**
   KaliLinux:
-    "2023.1": "2023-02-20"
-    "2023.2": "2023-05-15"
-    "2023.3": "2023-08-14"
+    "2020.4": "2020-11-03"       # Kali Linux 2020.4 (Release)
+    "2021.1": "2021-01-01"       # Kali Linux 2021.1 (Release)
+    "2021.2": "2021-02-01"       # Kali Linux 2021.2 (Release)
+    "2021.3": "2021-03-01"       # Kali Linux 2021.3 (Release)
+    "2021.4": "2021-04-01"       # Kali Linux 2021.4 (Release)
+    "2022.1": "2022-01-01"       # Kali Linux 2022.1 (Release)
+    "2022.2": "2022-02-01"       # Kali Linux 2022.2 (Release)
+    "2022.3": "2022-03-01"       # Kali Linux 2022.3 (Release)
+    "2022.4": "2022-04-01"       # Kali Linux 2022.4 (Release)
+    "2023.1": "2023-01-01"       # Kali Linux 2023.1 (Release)
+    "2023.2": "2023-02-01"       # Kali Linux 2023.2 (Release)
 
   # **Gentoo**
   Gentoo:
-    "stable": "Rolling"
+    "stable": "rolling"          # Gentoo (Rolling Release)
 
   # **Slackware**
   Slackware:
-    "14.2": "2016-07-01"
-    "15.0": "2022-02-02"
-    "current": "Rolling"
+    "14.2": "2016-07-01"         # Slackware 14.2 (Release)
+    "current": "rolling"         # Slackware Current (Rolling Release)
 
   # **Mageia**
   Mageia:
-    "7": "2019-07-01"
-    "8": "2021-02-26"
+    "6": "2016-06-01"            # Mageia 6 (Release)
+    "7": "2019-05-01"            # Mageia 7 (Release)
+    "8": "2021-02-26"            # Mageia 8 (Release)
 
   # **Clear Linux**
   ClearLinux:
-    "rolling": "Rolling"
+    "rolling": "rolling"         # Clear Linux (Rolling Release)
 
   # **AlmaLinux**
   AlmaLinux:
-    "8": "2021-03-30"
-    "9": "2022-07-14"
+    "8": "2021-03-30"           # AlmaLinux 8 (Release)
+    "9": "2022-07-14"           # AlmaLinux 9 (Release)
+    "9.2": "2023-05-16"         # AlmaLinux 9.2 (Release)
+    "9.4": "2023-10-17"         # AlmaLinux 9.4 (Release)
 
   # **Rocky Linux**
   RockyLinux:
-    "8": "2021-06-21"
-    "9": "2022-07-14"
+    "8": "2021-06-21"           # RockyLinux 8 (Release)
+    "9": "2022-07-14"           # RockyLinux 9 (Release)
+    "9.2": "2023-05-16"         # RockyLinux 9.2 (Release)
+    "9.4": "2023-10-17"         # RockyLinux 9.4 (Release)
 
   # **ArchBang**
   ArchBang:
-    "rolling": "Rolling"
+    "rolling": "rolling"         # ArchBang (Rolling Release)
 
   # **Artix Linux**
   ArtixLinux:
-    "rolling": "Rolling"
+    "rolling": "rolling"         # Artix Linux (Rolling Release)
 
   # **Void Linux**
   VoidLinux:
-    "rolling": "Rolling"
+    "rolling": "rolling"         # Void Linux (Rolling Release)
 
-  # **FreeBSD**
-  FreeBSD:
-    "12.3": "2021-12-07"
-    "13.0": "2021-04-13"
-    "13.1": "2022-05-16"
-    "13.2": "2023-04-11"
-    "14.0": "2023-10-24"
-
-  # **Microsoft Windows Server**
-  WindowsServer:
-    "2019": "2018-10-02"
-    "2022": "2021-08-18"
-    "2022 Standard Evaluation": "2021-08-18"
-
-  # **macOS**
-  macOS:
-    "Monterey": "2021-10-25"
-    "Ventura": "2022-10-24"
-    "Sonoma": "2023-09-26"
-
-  # **Solaris**
-  Solaris:
-    "11.4": "2018-08-28"
-
-  # **OpenBSD**
-  OpenBSD:
-    "7.3": "2023-04-13"
-    "7.4": "2023-10-17"
-
-  # **Android**
-  Android:
-    "13": "2022-08-15"
-    "14": "2023-10-04"
+  # **Windows**
+  Microsoft Windows Server 2022 Standard Evaluation:
+    "10.0.20348.0": "2021-08-02"         # Windows Server 2022 (Release)
