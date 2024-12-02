@@ -129,22 +129,22 @@
       set_fact:
         eol_date: >-
           {{
-            (eol_map.eol_map.get(ansible_distribution, {})
+            (eol_map.get(ansible_distribution, {})
             | dict2items
             | selectattr('key', '==', ansible_distribution_version)
             | map(attribute='value')
             | list
             | first)
             | default(
-              (eol_map.eol_map.get(ansible_distribution, {})
+              (eol_map.get(ansible_distribution, {})
               | dict2items
               | selectattr('key', '==', ansible_distribution_version.split('.')[0])
               | map(attribute='value')
               | list
               | first),
-              'No definido'
+              None
             )
-          }}
+          }}     
 
     - name: Determinar la fecha de lanzamiento para la distribución y versión
       set_fact:
@@ -163,7 +163,7 @@
               | map(attribute='value')
               | list
               | first),
-              'No definido'
+              None
             )
           }}
 
