@@ -126,26 +126,10 @@
 
     - name: Determinar las fechas de EoL y lanzamiento para la distribución y versión
       set_fact:
-        os_info: >-
-          {{
-            (eol_map.get(ansible_distribution, {})
-            | dict2items
-            | selectattr('key', '==', ansible_distribution_version)
-            | map(attribute='value')
-            | list
-            | first)
-            | default(
-              (eol_map.get(ansible_distribution, {})
-              | dict2items
-              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
-              | map(attribute='value')
-              | list
-              | first), 
-              {'eol_date': 'No definido', 'release_date': 'No definido'}
-            )
-          }}
-        eol_date: "{{ os_info.get('eol_date', 'No definido') }}"
-        release_date: "{{ os_info.get('release_date', 'No definido') }}"
+        os_info: "{{ (eol_map.get(ansible_distribution, {})).get(ansible_distribution_version, {'eol_date': 'No definido', 'release_date': 'No definido'}) }}"
+        eol_date: "{{ os_info['eol_date'] }}"
+        release_date: "{{ os_info['release_date'] }}"
+
 
     - name: Establecer el estado de suscripción
       set_fact:
