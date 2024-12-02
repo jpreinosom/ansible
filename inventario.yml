@@ -146,9 +146,9 @@
               | map(attribute='value')
               | list
               | first),
-              None
+              'No definido'
             )
-          }}     
+          }}
 
     - name: Determinar la fecha de lanzamiento para la distribución y versión
       set_fact:
@@ -167,7 +167,7 @@
               | map(attribute='value')
               | list
               | first),
-              None
+              'No definido'
             )
           }}
 
@@ -189,15 +189,11 @@
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, EOL: {{ eol_date }}, Release: {{ release_date }}, Estado de suscripción: {{ subscription_status }}"
 
 - name: Verificar los valores antes de la inserción
-  hosts: dynamic_hosts  # Puedes cambiarlo si necesitas que corra en otro grupo de hosts
-  gather_facts: no
-  tasks:
-    - name: Verificar los valores antes de la inserción
-      debug:
-        msg: "IP: {{ item.IP }}, Distribución: {{ item.distribucion }}, Version: {{ item.version }}, EOL: {{ item.eol_date }}, Release: {{ item.release_date }}"
-      loop: "{{ hostvars['localhost']['csv_data'] }}"
-      loop_control:
-        loop_var: item
+  debug:
+    msg: "IP: {{ item.IP }}, Distribución: {{ item.distribucion }}, Version: {{ item.version }}, EOL: {{ item.eol_date }}, Release: {{ item.release_date }}"
+  loop: "{{ hostvars['localhost']['csv_data'] }}"
+  loop_control:
+    loop_var: item
 
 - name: Insertar registros en la tabla inventario en la base de datos
   hosts: grafana_hosts
@@ -214,10 +210,9 @@
           '{{ item.version | default('No disponible') }}',
           '{{ item.familia | default('No disponible') }}',
           '{{ item.soportada | default('No definido') }}',
-          '{{ item.eol | default('No definido') }}',
-          '{{ item.release | default('No definido') }}'
-        )
-        "
+          '{{ item.eol_date | default('No definido') }}',
+          '{{ item.release_date | default('No definido') }}'
+        )"
       loop: "{{ hostvars['localhost']['csv_data'] }}"
       loop_control:
         loop_var: item
