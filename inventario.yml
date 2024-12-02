@@ -118,7 +118,7 @@
   tasks:
     - name: Determinar la familia del sistema operativo
       set_fact:
-        os_family: "{{ ansible_os_family }}"
+        os_family: Linux
 
     - name: Obtener la fecha actual del sistema
       set_fact:
@@ -128,19 +128,19 @@
       set_fact:
         os_info: >-
           {{
-            eol_map.get(ansible_distribution, {})
+            (eol_map.get(ansible_distribution, {})
             | dict2items
             | selectattr('key', '==', ansible_distribution_version)
             | map(attribute='value')
             | list
-            | first
+            | first)
             | default(
-              eol_map.get(ansible_distribution, {})
+              (eol_map.get(ansible_distribution, {})
               | dict2items
               | selectattr('key', '==', ansible_distribution_version.split('.')[0])
               | map(attribute='value')
               | list
-              | first,
+              | first),
               {}
             )
           }}
@@ -150,14 +150,16 @@
     - name: Establecer el estado de suscripción
       set_fact:
         subscription_status: >-
-          {% if eol_date == 'rolling' %}
-            Rolling Release
-          {% elif eol_date == 'No definido' %}
-            Versión sin fecha establecida de EoL
-          {% elif current_date | int > (eol_date | regex_replace('-', '') | int) %}
-            Deprecado
+          {% if eol_date is defined %}
+            {% if eol_date == "rolling" %}
+              Rolling Release
+            {% elif current_date | int > (eol_date | regex_replace('-', '') | int) %}
+              Deprecado
+            {% else %}
+              Soportada
+            {% endif %}
           {% else %}
-            Soportada
+            Versión sin fecha establecida de EoL
           {% endif %}
 
     - name: Mostrar información del sistema operativo
@@ -167,9 +169,6 @@
 - name: Insertar registros en la tabla inventario en la base de datos
   hosts: grafana_hosts
   become: yes
-  vars:
-    # Combinar csv_data y grafana_csv_data para obtener una lista completa de hosts
-    all_hosts_data: "{{ hostvars['localhost']['csv_data'] + hostvars['localhost']['grafana_csv_data'] }}"
   tasks:
     - name: Insertar registros desde csv_data en la base de datos
       command: >
@@ -186,7 +185,7 @@
           '{{ hostvars[item.IP]['release_date'] | default('No definido') }}'
         )
         "
-      loop: "{{ all_hosts_data }}"
+      loop: "{{ hostvars['localhost']['csv_data'] }}"
       loop_control:
         loop_var: item
       environment:
