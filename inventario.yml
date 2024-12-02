@@ -124,6 +124,10 @@
     - name: Obtener la fecha actual del sistema
       set_fact:
         current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
+        
+    - name: Mostrar información del sistema 
+      debug:
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
 
     - name: Determinar la fecha de EoL para la distribución y versión
       set_fact:
