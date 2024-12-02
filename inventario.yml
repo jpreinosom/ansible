@@ -186,28 +186,28 @@
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: {{ os_family }}"
 
-- name: Insertar registros en la tabla inventario en la base de datos
-  hosts: grafana_hosts
-  become: yes
-  tasks:
-    - name: Insertar registros desde csv_data en la base de datos
-      command: >
-        psql -U grafana_user -d grafana_db -c "
-        INSERT INTO inventario (
-          ip, distribucion, version, familia, soportada, eol, release
-        ) VALUES (
-          '{{ item.IP }}',
-          '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
-          '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
-          '{{ hostvars[item.IP]['os_family'] | default('No disponible') }}',
-          '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}',
-          '{{ hostvars[item.IP]['eol_date'] | default('No definido') }}',
-          '{{ hostvars[item.IP]['release_date'] | default('No definido') }}'
-        )
-        "
-      loop: "{{ groups['dynamic_hosts']}}"
-      loop_control:
-        loop_var: item
-      environment:
-        PGPASSWORD: "grafana_password"
-      become: no
+    - name: Insertar registros en la tabla inventario en la base de datos
+      hosts: grafana_hosts  # Se ejecutará en los hosts de grafana_hosts para hacer el insert
+      become: yes
+      tasks:
+      - name: Insertar registros desde dynamic_hosts en la base de datos
+        command: >
+          psql -U grafana_user -d grafana_db -c "
+          INSERT INTO inventario (
+            ip, distribucion, version, familia, soportada, eol, release
+          ) VALUES (
+            '{{ item.IP }}',  # Información obtenida desde dynamic_hosts
+            '{{ item.distribucion | default('No disponible') }}',
+            '{{ item.version | default('No disponible') }}',
+            '{{ item.familia | default('No disponible') }}',
+            '{{ item.soportada | default('No definido') }}',
+            '{{ item.eol | default('No definido') }}',
+            '{{ item.release | default('No definido') }}'
+          )
+          "
+        loop: "{{ hostvars['localhost']['csv_data'] }}"  # Iteramos sobre dynamic_hosts usando csv_data
+        loop_control:
+          loop_var: item
+        environment:
+          PGPASSWORD: "grafana_password"
+        become: no
