@@ -118,72 +118,75 @@
   tasks:
     - name: Determinar la familia del sistema operativo
       set_fact:
-        os_family: Linux
+        os_family: "{{ ansible_os_family }}"
 
     - name: Obtener la fecha actual del sistema
       set_fact:
         current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
 
-    - name: Determinar la fecha de EoL para la distribución y versión
+    - name: Determinar las fechas de EoL y lanzamiento para la distribución y versión
       set_fact:
-        eol_date: >-
+        os_info: >-
           {{
-            (eol_map.get(ansible_distribution, {})
+            eol_map.get(ansible_distribution, {})
             | dict2items
             | selectattr('key', '==', ansible_distribution_version)
             | map(attribute='value')
             | list
-            | first)
+            | first
             | default(
-              (eol_map.get(ansible_distribution, {})
+              eol_map.get(ansible_distribution, {})
               | dict2items
               | selectattr('key', '==', ansible_distribution_version.split('.')[0])
               | map(attribute='value')
               | list
-              | first),
-              None
+              | first,
+              {}
             )
           }}
+        eol_date: "{{ os_info.get('eol_date', 'No definido') }}"
+        release_date: "{{ os_info.get('release_date', 'No definido') }}"
 
     - name: Establecer el estado de suscripción
       set_fact:
         subscription_status: >-
-          {% if eol_date is defined %}
-            {% if eol_date == "rolling" %}
-              Rolling Release
-            {% elif current_date | int > (eol_date | regex_replace('-', '') | int) %}
-              Deprecado
-            {% else %}
-              Soportada
-            {% endif %}
-          {% else %}
+          {% if eol_date == 'rolling' %}
+            Rolling Release
+          {% elif eol_date == 'No definido' %}
             Versión sin fecha establecida de EoL
+          {% elif current_date | int > (eol_date | regex_replace('-', '') | int) %}
+            Deprecado
+          {% else %}
+            Soportada
           {% endif %}
 
     - name: Mostrar información del sistema operativo
       debug:
-        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: {{ os_family }}"
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: {{ os_family }}, EoL: {{ eol_date }}, Release Date: {{ release_date }}"
 
 - name: Insertar registros en la tabla inventario en la base de datos
   hosts: grafana_hosts
   become: yes
+  vars:
+    # Combinar csv_data y grafana_csv_data para obtener una lista completa de hosts
+    all_hosts_data: "{{ hostvars['localhost']['csv_data'] + hostvars['localhost']['grafana_csv_data'] }}"
   tasks:
     - name: Insertar registros desde csv_data en la base de datos
       command: >
         psql -U grafana_user -d grafana_db -c "
         INSERT INTO inventario (
-          ip, distribucion, version, familia, soportada, usuario, password
+          ip, distribucion, version, familia, soportada, eol, releaseDate
         ) VALUES (
           '{{ item.IP }}',
           '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['os_family'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}',
-          '{{ item.Usuario }}',
-          '{{ item.Contraseña }}'
+          '{{ hostvars[item.IP]['eol_date'] | default('No definido') }}',
+          '{{ hostvars[item.IP]['release_date'] | default('No definido') }}'
         )
         "
-      loop: "{{ hostvars['localhost']['csv_data'] }}"
+      loop: "{{ all_hosts_data }}"
       loop_control:
         loop_var: item
       environment:
