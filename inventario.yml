@@ -124,7 +124,7 @@
     - name: Obtener la fecha actual del sistema
       set_fact:
         current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
-        
+
     - name: Mostrar información del sistema 
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
@@ -154,14 +154,14 @@
       set_fact:
         release_date: >-
           {{
-            (release_map.release_map.get(ansible_distribution, {})
+            (release_map.get(ansible_distribution, {})
             | dict2items
             | selectattr('key', '==', ansible_distribution_version)
             | map(attribute='value')
             | list
             | first)
             | default(
-              (release_map.release_map.get(ansible_distribution, {})
+              (release_map.get(ansible_distribution, {})
               | dict2items
               | selectattr('key', '==', ansible_distribution_version.split('.')[0])
               | map(attribute='value')
