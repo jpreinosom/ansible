@@ -110,54 +110,12 @@
       loop_control:
         loop_var: item
 
-    # Tareas de depuración para verificar miembros de los grupos
-    - name: Listar hosts en 'dynamic_hosts'
-      debug:
-        msg: "Hosts en dynamic_hosts: {{ groups['dynamic_hosts'] }}"
-
-    - name: Listar hosts en 'grafana_hosts'
-      debug:
-        msg: "Hosts en grafana_hosts: {{ groups['grafana_hosts'] }}"
-
 - name: Ejecutar análisis de vulnerabilidades con OpenSCAP en dynamic_hosts
   hosts: dynamic_hosts
   gather_facts: yes
   become: yes
   tasks:
-    - name: Depurar ansible_distribution
-      debug:
-        var: ansible_distribution
-
-    - name: Verificar si awk está instalado (RHEL/CentOS)
-      command: which awk
-      register: awk_check_rhel
-      ignore_errors: yes
-      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-
-    - name: Instalar awk si no está instalado (RHEL/CentOS)
-      yum:
-        name: gawk
-        state: present
-      when:
-        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - awk_check_rhel.failed
-
-    - name: Verificar si awk está instalado (Ubuntu/Debian)
-      command: which awk
-      register: awk_check_ubuntu
-      ignore_errors: yes
-      when: ansible_distribution in ["Ubuntu", "Debian"]
-
-    - name: Instalar awk si no está instalado (Ubuntu/Debian)
-      apt:
-        name: gawk
-        state: present
-        update_cache: yes
-      when:
-        - ansible_distribution in ["Ubuntu", "Debian"]
-        - awk_check_ubuntu.failed
-
-    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (RHEL/AlmaLinux/RockyLinux)
+    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP en paralelo
       command:
         argv:
           - oscap
@@ -166,168 +124,34 @@
           - '--profile'
           - 'xccdf_org.ssgproject.content_profile_cis_server_l1'
           - '--results'
-          - '/tmp/openscap-results.xml'
+          - "/tmp/openscap-results-{{ ansible_host }}.xml"
           - '--report'
-          - '/tmp/openscap-report.html'
-          - '/usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml'
-      register: scan_result_rhel
-      changed_when: false
-      failed_when: false
-      when: ansible_distribution in ["RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+          - "/tmp/openscap-report-{{ ansible_host }}.html"
+          - "/usr/share/xml/scap/ssg/content/ssg-{{ ansible_distribution | lower }}-ds.xml"
+      async: 3600   # Timeout de 1 hora
+      poll: 0
+      register: scan_result
 
-    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS)
-      command:
-        argv:
-          - oscap
-          - xccdf
-          - eval
-          - '--profile'
-          - 'xccdf_org.ssgproject.content_profile_cis_server_l1'
-          - '--results'
-          - '/tmp/openscap-results.xml'
-          - '--report'
-          - '/tmp/openscap-report.html'
-          - '/usr/share/xml/scap/ssg/content/ssg-cs9-ds.xml'
-      register: scan_result_centos
-      changed_when: false
-      failed_when: false
-      when: ansible_distribution == "CentOS"
+    - name: Esperar a que terminen todos los análisis de vulnerabilidades
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: job_results
+      until: job_results.finished
+      retries: 60  # Reintentos hasta que termine la tarea
+      delay: 10
+      loop: "{{ scan_result.results }}"
 
-    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (Ubuntu/Debian)
-      command:
-        argv:
-          - oscap
-          - xccdf
-          - eval
-          - '--profile'
-          - 'xccdf_org.ssgproject.content_profile_cis_level2_server'
-          - '--results'
-          - '/tmp/openscap-results.xml'
-          - '--report'
-          - '/tmp/openscap-report.html'
-          - '/usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds-1.2.xml'
-      register: scan_result_ubuntu
-      changed_when: false
-      failed_when: false
-      when: ansible_distribution in ["Ubuntu", "Debian"]
-
-    - name: Verificar si el archivo de resultados existe (RHEL/CentOS)
+    - name: Verificar si el archivo de resultados existe
       stat:
-        path: /tmp/openscap-results.xml
-      register: results_file_check_rhel
-      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+        path: "/tmp/openscap-results-{{ ansible_host }}.xml"
+      register: results_file_check
+      when: job_results.finished
 
-    - name: Verificar si el archivo de resultados existe (Ubuntu/Debian)
-      stat:
-        path: /tmp/openscap-results.xml
-      register: results_file_check_ubuntu
-      when: ansible_distribution in ["Ubuntu", "Debian"]
-
-    - name: Fallar si el análisis no generó el archivo de resultados (RHEL/CentOS)
+    - name: Fallar si el análisis no generó el archivo de resultados
       fail:
-        msg: "El archivo de resultados de OpenSCAP no se generó en {{ inventory_hostname }}."
+        msg: "El archivo de resultados de OpenSCAP no se generó en {{ ansible_host }}."
       when:
-        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - not results_file_check_rhel.stat.exists
-
-    - name: Fallar si el análisis no generó el archivo de resultados (Ubuntu/Debian)
-      fail:
-        msg: "El archivo de resultados de OpenSCAP no se generó en {{ inventory_hostname }}."
-      when:
-        - ansible_distribution in ["Ubuntu", "Debian"]
-        - not results_file_check_ubuntu.stat.exists
-
-    - name: Extraer valores del archivo de resultados XML (RHEL/CentOS)
-      shell: |
-        awk '
-          /<rule-result / {
-            match($0, /idref="([^"]+)"/, a)
-            idref = a[1]
-            match($0, /severity="([^"]+)"/, b)
-            severity = b[1]
-          }
-          /<result>/ {
-            match($0, /<result>([^<]+)<\/result>/, c)
-            result = c[1]
-            if (result == "fail" || result == "pass") {
-              print idref "," result "," severity
-            }
-          }
-        ' /tmp/openscap-results.xml
-      register: xml_vuln_data_rhel
-      when:
-        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - results_file_check_rhel.stat.exists
-
-    - name: Extraer valores del archivo de resultados XML (Ubuntu/Debian)
-      shell: |
-        awk '
-          /<rule-result / {
-            match($0, /idref="([^"]+)"/, a)
-            idref = a[1]
-            match($0, /severity="([^"]+)"/, b)
-            severity = b[1]
-          }
-          /<result>/ {
-            match($0, /<result>([^<]+)<\/result>/, c)
-            result = c[1]
-            if (result == "fail" || result == "pass") {
-              print idref "," result "," severity
-            }
-          }
-        ' /tmp/openscap-results.xml
-      register: xml_vuln_data_ubuntu
-      when:
-        - ansible_distribution in ["Ubuntu", "Debian"]
-        - results_file_check_ubuntu.stat.exists
-
-    - name: Depurar xml_vuln_data_rhel.stdout
-      debug:
-        var: xml_vuln_data_rhel.stdout
-      when:
-        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - xml_vuln_data_rhel.stdout is defined
-
-    - name: Depurar xml_vuln_data_ubuntu.stdout
-      debug:
-        var: xml_vuln_data_ubuntu.stdout
-      when:
-        - ansible_distribution in ["Ubuntu", "Debian"]
-        - xml_vuln_data_ubuntu.stdout is defined
-
-    - name: Parse vulnerability data (RHEL/CentOS)
-      set_fact:
-        vulnerability_data_host: "{{ vulnerability_data_host | default([]) + [{'idref': idref, 'result': result, 'severity': severity, 'ip': ansible_host}] }}"
-      vars:
-        idref: "{{ item.split(',')[0] }}"
-        result: "{{ item.split(',')[1] }}"
-        severity: "{{ item.split(',')[2] }}"
-      loop: "{{ xml_vuln_data_rhel.stdout_lines }}"
-      when:
-        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - xml_vuln_data_rhel.stdout
-
-    - name: Parse vulnerability data (Ubuntu/Debian)
-      set_fact:
-        vulnerability_data_host: "{{ vulnerability_data_host | default([]) + [{'idref': idref, 'result': result, 'severity': severity, 'ip': ansible_host}] }}"
-      vars:
-        idref: "{{ item.split(',')[0] }}"
-        result: "{{ item.split(',')[1] }}"
-        severity: "{{ item.split(',')[2] }}"
-      loop: "{{ xml_vuln_data_ubuntu.stdout_lines }}"
-      when:
-        - ansible_distribution in ["Ubuntu", "Debian"]
-        - xml_vuln_data_ubuntu.stdout
-
-    - name: Guardar vulnerabilidades en una variable para cada host
-      set_fact:
-        host_vulnerabilities: "{{ vulnerability_data_host }}"
-      when: vulnerability_data_host is defined
-
-    - name: Depurar host_vulnerabilities
-      debug:
-        var: host_vulnerabilities
-      when: host_vulnerabilities is defined
+        - not results_file_check.stat.exists
 
 - name: Guardar vulnerabilidades en la base de datos
   hosts: grafana_hosts
