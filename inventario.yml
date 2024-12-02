@@ -208,13 +208,13 @@
         INSERT INTO inventario (
           ip, distribucion, version, familia, soportada, eol, release
         ) VALUES (
-          '{{ item.IP }}',
-          '{{ item.distribucion | default('No disponible') }}',
-          '{{ item.version | default('No disponible') }}',
-          '{{ item.familia | default('No disponible') }}',
-          '{{ item.soportada | default('No definido') }}',
-          '{{ item.eol_date | default('No definido') }}',
-          '{{ item.release_date | default('No definido') }}'
+           '{{ item.IP }}',
+          '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
+          '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
+          '{{ hostvars[item.IP]['os_family'] | default('No disponible') }}',
+          '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}',
+          '{{ hostvars[item.IP]['eol_date']| default('No definido') }}',
+          '{{ hostvars[item.IP]['release_date']| default('No definido') }}'
         )"
       loop: "{{ hostvars['localhost']['csv_data'] }}"
       loop_control:
