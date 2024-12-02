@@ -194,7 +194,7 @@
       command: >
         psql -U grafana_user -d grafana_db -c "
         INSERT INTO inventario (
-          ip, distribucion, version, familia, soportada, eol, releaseDate
+          ip, distribucion, version, familia, soportada, eol, release
         ) VALUES (
           '{{ item.IP }}',
           '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
