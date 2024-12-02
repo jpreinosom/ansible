@@ -205,7 +205,7 @@
           '{{ hostvars[item.IP]['release_date'] | default('No definido') }}'
         )
         "
-      loop: "{{ hostvars['localhost']['grafana_csv_data'] }}"
+      loop: "{{ groups['dynamic_hosts']}}"
       loop_control:
         loop_var: item
       environment:
