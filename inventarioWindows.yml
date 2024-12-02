@@ -115,6 +115,7 @@
   gather_facts: yes
   vars_files:
     - vars/eol_map.yml
+    - vars/release_map.yml
   tasks:
     - name: Determinar la familia del sistema operativo
       set_fact:
@@ -142,6 +143,27 @@
               | list
               | first),
               None
+            )
+          }}
+
+    - name: Determinar la fecha de lanzamiento para la distribución y versión
+      set_fact:
+        release_date: >-
+          {{
+            (release_map.get(ansible_distribution, {})
+            | dict2items
+            | selectattr('key', '==', ansible_distribution_version)
+            | map(attribute='value')
+            | list
+            | first)
+            | default(
+              (release_map.get(ansible_distribution, {})
+              | dict2items
+              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
+              | map(attribute='value')
+              | list
+              | first),
+              'No definido'
             )
           }}
 
@@ -175,15 +197,15 @@
       command: >
         psql -U grafana_user -d grafana_db -c "
         INSERT INTO inventario (
-          ip, distribucion, version, familia, soportada, usuario, password
+          ip, distribucion, version, familia, soportada, eol, release
         ) VALUES (
-          '{{ item.IP }}',
+           '{{ item.IP }}',
           '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['os_family'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}',
-          '{{ item.Usuario }}',
-          '{{ item.Contraseña }}'
+          '{{ hostvars[item.IP]['eol_date']| default('No definido') }}',
+          '{{ hostvars[item.IP]['release_date']| default('No definido') }}'
         )
         "
       loop: "{{ hostvars['localhost']['csv_data'] }}"
