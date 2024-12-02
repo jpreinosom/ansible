@@ -124,30 +124,66 @@
       set_fact:
         current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
 
-    - name: Determinar las fechas de EoL y lanzamiento para la distribución y versión
+    - name: Determinar la fecha de EoL para la distribución y versión
       set_fact:
-        os_info: "{{ (eol_map.get(ansible_distribution, {})).get(ansible_distribution_version, {'eol_date': 'No definido', 'release_date': 'No definido'}) }}"
-        eol_date: "{{ os_info['eol_date'] }}"
-        release_date: "{{ os_info['release_date'] }}"
+        eol_date: >-
+          {{
+            (eol_map.get(ansible_distribution, {})
+            | dict2items
+            | selectattr('key', '==', ansible_distribution_version)
+            | map(attribute='value')
+            | list
+            | first)
+            | default(
+              (eol_map.get(ansible_distribution, {})
+              | dict2items
+              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
+              | map(attribute='value')
+              | list
+              | first),
+              None
+            )
+          }}
 
+    - name: Determinar la fecha de lanzamiento para la distribución y versión
+      set_fact:
+        release_date: >-
+          {{
+            (release_date_map.get(ansible_distribution, {})
+            | dict2items
+            | selectattr('key', '==', ansible_distribution_version)
+            | map(attribute='value')
+            | list
+            | first)
+            | default(
+              (release_date_map.get(ansible_distribution, {})
+              | dict2items
+              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
+              | map(attribute='value')
+              | list
+              | first),
+              None
+            )
+          }}
 
     - name: Establecer el estado de suscripción
       set_fact:
         subscription_status: >-
-          {% if eol_date == 'No definido' %}
-            Versión sin fecha establecida de EoL
-          {% elif eol_date == 'rolling' %}
-            Rolling Release
-          {% elif current_date | int > (eol_date | regex_replace('-', '') | int) %}
-            Deprecado
+          {% if eol_date is defined %}
+            {% if eol_date == "rolling" %}
+              Rolling Release
+            {% elif current_date | int > (eol_date | regex_replace('-', '') | int) %}
+              Deprecado
+            {% else %}
+              Soportada
+            {% endif %}
           {% else %}
-            Soportada
-          {% endif %}
+            Versión sin fecha establecida de EoL
           {% endif %}
 
     - name: Mostrar información del sistema operativo
       debug:
-        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: {{ os_family }}, EoL: {{ eol_date }}, Release Date: {{ release_date }}"
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: {{ os_family }}"
 
 - name: Insertar registros en la tabla inventario en la base de datos
   hosts: grafana_hosts
@@ -168,7 +204,7 @@
           '{{ hostvars[item.IP]['release_date'] | default('No definido') }}'
         )
         "
-      loop: "{{ hostvars['localhost']['csv_data'] }}"
+      loop: "{{ hostvars['localhost']['grafana_csv_data'] }}"
       loop_control:
         loop_var: item
       environment:
