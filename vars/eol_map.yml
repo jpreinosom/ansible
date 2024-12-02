@@ -15,7 +15,7 @@ eol_map:
     "9": "2022-06-30"           # Stretch (EoL)
     "10": "2024-06-30"          # Buster (EoL)
     "11": "2026-08-30"          # Bullseye (EoL)
-    "12": "2027-06-30"          # Bookworm (EoL)
+    "12.8": "2027-06-30"          # Bookworm (EoL)
     "13": "2030-06-30"          # Trixie (EoL)
 
   # **Red Hat Enterprise Linux (RHEL)**

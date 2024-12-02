@@ -15,7 +15,7 @@ release_map:
     "9": "2017-06-17"           # Stretch (Release)
     "10": "2019-07-06"          # Buster (Release)
     "11": "2021-08-14"          # Bullseye (Release)
-    "12": "2023-06-10"          # Bookworm (Release)
+    "12.8": "2023-06-10"          # Bookworm (Release)
     "13": "2025-07-01"          # Trixie (Release)
 
   # **Red Hat Enterprise Linux (RHEL)**
