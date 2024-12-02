@@ -115,11 +115,11 @@
   gather_facts: yes
   vars_files:
     - vars/eol_map.yml
-    - vars/release_map.yml  # Cargar el archivo release_map.yml para la fecha de release
+    - vars/release_map.yml
   tasks:
     - name: Determinar la familia del sistema operativo
       set_fact:
-        os_family: Linux
+        os_family: "{{ ansible_distribution }}"
 
     - name: Obtener la fecha actual del sistema
       set_fact:
@@ -129,20 +129,20 @@
       set_fact:
         eol_date: >-
           {{
-            (eol_map.get(ansible_distribution, {})
+            (eol_map.eol_map.get(ansible_distribution, {})
             | dict2items
             | selectattr('key', '==', ansible_distribution_version)
             | map(attribute='value')
             | list
             | first)
             | default(
-              (eol_map.get(ansible_distribution, {})
+              (eol_map.eol_map.get(ansible_distribution, {})
               | dict2items
               | selectattr('key', '==', ansible_distribution_version.split('.')[0])
               | map(attribute='value')
               | list
               | first),
-              None
+              'No definido'
             )
           }}
 
@@ -150,30 +150,28 @@
       set_fact:
         release_date: >-
           {{
-            (release_map.get(ansible_distribution, {})
+            (release_map.release_map.get(ansible_distribution, {})
             | dict2items
             | selectattr('key', '==', ansible_distribution_version)
             | map(attribute='value')
             | list
             | first)
             | default(
-              (release_map.get(ansible_distribution, {})
+              (release_map.release_map.get(ansible_distribution, {})
               | dict2items
               | selectattr('key', '==', ansible_distribution_version.split('.')[0])
               | map(attribute='value')
               | list
               | first),
-              None
+              'No definido'
             )
           }}
 
     - name: Establecer el estado de suscripción
       set_fact:
         subscription_status: >-
-          {% if eol_date is defined %}
-            {% if eol_date == "rolling" %}
-              Rolling Release
-            {% elif current_date | int > (eol_date | regex_replace('-', '') | int) %}
+          {% if eol_date != 'No definido' %}
+            {% if current_date | int > (eol_date | regex_replace('-', '') | int) %}
               Deprecado
             {% else %}
               Soportada
@@ -184,30 +182,30 @@
 
     - name: Mostrar información del sistema operativo
       debug:
-        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, Familia: {{ os_family }}"
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, EOL: {{ eol_date }}, Release: {{ release_date }}, Estado de suscripción: {{ subscription_status }}"
 
 - name: Insertar registros en la tabla inventario en la base de datos
-  hosts: grafana_hosts  # Se ejecutará en los hosts de grafana_hosts para hacer el insert
+  hosts: grafana_hosts
   become: yes
   tasks:
-  - name: Insertar registros desde dynamic_hosts en la base de datos
-    command: >
-      psql -U grafana_user -d grafana_db -c "
-      INSERT INTO inventario (
-        ip, distribucion, version, familia, soportada, eol, release
-      ) VALUES (
-        '{{ item.IP }}',  # Información obtenida desde dynamic_hosts
-        '{{ item.distribucion | default('No disponible') }}',
-        '{{ item.version | default('No disponible') }}',
-        '{{ item.familia | default('No disponible') }}',
-        '{{ item.soportada | default('No definido') }}',
-        '{{ item.eol | default('No definido') }}',
-        '{{ item.release | default('No definido') }}'
-      )
-      "
-    loop: "{{ hostvars['localhost']['csv_data'] }}"  # Iteramos sobre dynamic_hosts usando csv_data
-    loop_control:
-      loop_var: item
-    environment:
-      PGPASSWORD: "grafana_password"
-    become: no
+    - name: Insertar registros desde dynamic_hosts en la base de datos
+      command: >
+        psql -U grafana_user -d grafana_db -c "
+        INSERT INTO inventario (
+          ip, distribucion, version, familia, soportada, eol, release
+        ) VALUES (
+          '{{ item.IP }}',
+          '{{ item.distribucion | default('No disponible') }}',
+          '{{ item.version | default('No disponible') }}',
+          '{{ item.familia | default('No disponible') }}',
+          '{{ item.soportada | default('No definido') }}',
+          '{{ item.eol | default('No definido') }}',
+          '{{ item.release | default('No definido') }}'
+        )
+        "
+      loop: "{{ hostvars['localhost']['csv_data'] }}"
+      loop_control:
+        loop_var: item
+      environment:
+        PGPASSWORD: "grafana_password"
+      become: no
