@@ -189,7 +189,7 @@
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, EOL: {{ eol_date }}, Release: {{ release_date }}, Estado de suscripción: {{ subscription_status }}"
 
 - name: Verificar los valores antes de la inserción
-  hosts: localhost  # Puedes cambiarlo si necesitas que corra en otro grupo de hosts
+  hosts: dynamic_hosts  # Puedes cambiarlo si necesitas que corra en otro grupo de hosts
   gather_facts: no
   tasks:
     - name: Verificar los valores antes de la inserción
