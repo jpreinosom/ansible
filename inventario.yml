@@ -189,6 +189,7 @@
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, EOL: {{ eol_date }}, Release: {{ release_date }}, Estado de suscripción: {{ subscription_status }}"
 
 - name: Verificar los valores antes de la inserción
+  hosts: grafana_hosts
   debug:
     msg: "IP: {{ item.IP }}, Distribución: {{ item.distribucion | default('No disponible') }}, Version: {{ item.version | default('No disponible') }}, EOL: {{ item.eol_date | default('No definido') }}, Release: {{ item.release_date | default('No definido') }}"
   loop: "{{ hostvars['localhost']['csv_data'] }}"
