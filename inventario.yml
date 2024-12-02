@@ -140,26 +140,24 @@
               | selectattr('key', '==', ansible_distribution_version.split('.')[0])
               | map(attribute='value')
               | list
-              | first),
-              {}
-            )
+              | first), {})
           }}
         eol_date: "{{ os_info.get('eol_date', 'No definido') }}"
         release_date: "{{ os_info.get('release_date', 'No definido') }}"
 
+
     - name: Establecer el estado de suscripción
       set_fact:
         subscription_status: >-
-          {% if eol_date is defined %}
-            {% if eol_date == "rolling" %}
-              Rolling Release
-            {% elif current_date | int > (eol_date | regex_replace('-', '') | int) %}
-              Deprecado
-            {% else %}
-              Soportada
-            {% endif %}
-          {% else %}
+          {% if eol_date == 'No definido' %}
             Versión sin fecha establecida de EoL
+          {% elif eol_date == 'rolling' %}
+            Rolling Release
+          {% elif current_date | int > (eol_date | regex_replace('-', '') | int) %}
+            Deprecado
+          {% else %}
+            Soportada
+          {% endif %}
           {% endif %}
 
     - name: Mostrar información del sistema operativo
