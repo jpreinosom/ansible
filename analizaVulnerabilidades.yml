@@ -140,6 +140,8 @@
       retries: 60  # Reintentos hasta que termine la tarea
       delay: 10
       loop: "{{ scan_result.results }}"
+      loop_control:
+        loop_var: item
 
     - name: Verificar si el archivo de resultados existe
       stat:
