@@ -228,6 +228,7 @@
       retries: 60
       delay: 10
       when: scan_result_rhel.ansible_job_id is defined
+      failed_when: false  # Evita que la tarea falle automáticamente
 
     - name: Esperar a que terminen los análisis de OpenSCAP (CentOS)
       async_status:
@@ -237,6 +238,7 @@
       retries: 60
       delay: 10
       when: scan_result_centos.ansible_job_id is defined
+      failed_when: false  # Evita que la tarea falle automáticamente
 
     - name: Esperar a que terminen los análisis de OpenSCAP (Ubuntu/Debian)
       async_status:
@@ -246,6 +248,48 @@
       retries: 60
       delay: 10
       when: scan_result_ubuntu.ansible_job_id is defined
+      failed_when: false  # Evita que la tarea falle automáticamente
+
+    # Manejar los resultados de las tareas asíncronas
+    - name: Manejar resultado del análisis de OpenSCAP (RHEL)
+      set_fact:
+        scan_output_rhel: "{{ job_result_rhel }}"
+      when:
+        - job_result_rhel is defined
+
+    - name: Manejar resultado del análisis de OpenSCAP (CentOS)
+      set_fact:
+        scan_output_centos: "{{ job_result_centos }}"
+      when:
+        - job_result_centos is defined
+
+    - name: Manejar resultado del análisis de OpenSCAP (Ubuntu/Debian)
+      set_fact:
+        scan_output_ubuntu: "{{ job_result_ubuntu }}"
+      when:
+        - job_result_ubuntu is defined
+
+    # Verificar y procesar los resultados
+    - name: Verificar resultados de OpenSCAP (RHEL)
+      fail:
+        msg: "El análisis de OpenSCAP en {{ inventory_hostname }} para RHEL/CentOS falló."
+      when:
+        - scan_output_rhel.rc not in [0, 2]
+        - scan_output_rhel is defined
+
+    - name: Verificar resultados de OpenSCAP (CentOS)
+      fail:
+        msg: "El análisis de OpenSCAP en {{ inventory_hostname }} para CentOS falló."
+      when:
+        - scan_output_centos.rc not in [0, 2]
+        - scan_output_centos is defined
+
+    - name: Verificar resultados de OpenSCAP (Ubuntu/Debian)
+      fail:
+        msg: "El análisis de OpenSCAP en {{ inventory_hostname }} para Ubuntu/Debian falló."
+      when:
+        - scan_output_ubuntu.rc not in [0, 2]
+        - scan_output_ubuntu is defined
 
     # Verificar si el archivo de resultados existe (RHEL/CentOS/Ubuntu/Debian)
     - name: Verificar si el archivo de resultados existe (RHEL/CentOS)
