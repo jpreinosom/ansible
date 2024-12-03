@@ -237,7 +237,7 @@
         - ansible_distribution in ["Ubuntu", "Debian"]
         - not results_file_check_ubuntu.stat.exists
 
-    - name: Extraer valores del archivo de resultados XML (RHEL/CentOS)
+    - name: Extraer valores del archivo de resultados XML
       shell: |
         awk '
           /<rule-result / {
@@ -253,81 +253,23 @@
               print idref "," result "," severity
             }
           }
-        ' /tmp/openscap-results.xml
-      register: xml_vuln_data_rhel
-      when:
-        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - results_file_check_rhel.stat.exists
+        ' /tmp/openscap-results.xml > /tmp/vulnerabilities_{{ inventory_hostname }}.csv
 
-    - name: Extraer valores del archivo de resultados XML (Ubuntu/Debian)
-      shell: |
-        awk '
-          /<rule-result / {
-            match($0, /idref="([^"]+)"/, a)
-            idref = a[1]
-            match($0, /severity="([^"]+)"/, b)
-            severity = b[1]
-          }
-          /<result>/ {
-            match($0, /<result>([^<]+)<\/result>/, c)
-            result = c[1]
-            if (result == "fail" || result == "pass") {
-              print idref "," result "," severity
-            }
-          }
-        ' /tmp/openscap-results.xml
-      register: xml_vuln_data_ubuntu
-      when:
-        - ansible_distribution in ["Ubuntu", "Debian"]
-        - results_file_check_ubuntu.stat.exists
+    - name: Enviar datos de vulnerabilidades al grafana_host
+      copy:
+        src: /tmp/vulnerabilities_{{ inventory_hostname }}.csv
+        dest: /tmp/vulnerabilities_{{ inventory_hostname }}.csv
+      delegate_to: "{{ groups['grafana_hosts'][0] }}"
 
-    - name: Depurar xml_vuln_data_rhel.stdout
-      debug:
-        var: xml_vuln_data_rhel.stdout
-      when:
-        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - xml_vuln_data_rhel.stdout is defined
+    - name: Eliminar archivos temporales en dynamic_hosts
+      file:
+        path: "/tmp/vulnerabilities_{{ inventory_hostname }}.csv"
+        state: absent
 
-    - name: Depurar xml_vuln_data_ubuntu.stdout
-      debug:
-        var: xml_vuln_data_ubuntu.stdout
-      when:
-        - ansible_distribution in ["Ubuntu", "Debian"]
-        - xml_vuln_data_ubuntu.stdout is defined
-
-    - name: Parse vulnerability data (RHEL/CentOS)
-      set_fact:
-        vulnerability_data_host: "{{ vulnerability_data_host | default([]) + [{'idref': idref, 'result': result, 'severity': severity, 'ip': ansible_host}] }}"
-      vars:
-        idref: "{{ item.split(',')[0] }}"
-        result: "{{ item.split(',')[1] }}"
-        severity: "{{ item.split(',')[2] }}"
-      loop: "{{ xml_vuln_data_rhel.stdout_lines }}"
-      when:
-        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - xml_vuln_data_rhel.stdout
-
-    - name: Parse vulnerability data (Ubuntu/Debian)
-      set_fact:
-        vulnerability_data_host: "{{ vulnerability_data_host | default([]) + [{'idref': idref, 'result': result, 'severity': severity, 'ip': ansible_host}] }}"
-      vars:
-        idref: "{{ item.split(',')[0] }}"
-        result: "{{ item.split(',')[1] }}"
-        severity: "{{ item.split(',')[2] }}"
-      loop: "{{ xml_vuln_data_ubuntu.stdout_lines }}"
-      when:
-        - ansible_distribution in ["Ubuntu", "Debian"]
-        - xml_vuln_data_ubuntu.stdout
-
-    - name: Guardar vulnerabilidades en una variable para cada host
-      set_fact:
-        host_vulnerabilities: "{{ vulnerability_data_host }}"
-      when: vulnerability_data_host is defined
-
-    - name: Depurar host_vulnerabilities
-      debug:
-        var: host_vulnerabilities
-      when: host_vulnerabilities is defined
+    - name: Eliminar archivos de resultados OpenSCAP en dynamic_hosts
+      file:
+        path: "/tmp/openscap-results.xml"
+        state: absent
 
 - name: Guardar vulnerabilidades en la base de datos
   hosts: grafana_hosts
@@ -337,11 +279,32 @@
     vulnerability_db: "grafana_db"
     vulnerability_password: "grafana_password"
   tasks:
-    - name: Recolectar todos los datos de vulnerabilidades de los dynamic_hosts
+    - name: Obtener lista de archivos de vulnerabilidades
+      find:
+        paths: /tmp
+        patterns: "vulnerabilities_*.csv"
+      register: vulnerability_files
+
+    - name: Leer y combinar datos de vulnerabilidades
       set_fact:
-        all_vulnerability_data: "{{ all_vulnerability_data | default([]) + hostvars[item].host_vulnerabilities }}"
-      loop: "{{ groups['dynamic_hosts'] }}"
-      when: hostvars[item].host_vulnerabilities is defined
+        all_vulnerability_data: "{{ all_vulnerability_data | default([]) + vulnerabilidad_items }}"
+      vars:
+        vulnerabilidad_items: |
+          {% set items = [] %}
+          {% for file in vulnerability_files.files %}
+          {% set content = lookup('file', file.path) %}
+          {% for line in content.split('\n') %}
+          {% if line %}
+          {% set parts = line.split(',') %}
+          {% if parts|length == 3 %}
+          {% set ip = file.path.split('_')[-1].replace('.csv', '') %}
+          {% set _ = items.append({'idref': parts[0], 'result': parts[1], 'severity': parts[2], 'ip': ip}) %}
+          {% endif %}
+          {% endif %}
+          {% endfor %}
+          {% endfor %}
+          {{ items }}
+      delegate_to: localhost
 
     - name: Depurar all_vulnerability_data
       debug:
@@ -361,3 +324,13 @@
       environment:
         PGPASSWORD: "{{ vulnerability_password }}"
       when: all_vulnerability_data | length > 0
+
+    - name: Eliminar archivos temporales en grafana_hosts
+      file:
+        path: "/tmp/vulnerabilities_*.csv"
+        state: absent
+
+    - name: Eliminar archivo SQL temporal
+      file:
+        path: "/tmp/insert_vulnerabilities.sql"
+        state: absent
