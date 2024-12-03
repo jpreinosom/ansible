@@ -165,7 +165,7 @@
           {% if ansible_distribution in ["RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"] %}
             /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
           {% elif ansible_distribution == "CentOS" %}
-            /usr/share/xml/scap/ssg-cs9-ds.xml
+            /usr/share/xml/scap/ssg/content/ssg-cs9-ds.xml
           {% elif ansible_distribution in ["Ubuntu", "Debian"] %}
             /usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds-1.2.xml
           {% else %}
@@ -250,36 +250,27 @@
         label: "{{ item.path }}"
       vars:
         ip_address: "{{ item.path.split('_')[-1].replace('.csv', '') }}"
-      tasks:
+      block:
         - name: Leer contenido del archivo de vulnerabilidades
           slurp:
             src: "{{ item.path }}"
           register: vuln_file_content
 
-        - name: Decodificar contenido del archivo
-          set_fact:
-            file_content_decoded: "{{ vuln_file_content.content | b64decode }}"
-
-        - name: Inicializar processed_items
-          set_fact:
-            processed_items: []
-
-        - name: Procesar líneas del archivo
-          loop: "{{ file_content_decoded.split('\n') }}"
-          loop_control:
-            loop_var: line
-          when: line != ''
-          vars:
-            line_parts: "{{ line.split(',') }}"
-          tasks:
-            - name: Agregar vulnerabilidad a processed_items
-              set_fact:
-                processed_items: "{{ processed_items + [ {'idref': line_parts[0], 'result': line_parts[1], 'severity': line_parts[2], 'ip': ip_address} ] }}"
-              when: line_parts | length == 3
-
-        - name: Actualizar all_vulnerability_data
+        - name: Procesar contenido del archivo y actualizar all_vulnerability_data
           set_fact:
             all_vulnerability_data: "{{ all_vulnerability_data + processed_items }}"
+          vars:
+            file_content_decoded: "{{ vuln_file_content.content | b64decode }}"
+            processed_items: >-
+              {{
+                file_content_decoded.split('\n')
+                | reject('equalto', '')
+                | map('split', ',')
+                | selectattr('length', 'eq', 3)
+                | map('list_to_dict', ['idref', 'result', 'severity'])
+                | map('combine', {'ip': ip_address})
+                | list
+              }}
 
     - name: Depurar all_vulnerability_data
       debug:
