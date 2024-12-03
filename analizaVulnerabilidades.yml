@@ -255,20 +255,22 @@
           }
         ' /tmp/openscap-results.xml > /tmp/vulnerabilities_{{ inventory_hostname }}.csv
 
+    - name: Leer contenido del archivo de vulnerabilidades
+      slurp:
+        src: /tmp/vulnerabilities_{{ inventory_hostname }}.csv
+      register: vuln_file_content
+
     - name: Enviar datos de vulnerabilidades al grafana_host
       copy:
-        src: /tmp/vulnerabilities_{{ inventory_hostname }}.csv
+        content: "{{ vuln_file_content.content | b64decode }}"
         dest: /tmp/vulnerabilities_{{ inventory_hostname }}.csv
       delegate_to: "{{ groups['grafana_hosts'][0] }}"
 
     - name: Eliminar archivos temporales en dynamic_hosts
       file:
-        path: "/tmp/vulnerabilities_{{ inventory_hostname }}.csv"
-        state: absent
-
-    - name: Eliminar archivos de resultados OpenSCAP en dynamic_hosts
-      file:
-        path: "/tmp/openscap-results.xml"
+        path:
+          - "/tmp/vulnerabilities_{{ inventory_hostname }}.csv"
+          - "/tmp/openscap-results.xml"
         state: absent
 
 - name: Guardar vulnerabilidades en la base de datos
@@ -327,10 +329,7 @@
 
     - name: Eliminar archivos temporales en grafana_hosts
       file:
-        path: "/tmp/vulnerabilities_*.csv"
-        state: absent
-
-    - name: Eliminar archivo SQL temporal
-      file:
-        path: "/tmp/insert_vulnerabilities.sql"
+        path:
+          - "/tmp/vulnerabilities_*.csv"
+          - "/tmp/insert_vulnerabilities.sql"
         state: absent
