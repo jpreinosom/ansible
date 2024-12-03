@@ -274,21 +274,43 @@
       fail:
         msg: "El análisis de OpenSCAP en {{ inventory_hostname }} para RHEL/CentOS falló."
       when:
-        - scan_output_rhel.rc not in [0, 2]
         - scan_output_rhel is defined
+        - scan_output_rhel.rc is defined
+        - scan_output_rhel.rc not in [0, 2]
 
     - name: Verificar resultados de OpenSCAP (CentOS)
       fail:
         msg: "El análisis de OpenSCAP en {{ inventory_hostname }} para CentOS falló."
       when:
-        - scan_output_centos.rc not in [0, 2]
         - scan_output_centos is defined
+        - scan_output_centos.rc is defined
+        - scan_output_centos.rc not in [0, 2]
 
     - name: Verificar resultados de OpenSCAP (Ubuntu/Debian)
       fail:
         msg: "El análisis de OpenSCAP en {{ inventory_hostname }} para Ubuntu/Debian falló."
       when:
+        - scan_output_ubuntu is defined
+        - scan_output_ubuntu.rc is defined
         - scan_output_ubuntu.rc not in [0, 2]
+
+    # Tareas de depuración para verificar el contenido de los resultados
+    - name: Depurar scan_output_rhel
+      debug:
+        var: scan_output_rhel
+      when:
+        - scan_output_rhel is defined
+
+    - name: Depurar scan_output_centos
+      debug:
+        var: scan_output_centos
+      when:
+        - scan_output_centos is defined
+
+    - name: Depurar scan_output_ubuntu
+      debug:
+        var: scan_output_ubuntu
+      when:
         - scan_output_ubuntu is defined
 
     # Verificar si el archivo de resultados existe (RHEL/CentOS/Ubuntu/Debian)
