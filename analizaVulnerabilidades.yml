@@ -123,6 +123,7 @@
   hosts: dynamic_hosts
   gather_facts: yes
   become: yes
+  strategy: free  # Permite que los hosts ejecuten tareas independientemente
   tasks:
     - name: Depurar ansible_distribution
       debug:
@@ -157,6 +158,7 @@
         - ansible_distribution in ["Ubuntu", "Debian"]
         - awk_check_ubuntu.failed
 
+    # Ejecutar análisis de vulnerabilidades con OpenSCAP de forma asíncrona
     - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (RHEL/AlmaLinux/RockyLinux)
       command:
         argv:
@@ -171,6 +173,8 @@
           - '/tmp/openscap-report.html'
           - '/usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml'
       register: scan_result_rhel
+      async: 3600  # Tiempo máximo de ejecución en segundos
+      poll: 0      # No esperar a que la tarea termine
       changed_when: false
       failed_when: false
       when: ansible_distribution in ["RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
@@ -189,6 +193,8 @@
           - '/tmp/openscap-report.html'
           - '/usr/share/xml/scap/ssg/content/ssg-cs9-ds.xml'
       register: scan_result_centos
+      async: 3600
+      poll: 0
       changed_when: false
       failed_when: false
       when: ansible_distribution == "CentOS"
@@ -207,10 +213,41 @@
           - '/tmp/openscap-report.html'
           - '/usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds-1.2.xml'
       register: scan_result_ubuntu
+      async: 3600
+      poll: 0
       changed_when: false
       failed_when: false
       when: ansible_distribution in ["Ubuntu", "Debian"]
 
+    # Esperar a que terminen las tareas asíncronas
+    - name: Esperar a que terminen los análisis de OpenSCAP (RHEL)
+      async_status:
+        jid: "{{ scan_result_rhel.ansible_job_id }}"
+      register: job_result_rhel
+      until: job_result_rhel.finished
+      retries: 60
+      delay: 10
+      when: scan_result_rhel.ansible_job_id is defined
+
+    - name: Esperar a que terminen los análisis de OpenSCAP (CentOS)
+      async_status:
+        jid: "{{ scan_result_centos.ansible_job_id }}"
+      register: job_result_centos
+      until: job_result_centos.finished
+      retries: 60
+      delay: 10
+      when: scan_result_centos.ansible_job_id is defined
+
+    - name: Esperar a que terminen los análisis de OpenSCAP (Ubuntu/Debian)
+      async_status:
+        jid: "{{ scan_result_ubuntu.ansible_job_id }}"
+      register: job_result_ubuntu
+      until: job_result_ubuntu.finished
+      retries: 60
+      delay: 10
+      when: scan_result_ubuntu.ansible_job_id is defined
+
+    # Verificar si el archivo de resultados existe (RHEL/CentOS/Ubuntu/Debian)
     - name: Verificar si el archivo de resultados existe (RHEL/CentOS)
       stat:
         path: /tmp/openscap-results.xml
