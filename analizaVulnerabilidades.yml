@@ -292,24 +292,36 @@
         msg: "No se encontraron archivos de vulnerabilidades en /tmp"
       when: vulnerability_files.matched == 0
 
-    - name: Leer contenido de cada archivo de vulnerabilidades
-      slurp:
-        src: "{{ item.path }}"
-      register: slurped_files
-      loop: "{{ vulnerability_files.files }}"
-      loop_control:
-        label: "{{ item.path }}"
-
-    - name: Procesar contenido de los archivos
+    - name: Inicializar all_vulnerability_data
       set_fact:
-        all_vulnerability_data: "{{ all_vulnerability_data | default([]) + processed_items }}"
-      vars:
-        processed_items: |
-          {% set items = [] %}
-          {% for file in slurped_files.results %}
+        all_vulnerability_data: []
+
+    - name: Leer y procesar contenido de los archivos
+      block:
+        - name: Leer contenido de cada archivo de vulnerabilidades
+          slurp:
+            src: "{{ item.path }}"
+          register: slurped_file
+          loop: "{{ vulnerability_files.files }}"
+          loop_control:
+            label: "{{ item.path }}"
+          when: item.path is not none
+
+        - name: Agregar archivos leídos a la lista
+          set_fact:
+            slurped_files: "{{ slurped_files | default([]) + [slurped_file] }}"
+          when: slurped_file is defined
+
+      when: vulnerability_files.matched > 0
+
+    - name: Procesar contenido de los archivos y actualizar all_vulnerability_data
+      set_fact:
+        all_vulnerability_data: >-
+          {% set items = all_vulnerability_data %}
+          {% for file in slurped_files %}
             {% set content = file.content | b64decode %}
             {% set lines = content.split('\n') %}
-            {% set ip = file['ansible_loop_var'].split('_')[-1].replace('.csv', '') %}
+            {% set ip = file.source.split('_')[-1].replace('.csv', '') %}
             {% for line in lines %}
               {% if line %}
                 {% set parts = line.split(',') %}
