@@ -128,11 +128,10 @@
       debug:
         var: ansible_distribution
 
-    - name: Verificar si awk está instalado (RHEL/CentOS)
+    - name: Verificar si awk está instalado
       command: which awk
-      register: awk_check_rhel
+      register: awk_check
       ignore_errors: yes
-      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
 
     - name: Instalar awk si no está instalado (RHEL/CentOS)
       yum:
@@ -140,13 +139,7 @@
         state: present
       when:
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - awk_check_rhel.failed
-
-    - name: Verificar si awk está instalado (Ubuntu/Debian)
-      command: which awk
-      register: awk_check_ubuntu
-      ignore_errors: yes
-      when: ansible_distribution in ["Ubuntu", "Debian"]
+        - awk_check.rc != 0
 
     - name: Instalar awk si no está instalado (Ubuntu/Debian)
       apt:
@@ -155,87 +148,40 @@
         update_cache: yes
       when:
         - ansible_distribution in ["Ubuntu", "Debian"]
-        - awk_check_ubuntu.failed
+        - awk_check.rc != 0
 
-    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (RHEL/AlmaLinux/RockyLinux)
-      command:
-        argv:
-          - oscap
-          - xccdf
-          - eval
-          - '--profile'
-          - 'xccdf_org.ssgproject.content_profile_cis_server_l1'
-          - '--results'
-          - '/tmp/openscap-results.xml'
-          - '--report'
-          - '/tmp/openscap-report.html'
-          - '/usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml'
-      register: scan_result_rhel
+    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP
+      shell: |
+        oscap xccdf eval \
+        --profile xccdf_org.ssgproject.content_profile_cis_server_l1 \
+        --results /tmp/openscap-results.xml \
+        --report /tmp/openscap-report.html \
+        {{ oscap_content_path }}
+      register: scan_result
       changed_when: false
       failed_when: false
-      when: ansible_distribution in ["RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+      vars:
+        oscap_content_path: >
+          {% if ansible_distribution in ["RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"] %}
+            /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
+          {% elif ansible_distribution == "CentOS" %}
+            /usr/share/xml/scap/ssg/content/ssg-cs9-ds.xml
+          {% elif ansible_distribution in ["Ubuntu", "Debian"] %}
+            /usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds-1.2.xml
+          {% else %}
+            ''
+          {% endif %}
+      when: oscap_content_path != ''
 
-    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (CentOS)
-      command:
-        argv:
-          - oscap
-          - xccdf
-          - eval
-          - '--profile'
-          - 'xccdf_org.ssgproject.content_profile_cis_server_l1'
-          - '--results'
-          - '/tmp/openscap-results.xml'
-          - '--report'
-          - '/tmp/openscap-report.html'
-          - '/usr/share/xml/scap/ssg/content/ssg-cs9-ds.xml'
-      register: scan_result_centos
-      changed_when: false
-      failed_when: false
-      when: ansible_distribution == "CentOS"
-
-    - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (Ubuntu/Debian)
-      command:
-        argv:
-          - oscap
-          - xccdf
-          - eval
-          - '--profile'
-          - 'xccdf_org.ssgproject.content_profile_cis_level2_server'
-          - '--results'
-          - '/tmp/openscap-results.xml'
-          - '--report'
-          - '/tmp/openscap-report.html'
-          - '/usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds-1.2.xml'
-      register: scan_result_ubuntu
-      changed_when: false
-      failed_when: false
-      when: ansible_distribution in ["Ubuntu", "Debian"]
-
-    - name: Verificar si el archivo de resultados existe (RHEL/CentOS)
+    - name: Verificar si el archivo de resultados existe
       stat:
         path: /tmp/openscap-results.xml
-      register: results_file_check_rhel
-      when: ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+      register: results_file_check
 
-    - name: Verificar si el archivo de resultados existe (Ubuntu/Debian)
-      stat:
-        path: /tmp/openscap-results.xml
-      register: results_file_check_ubuntu
-      when: ansible_distribution in ["Ubuntu", "Debian"]
-
-    - name: Fallar si el análisis no generó el archivo de resultados (RHEL/CentOS)
+    - name: Fallar si el análisis no generó el archivo de resultados
       fail:
         msg: "El archivo de resultados de OpenSCAP no se generó en {{ inventory_hostname }}."
-      when:
-        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - not results_file_check_rhel.stat.exists
-
-    - name: Fallar si el análisis no generó el archivo de resultados (Ubuntu/Debian)
-      fail:
-        msg: "El archivo de resultados de OpenSCAP no se generó en {{ inventory_hostname }}."
-      when:
-        - ansible_distribution in ["Ubuntu", "Debian"]
-        - not results_file_check_ubuntu.stat.exists
+      when: not results_file_check.stat.exists
 
     - name: Extraer valores del archivo de resultados XML
       shell: |
@@ -271,6 +217,7 @@
         path:
           - "/tmp/vulnerabilities_{{ inventory_hostname }}.csv"
           - "/tmp/openscap-results.xml"
+          - "/tmp/openscap-report.html"
         state: absent
 
 - name: Guardar vulnerabilidades en la base de datos
@@ -292,32 +239,41 @@
         msg: "No se encontraron archivos de vulnerabilidades en /tmp"
       when: vulnerability_files.matched == 0
 
-    - name: Leer contenido de cada archivo de vulnerabilidades
-      slurp:
-        src: "{{ item.path }}"
+    - name: Inicializar all_vulnerability_data
+      set_fact:
+        all_vulnerability_data: []
+
+    - name: Procesar cada archivo de vulnerabilidades
       loop: "{{ vulnerability_files.files }}"
       loop_control:
         label: "{{ item.path }}"
-      register: slurped_files
+      vars:
+        ip_address: "{{ item.path.split('_')[-1].replace('.csv', '') }}"
+      tasks:
+        - name: Leer contenido del archivo de vulnerabilidades
+          slurp:
+            src: "{{ item.path }}"
+          register: vuln_file_content
 
-    - name: Procesar contenido de los archivos y actualizar all_vulnerability_data
-      set_fact:
-        all_vulnerability_data: >-
-          {% set items = [] %}
-          {% for file in slurped_files.results %}
-            {% set content = file.content | b64decode %}
-            {% set lines = content.split('\n') %}
-            {% set ip = file['source'].split('_')[-1].replace('.csv', '') %}
-            {% for line in lines %}
-              {% if line %}
-                {% set parts = line.split(',') %}
-                {% if parts|length == 3 %}
-                  {% set _ = items.append({'idref': parts[0], 'result': parts[1], 'severity': parts[2], 'ip': ip}) %}
-                {% endif %}
-              {% endif %}
-            {% endfor %}
-          {% endfor %}
-          {{ items }}
+        - name: Procesar contenido del archivo y actualizar all_vulnerability_data
+          set_fact:
+            processed_items: []
+          vars:
+            file_content_decoded: "{{ vuln_file_content.content | b64decode }}"
+          loop: "{{ file_content_decoded.split('\n') }}"
+          loop_control:
+            loop_var: line
+          tasks:
+            - name: Procesar línea y agregar a processed_items
+              set_fact:
+                processed_items: "{{ processed_items + [ {'idref': line_parts[0], 'result': line_parts[1], 'severity': line_parts[2], 'ip': ip_address} ] }}"
+              vars:
+                line_parts: "{{ line.split(',') }}"
+              when: line != '' and line.split(',') | length == 3
+
+          - name: Actualizar all_vulnerability_data
+            set_fact:
+              all_vulnerability_data: "{{ all_vulnerability_data + processed_items }}"
 
     - name: Depurar all_vulnerability_data
       debug:
