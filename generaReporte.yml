@@ -1,7 +1,7 @@
 ---
 - name: Generar informe de vulnerabilidades y generar PDF
   hosts: local
-  become: yes
+  become: no
   tasks:
 
     - name: Copiar el archivo import_requests.py desde el proyecto Ansible Automation Platform
@@ -34,8 +34,6 @@
 
     - name: Ejecutar AsciiDoctor para generar el PDF a partir del archivo ejemplo.adoc
       command: asciidoctor-pdf /tmp/ejemplo.adoc
-      environment:
-        PATH: "{{ ansible_env.PATH }}:/home/ansible/bin:/home/ansible/.local/bin"
 
     - name: Mover el PDF generado al directorio /home/ansible/resultado
       command: mv /tmp/ejemplo.pdf /home/ansible/resultado/ejemplo.pdf
