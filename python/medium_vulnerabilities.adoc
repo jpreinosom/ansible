@@ -1,0 +1,70 @@
+= Vulnerabilidades Medium =
+
+=== Vulnerabilidad ID xccdf_org.ssgproject.content_rule_package_aide_installed
+
+1. **Explicación de la regla:**
+AIDE (Advanced Intrusion Detection Environment) es una herramienta que detecta cambios no autorizados en archivos y directorios críticos del sistema. Esto ayuda a identificar posibles brechas de seguridad de forma temprana.
+
+2. **Por qué es importante no pasar por alto esta regla:**
+AIDE proporciona una capa adicional de protección al monitorear la integridad de los archivos. Sin esta herramienta, es difícil detectar cambios no autorizados en tiempo real.
+
+3. **Impacto:**
+El impacto de no usar AIDE es que modificaciones no autorizadas pueden pasar desapercibidas, permitiendo que atacantes mantengan acceso prolongado al sistema.
+
+4. **Riesgo al que estás expuesto:**
+El riesgo asociado es la falta de detección temprana de intrusiones, lo que puede derivar en pérdida de datos o compromisos de seguridad más amplios.
+
+5. **Ejemplo real:**
+Empresas que no utilizaban herramientas de detección de intrusiones fueron víctimas de ataques persistentes. Por ejemplo, un malware no detectado durante meses alteró configuraciones críticas en una empresa tecnológica en 2020.
+
+=== Vulnerabilidad ID xccdf_org.ssgproject.content_rule_aide_build_database
+
+1. **Explicación de la regla:**
+Construir la base de datos inicial de AIDE es un paso crítico para registrar el estado base de los archivos y directorios del sistema. Esta base sirve como referencia para identificar cambios no autorizados en el futuro.
+
+2. **Por qué es importante no pasar por alto esta regla:**
+Sin una base de datos inicial, AIDE no puede realizar comparaciones para detectar alteraciones en los archivos. Esto reduce la efectividad del monitoreo de integridad.
+
+3. **Impacto:**
+Si la base de datos no se genera correctamente, cambios maliciosos o no autorizados pasarán desapercibidos, aumentando el riesgo de un ataque no detectado.
+
+4. **Riesgo al que estás expuesto:**
+El sistema queda expuesto a manipulaciones indetectables de archivos críticos, lo que puede comprometer la seguridad global del servidor.
+
+5. **Ejemplo real:**
+En 2021, una organización descubrió tarde que un atacante había modificado archivos clave porque la base de datos de AIDE no había sido correctamente configurada, permitiendo actividad maliciosa por meses.
+
+=== Vulnerabilidad ID xccdf_org.ssgproject.content_rule_aide_periodic_cron_checking
+
+1. **Explicación de la regla:**
+Configurar verificaciones periódicas de AIDE mediante tareas programadas garantiza el monitoreo continuo del sistema, permitiendo detectar alteraciones no autorizadas de manera regular.
+
+2. **Por qué es importante no pasar por alto esta regla:**
+Sin verificaciones regulares, los cambios en archivos críticos pueden no ser detectados a tiempo, exponiendo al sistema a ataques prolongados.
+
+3. **Impacto:**
+La falta de monitoreo periódico puede llevar a que modificaciones maliciosas se mantengan activas durante semanas o meses, incrementando el impacto del ataque.
+
+4. **Riesgo al que estás expuesto:**
+El principal riesgo es el retraso en la detección de compromisos, lo que facilita el acceso prolongado de atacantes al sistema.
+
+5. **Ejemplo real:**
+En 2022, una empresa descubrió que un atacante había modificado archivos críticos dos meses antes de ser detectado porque las verificaciones no eran regulares.
+
+=== Vulnerabilidad ID xccdf_org.ssgproject.content_rule_aide_check_audit_tools
+
+1. **Explicación de la regla:**
+Esta regla asegura que AIDE esté configurado para auditar herramientas clave del sistema, como las de monitoreo y auditoría. Esto garantiza que dichas herramientas no sean manipuladas.
+
+2. **Por qué es importante no pasar por alto esta regla:**
+Proteger las herramientas de auditoría es esencial para asegurar la confianza en los registros y detecciones de seguridad.
+
+3. **Impacto:**
+Una herramienta de auditoría comprometida puede ser utilizada por atacantes para ocultar sus actividades, afectando la detección de incidentes.
+
+4. **Riesgo al que estás expuesto:**
+El riesgo es la manipulación o desactivación de herramientas críticas, lo que podría impedir la detección de intrusiones.
+
+5. **Ejemplo real:**
+Un incidente de 2020 involucró un ataque donde los atacantes deshabilitaron herramientas de auditoría para borrar rastros de su actividad maliciosa, retrasando la respuesta del equipo de seguridad.
+

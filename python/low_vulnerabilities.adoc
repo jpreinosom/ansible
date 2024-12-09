@@ -1,0 +1,104 @@
+= Vulnerabilidades Low =
+
+=== Vulnerabilidad ID xccdf_org.ssgproject.content_rule_kernel_module_tipc_disabled
+
+1. **Explicación de la regla:**
+Esta regla verifica que el módulo TIPC (Transparent Inter-Process Communication) del kernel esté deshabilitado. TIPC permite la comunicación entre procesos distribuidos, pero habilitarlo innecesariamente puede exponer el sistema a ataques, ya que puede ser explotado para acceder a procesos en otros servidores.
+
+2. **Por qué es importante no pasar por alto esta regla:**
+Es importante deshabilitar este módulo para reducir el riesgo de explotación de vulnerabilidades en la comunicación entre procesos, que podría ser utilizada por atacantes para acceder o comprometer otros sistemas en la red.
+
+3. **Impacto:**
+El impacto de mantener habilitado el módulo TIPC incluye la exposición a vulnerabilidades en la comunicación entre servidores, lo que puede dar acceso no autorizado a procesos y datos en otros sistemas dentro de la infraestructura.
+
+4. **Riesgo al que estás expuesto:**
+El riesgo es que un atacante podría explotar una vulnerabilidad en TIPC para acceder a procesos remotos y obtener acceso no autorizado a otros servidores dentro de la red, lo que comprometería la seguridad general.
+
+5. **Ejemplo real:**
+Un ejemplo de este riesgo se vio en un incidente donde un atacante explotó una vulnerabilidad en TIPC para acceder a varios servidores dentro de una red empresarial, comprometiendo la integridad de datos sensibles y obteniendo control sobre la infraestructura.
+
+=== Vulnerabilidad ID xccdf_org.ssgproject.content_rule_grub2_audit_argument
+
+1. **Explicación de la regla:**
+Esta regla asegura que los argumentos de auditoría en GRUB2 estén configurados correctamente. Esto permite que las acciones del sistema, como el arranque, sean registradas adecuadamente para su posterior análisis en caso de incidentes de seguridad.
+
+2. **Por qué es importante no pasar por alto esta regla:**
+Es importante no pasar por alto esta regla, ya que la correcta configuración de los parámetros de auditoría en GRUB2 es esencial para garantizar que los eventos del sistema sean registrados y puedan ser investigados en caso de incidentes.
+
+3. **Impacto:**
+El impacto de no configurar correctamente los parámetros de auditoría es la pérdida de registros clave, lo que dificulta la detección de ataques durante el proceso de arranque del sistema.
+
+4. **Riesgo al que estás expuesto:**
+El riesgo asociado es la falta de visibilidad en el proceso de arranque, lo que podría permitir que un atacante modifique el comportamiento del sistema sin dejar evidencia en los registros.
+
+5. **Ejemplo real:**
+Un ejemplo de vulnerabilidad en un sistema ocurrió cuando la falta de configuración adecuada de los parámetros de auditoría permitió que un atacante alterara el proceso de arranque de un servidor, sin dejar rastro en los registros, lo que dificultó la detección del ataque.
+
+=== Vulnerabilidad ID xccdf_org.ssgproject.content_rule_kernel_module_udf_disabled
+
+1. **Explicación de la regla:**
+Esta regla verifica que el módulo del kernel UDF (Universal Disk Format) esté deshabilitado. UDF permite a los atacantes explotar vulnerabilidades en sistemas de archivos, lo que representa un riesgo para la seguridad.
+
+2. **Por qué es importante no pasar por alto esta regla:**
+Es importante deshabilitar este módulo para evitar posibles explotaciones de vulnerabilidades en el sistema de archivos, que podrían permitir a un atacante acceder de forma remota o comprometer el sistema.
+
+3. **Impacto:**
+El impacto de no deshabilitar este módulo incluye la exposición del sistema a ataques que aprovechan vulnerabilidades en el manejo de discos, lo que puede dar acceso no autorizado o comprometer la integridad del sistema.
+
+4. **Riesgo al que estás expuesto:**
+El riesgo de mantener habilitado el módulo UDF es que un atacante podría explotar fallas en el manejo de discos para obtener acceso a datos sensibles o ejecutar código malicioso.
+
+5. **Ejemplo real:**
+Un ejemplo de vulnerabilidad explotada en UDF ocurrió en una empresa que sufrió un ataque debido a un módulo de sistema de archivos mal configurado, lo que permitió a un atacante acceder a información confidencial almacenada en discos protegidos.
+
+=== Vulnerabilidad ID xccdf_org.ssgproject.content_rule_kernel_module_rds_disabled
+
+1. **Explicación de la regla:**
+Esta regla asegura que el módulo RDS (Remote Direct Memory Access) del kernel esté deshabilitado. Este módulo permite que las aplicaciones accedan a la memoria de otras máquinas de manera remota, lo que puede ser explotado por atacantes para obtener acceso no autorizado.
+
+2. **Por qué es importante no pasar por alto esta regla:**
+Es importante deshabilitar este módulo para evitar que los atacantes puedan aprovechar vulnerabilidades en la memoria remota de la máquina, lo que puede ser usado para ejecutar código malicioso o acceder a datos sensibles.
+
+3. **Impacto:**
+El impacto de mantener habilitado este módulo es una mayor vulnerabilidad al acceso no autorizado a la memoria del sistema, lo que pone en riesgo la seguridad de los datos y el control del servidor.
+
+4. **Riesgo al que estás expuesto:**
+El riesgo es el acceso no autorizado a la memoria del servidor, lo que puede permitir que un atacante ejecute código malicioso o robe datos sensibles desde la memoria del sistema.
+
+5. **Ejemplo real:**
+Un ejemplo de un ataque relacionado con RDS ocurrió cuando una vulnerabilidad en este módulo permitió a un atacante acceder a la memoria de un servidor crítico, extrayendo información confidencial y comprometiendo la seguridad de la infraestructura.
+
+=== Vulnerabilidad ID xccdf_org.ssgproject.content_rule_sshd_set_loglevel_info
+
+1. **Explicación de la regla:**
+Esta regla establece que el nivel de registro (log level) de SSH debe estar configurado para que se registren eventos informativos. Esto es importante porque permite que las actividades de acceso remoto sean registradas detalladamente, facilitando la detección de intentos de intrusión o accesos no autorizados.
+
+2. **Por qué es importante no pasar por alto esta regla:**
+Es fundamental no pasar por alto esta regla, ya que una configuración incorrecta del nivel de registro podría resultar en la falta de información crítica para la detección de incidentes de seguridad, lo que dificulta las auditorías y la respuesta ante ataques.
+
+3. **Impacto:**
+El impacto de no configurar correctamente el nivel de registro es la pérdida de información valiosa sobre el acceso remoto y las posibles acciones maliciosas realizadas en el servidor.
+
+4. **Riesgo al que estás expuesto:**
+El riesgo es la incapacidad de detectar ataques dirigidos a servidores a través de SSH, lo que aumenta la probabilidad de que un atacante permanezca sin ser detectado durante un ataque.
+
+5. **Ejemplo real:**
+Un caso real ocurrió cuando una empresa no configuró adecuadamente el nivel de registro en SSH, lo que permitió que un atacante accediera al sistema sin dejar registros significativos, dificultando su detección hasta mucho después del ataque.
+
+=== Vulnerabilidad ID xccdf_org.ssgproject.content_rule_partition_for_var_log_audit
+
+1. **Explicación de la regla:**
+Esta regla asegura que las particiones de los registros del sistema (logs) estén separadas, especialmente para los registros de auditoría. Al hacerlo, se asegura que los registros críticos no se vean comprometidos si el sistema se llena o es atacado.
+
+2. **Por qué es importante no pasar por alto esta regla:**
+Es crucial no pasar por alto esta regla, ya que si los registros de auditoría se almacenan en la misma partición que el resto del sistema, un atacante podría borrar fácilmente los registros críticos de seguridad, dificultando la investigación de incidentes.
+
+3. **Impacto:**
+El impacto de no seguir esta recomendación es que los registros del sistema, como los de auditoría, pueden ser modificados o eliminados, lo que elimina evidencia valiosa en caso de un ataque o incidente de seguridad.
+
+4. **Riesgo al que estás expuesto:**
+El riesgo de no separar las particiones es que los registros importantes podrían ser borrados, lo que podría dificultar la detección de intrusiones o actividades maliciosas dentro del sistema.
+
+5. **Ejemplo real:**
+Un ejemplo de incidente ocurrió en una empresa donde los registros de auditoría fueron borrados por un atacante que llenó la partición del sistema. Esto dificultó la investigación posterior, permitiendo que el atacante permaneciera sin ser detectado durante varios días.
+
