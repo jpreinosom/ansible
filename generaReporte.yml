@@ -3,6 +3,13 @@
   hosts: local
   become: yes
   tasks:
+
+    - name: Añadir directorio de AsciiDoctor al PATH
+      ansible.builtin.shell: |
+        export PATH=$PATH:/home/ansible/bin
+      environment:
+        PATH: "{{ ansible_env.PATH }}:/home/ansible/bin"
+    
     - name: Copiar el archivo import_requests.py desde el proyecto Ansible Automation Platform
       copy:
         src: python/import_requests.py
@@ -33,8 +40,14 @@
 
     - name: Ejecutar AsciiDoctor para generar el PDF a partir del archivo ejemplo.adoc
       command: asciidoctor-pdf /tmp/ejemplo.adoc
-      args:
-        chdir: /tmp  # Ejecutar el comando AsciiDoctor en /tmp
+      environment:
+        PATH: "{{ ansible_env.PATH }}:/home/ansible/bin"
 
     - name: Mover el PDF generado al directorio /home/ansible/resultado
       command: mv /tmp/ejemplo.pdf /home/ansible/resultado/ejemplo.pdf
+
+    - name: Limpiar el directorio /tmp
+      file:
+        path: /tmp
+        state: absent
+      ignore_errors: yes
