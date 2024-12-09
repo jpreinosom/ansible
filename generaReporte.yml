@@ -3,9 +3,6 @@
   hosts: local
   become: yes
   tasks:
-    - name: Limpiar el contenido de /tmp sin borrar el directorio
-      shell: rm -rf /tmp/*
-      ignore_errors: yes
 
     - name: Copiar el archivo import_requests.py desde el proyecto AAP
       copy:
@@ -40,4 +37,7 @@
       environment:
         GEM_PATH: "/home/ansible/.local/share/gem/ruby:/usr/share/gems:/usr/local/share/gems"
         GEM_HOME: "/home/ansible/.local/share/gem/ruby"
-...
+
+    - name: Limpiar el contenido de /tmp sin borrar el directorio
+      shell: rm -rf /tmp/*
+      ignore_errors: yes
