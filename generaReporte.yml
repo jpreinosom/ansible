@@ -4,12 +4,6 @@
   become: yes
   tasks:
 
-    - name: Añadir directorio de AsciiDoctor al PATH
-      ansible.builtin.shell: |
-        export PATH=$PATH:/home/ansible/bin:/home/ansible/.local/bin
-      environment:
-        PATH: "{{ ansible_env.PATH }}:/home/ansible/bin:/home/ansible/.local/bin"
-    
     - name: Copiar el archivo import_requests.py desde el proyecto Ansible Automation Platform
       copy:
         src: python/import_requests.py
