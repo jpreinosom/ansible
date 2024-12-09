@@ -9,9 +9,7 @@
       ignore_errors: yes
 
     - name: Instalar asciidoctor-pdf si no está instalado
-      gem:
-        name: asciidoctor-pdf
-        state: present
+      command: gem install asciidoctor-pdf
       when: asciidoctor_pdf_installed.rc != 0
 
     - name: Copiar el archivo import_requests.py desde el proyecto Ansible Automation Platform
