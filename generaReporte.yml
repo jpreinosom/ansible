@@ -42,7 +42,7 @@
       command: mv /tmp/ejemplo.pdf /home/ansible/resultado/ejemplo.pdf
 
     - name: Limpiar el contenido de /tmp sin borrar el directorio
-      command: rm -rf /tmp/*
+      shell: rm -rf /tmp/*
       args:
         warn: false
       ignore_errors: yes
