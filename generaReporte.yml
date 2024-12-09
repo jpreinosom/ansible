@@ -5,7 +5,6 @@
   tasks:
     - name: Limpiar el contenido de /tmp sin borrar el directorio
       shell: rm -rf /tmp/*
-      warn: no
       ignore_errors: yes
 
     - name: Copiar el archivo import_requests.py desde el proyecto AAP
