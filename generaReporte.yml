@@ -43,7 +43,6 @@
 
     - name: Limpiar el contenido de /tmp sin borrar el directorio
       shell: rm -rf /tmp/*
-      args:
-        warn: false
+      warn: no
       ignore_errors: yes
 ...
