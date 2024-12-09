@@ -1,0 +1,51 @@
+---
+- name: Generar informe de vulnerabilidades y generar PDF
+  hosts: local
+  become: yes
+  tasks:
+    - name: Verificar si asciidoctor-pdf está instalado
+      command: which asciidoctor-pdf
+      register: asciidoctor_pdf_installed
+      ignore_errors: yes
+
+    - name: Instalar asciidoctor-pdf si no está instalado
+      gem:
+        name: asciidoctor-pdf
+        state: present
+      when: asciidoctor_pdf_installed.rc != 0
+
+    - name: Copiar el archivo import_requests.py desde el proyecto Ansible Automation Platform
+      copy:
+        src: python/import_requests.py
+        dest: /tmp/import_requests.py
+        mode: '0755'
+
+    - name: Copiar el archivo info.py desde el proyecto Ansible Automation Platform
+      copy:
+        src: python/info.py
+        dest: /tmp/info.py
+        mode: '0755'
+
+    - name: Copiar el archivo ejemplo.adoc desde el proyecto Ansible Automation Platform
+      copy:
+        src: ejemplo.adoc
+        dest: /tmp/ejemplo.adoc
+        mode: '0644'
+
+    - name: Ejecutar el script import_requests.py para generar archivos ASCII Doctor de vulnerabilidades
+      command: python3 /tmp/import_requests.py
+      args:
+        chdir: /tmp  # Ejecutar el script desde /tmp donde fue copiado
+
+    - name: Ejecutar el script info.py para obtener imágenes desde Grafana
+      command: python3 /tmp/info.py
+      args:
+        chdir: /tmp  # Ejecutar el script desde /tmp donde fue copiado
+
+    - name: Ejecutar AsciiDoctor para generar el PDF a partir del archivo ejemplo.adoc
+      command: asciidoctor-pdf /tmp/ejemplo.adoc
+      args:
+        chdir: /tmp  # Ejecutar el comando AsciiDoctor en /tmp
+
+    - name: Mover el PDF generado al directorio /home/ansible/resultado
+      command: mv /tmp/ejemplo.pdf /home/ansible/resultado/ejemplo.pdf
