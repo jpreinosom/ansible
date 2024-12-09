@@ -3,17 +3,6 @@
   hosts: local
   become: yes
   tasks:
-    - name: Verificar si asciidoctor-pdf está instalado
-      command: which asciidoctor-pdf
-      register: asciidoctor_pdf_installed
-      ignore_errors: yes
-
-    - name: Instalar asciidoctor-pdf si no está instalado (usando dnf)
-      package:
-        name: asciidoctor-pdf
-        state: present
-      when: asciidoctor_pdf_installed.rc != 0
-
     - name: Copiar el archivo import_requests.py desde el proyecto Ansible Automation Platform
       copy:
         src: python/import_requests.py
