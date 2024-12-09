@@ -41,3 +41,25 @@
     - name: Limpiar el contenido de /tmp sin borrar el directorio
       shell: rm -rf /tmp/*
       ignore_errors: yes
+
+    - name: Enviar el archivo generado vía correo con sendmail
+      shell: |
+        (
+        echo "Subject: Reporte generado"
+        echo "From: juanpablo@betel-tech.cl"
+        echo "To: jpreinosom@gmail.com"
+        echo "MIME-Version: 1.0"
+        echo "Content-Type: multipart/mixed; boundary=\"FILEBOUNDARY\""
+        echo ""
+        echo "--FILEBOUNDARY"
+        echo "Content-Type: text/plain"
+        echo ""
+        echo "Se adjunta el informe generado."
+        echo ""
+        echo "--FILEBOUNDARY"
+        echo "Content-Type: application/pdf; name=\"ejemplo.pdf\""
+        echo "Content-Transfer-Encoding: base64"
+        echo "Content-Disposition: attachment; filename=\"ejemplo.pdf\""
+        base64 /home/ansible/resultado/ejemplo.pdf
+        echo "--FILEBOUNDARY--"
+        ) | /usr/sbin/sendmail -t
