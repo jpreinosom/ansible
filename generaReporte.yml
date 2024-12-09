@@ -41,8 +41,8 @@
     - name: Mover el PDF generado al directorio /home/ansible/resultado
       command: mv /tmp/ejemplo.pdf /home/ansible/resultado/ejemplo.pdf
 
-    - name: Limpiar el directorio /tmp
-      file:
-        path: /tmp
-        state: absent
+    - name: Limpiar el contenido de /tmp sin borrar el directorio
+      command: rm -rf /tmp/*
+      args:
+        warn: false
       ignore_errors: yes
