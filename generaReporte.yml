@@ -42,11 +42,11 @@
       shell: rm -rf /tmp/*
       ignore_errors: yes
 
-    - name: Enviar el archivo generado vía correo con sendmail
+    - name: Enviar el archivo generado vía correo con sendmail desde un mail dummy
       shell: |
         (
         echo "Subject: Reporte generado"
-        echo "From: juanpablo@betel-tech.cl"
+        echo "From: dummy@ejemplo.com"
         echo "To: jpreinosom@gmail.com"
         echo "MIME-Version: 1.0"
         echo "Content-Type: multipart/mixed; boundary=\"FILEBOUNDARY\""
@@ -62,4 +62,4 @@
         echo "Content-Disposition: attachment; filename=\"ejemplo.pdf\""
         base64 /home/ansible/resultado/ejemplo.pdf
         echo "--FILEBOUNDARY--"
-        ) | /usr/sbin/sendmail -t
+        ) | /usr/sbin/sendmail -t -f dummy@ejemplo.com
