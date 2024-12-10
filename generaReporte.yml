@@ -51,9 +51,6 @@
         msg: "El archivo ejemplo.pdf no existe en la ruta especificada"
       when: not example_pdf.stat.exists
 
-    - name: Codificar el archivo PDF en base64 y guardarlo en un archivo temporal
-      shell: base64 /home/ansible/resultado/ejemplo.pdf > /tmp/ejemplo_base64.txt
-
     - name: Limpiar el contenido de /tmp sin borrar el directorio
       shell: rm -rf /tmp/*
       ignore_errors: yes
@@ -76,7 +73,7 @@
         echo "Content-Type: application/pdf; name=\"ejemplo.pdf\""
         echo "Content-Transfer-Encoding: base64"
         echo "Content-Disposition: attachment; filename=\"ejemplo.pdf\""
-        # Codificando el archivo PDF desde el archivo base64 temporal
-        cat /tmp/ejemplo_base64.txt
+        # Codificando el archivo PDF y directamente insertando en el correo
+        base64 /home/ansible/resultado/ejemplo.pdf
         echo "--FILEBOUNDARY--"
         ) | /usr/sbin/sendmail -t -f juanpablo@betel-tech.cl
