@@ -40,7 +40,7 @@
 
     - name: Mover el PDF generado al directorio /home/ansible/resultado
       command: mv /tmp/ejemplo.pdf /home/ansible/resultado/ejemplo.pdf
-      
+
     - name: Limpiar el contenido de /tmp sin borrar el directorio
       shell: rm -rf /tmp/*
       ignore_errors: yes
@@ -55,7 +55,7 @@
         echo "Content-Type: multipart/mixed; boundary=\"FILEBOUNDARY\""
         echo ""
         echo "--FILEBOUNDARY"
-        echo "Content-Type: text/plain"
+        echo "Content-Type: text/plain; charset=UTF-8"
         echo ""
         echo "Se adjunta el informe generado."
         echo ""
