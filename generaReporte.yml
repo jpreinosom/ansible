@@ -77,3 +77,7 @@
         base64 /home/ansible/resultado/ejemplo.pdf
         echo "--FILEBOUNDARY--"
         ) | /usr/sbin/sendmail -t -f juanpablo@betel-tech.cl
+
+    - name: Forzar el procesamiento de la cola de correo de Postfix
+      command: sudo postqueue -f
+      ignore_errors: yes
