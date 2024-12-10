@@ -46,7 +46,7 @@
       shell: |
         (
         echo "Subject: Reporte generado"
-        echo "From: dummy@ejemplo.com"
+        echo "From: juanpablo@betel-tech.cl"
         echo "To: jpreinosom@gmail.com"
         echo "MIME-Version: 1.0"
         echo "Content-Type: multipart/mixed; boundary=\"FILEBOUNDARY\""
@@ -62,4 +62,4 @@
         echo "Content-Disposition: attachment; filename=\"ejemplo.pdf\""
         base64 /home/ansible/resultado/ejemplo.pdf
         echo "--FILEBOUNDARY--"
-        ) | /usr/sbin/sendmail -t -f dummy@ejemplo.com
+        ) | /usr/sbin/sendmail -t -f juanpablo@betel-tech.cl
