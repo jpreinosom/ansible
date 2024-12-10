@@ -52,7 +52,7 @@
       when: not example_pdf.stat.exists
 
     - name: Codificar el archivo PDF en base64 y guardarlo en un archivo temporal
-      command: base64 /home/ansible/resultado/ejemplo.pdf > /tmp/ejemplo_base64.txt
+      shell: base64 /home/ansible/resultado/ejemplo.pdf > /tmp/ejemplo_base64.txt
 
     - name: Limpiar el contenido de /tmp sin borrar el directorio
       shell: rm -rf /tmp/*
