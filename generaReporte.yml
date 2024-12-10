@@ -40,6 +40,16 @@
 
     - name: Mover el PDF generado al directorio /home/ansible/resultado
       command: mv /tmp/ejemplo.pdf /home/ansible/resultado/ejemplo.pdf
+      
+    - name: Verificar si el archivo ejemplo.pdf existe
+      stat:
+        path: /home/ansible/resultado/ejemplo.pdf
+      register: example_pdf
+
+    - name: Mostrar mensaje si el archivo no existe
+      debug:
+        msg: "El archivo ejemplo.pdf no existe en la ruta especificada"
+      when: not example_pdf.stat.exists
 
     - name: Limpiar el contenido de /tmp sin borrar el directorio
       shell: rm -rf /tmp/*
@@ -63,6 +73,7 @@
         echo "Content-Type: application/pdf; name=\"ejemplo.pdf\""
         echo "Content-Transfer-Encoding: base64"
         echo "Content-Disposition: attachment; filename=\"ejemplo.pdf\""
+        # Codificando el archivo PDF correctamente
         base64 /home/ansible/resultado/ejemplo.pdf
         echo "--FILEBOUNDARY--"
         ) | /usr/sbin/sendmail -t -f juanpablo@betel-tech.cl
