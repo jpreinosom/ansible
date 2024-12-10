@@ -38,6 +38,9 @@
         GEM_PATH: "/home/ansible/.local/share/gem/ruby:/usr/share/gems:/usr/local/share/gems"
         GEM_HOME: "/home/ansible/.local/share/gem/ruby"
 
+    - name: Mover el PDF generado al directorio /home/ansible/resultado
+      command: mv /tmp/ejemplo.pdf /home/ansible/resultado/ejemplo.pdf
+      
     - name: Limpiar el contenido de /tmp sin borrar el directorio
       shell: rm -rf /tmp/*
       ignore_errors: yes
