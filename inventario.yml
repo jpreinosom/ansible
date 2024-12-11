@@ -200,19 +200,19 @@
     - name: Obtener estado de suscripción en RedHat
       command: subscription-manager status
       register: subscription_status_output
-      when: ansible_distribution in ["RedHat", "CentOS", "AlmaLinux", "RockyLinux"]
+      when: ansible_distribution in ["RedHat"]
       ignore_errors: yes
 
     - name: Establecer estado de suscripción para RedHat
       set_fact:
         suscrita: "{{ 'Suscrita' if 'Overall Status: Current' in subscription_status_output.stdout else 'No Suscrita' }}"
-      when: ansible_distribution in ["RedHat", "CentOS", "AlmaLinux", "RockyLinux"]
+      when: ansible_distribution in ["RedHat"]
       ignore_errors: yes
 
     - name: Establecer estado de suscripción a "No aplica" para otras distribuciones
       set_fact:
         suscrita: "No aplica"
-      when: ansible_distribution not in ["RedHat", "CentOS", "AlmaLinux", "RockyLinux"]
+      when: ansible_distribution not in ["RedHat"]
 
 - name: Insertar registros en la tabla inventario en la base de datos
   hosts: grafana_hosts
@@ -222,7 +222,7 @@
       command: >
         psql -U grafana_user -d grafana_db -c "
         INSERT INTO inventario (
-          ip, distribucion, version, familia, soportada, eol, release
+          ip, distribucion, version, familia, soportada, eol, release, nombreMaquina, suscrita
         ) VALUES (
            '{{ item.IP }}',
           '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
@@ -231,7 +231,7 @@
           '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}',
           '{{ hostvars[item.IP]['eol_date']| default('No definido') }}',
           '{{ hostvars[item.IP]['release_date']| default('No definido') }}'
-          '{{ hostvars[item.IP]['nombreMaquina'] | default('No disponible') }}',
+          '{{ hostvars[item.IP]['nombre_maquina'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['suscrita'] | default('No aplica') }}'
         )"
       loop: "{{ hostvars['localhost']['csv_data'] }}"
