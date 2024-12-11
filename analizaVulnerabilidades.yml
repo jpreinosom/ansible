@@ -384,6 +384,14 @@
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
         - results_file_check_rhel.stat.exists
 
+    - name: Depurar score extraído (RHEL/CentOS)
+      debug:
+        var: scan_score_rhel.stdout
+      when:
+        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+        - scan_score_rhel is defined
+
+
     - name: Extraer el score del reporte OpenSCAP (Ubuntu/Debian)
       shell: |
         awk '
@@ -398,6 +406,13 @@
       when:
         - ansible_distribution in ["Ubuntu", "Debian"]
         - results_file_check_ubuntu.stat.exists
+
+    - name: Depurar score extraído (Ubuntu/Debian)
+      debug:
+        var: scan_score_ubuntu.stdout
+      when:
+        - ansible_distribution in ["Ubuntu", "Debian"]
+        - scan_score_ubuntu is defined
 
     # Parsear datos de vulnerabilidad en una lista (RHEL/CentOS)
     - name: Parse vulnerability data (RHEL/CentOS)
