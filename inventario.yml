@@ -230,7 +230,7 @@
           '{{ hostvars[item.IP]['os_family'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}',
           '{{ hostvars[item.IP]['eol_date']| default('No definido') }}',
-          '{{ hostvars[item.IP]['release_date']| default('No definido') }}'
+          '{{ hostvars[item.IP]['release_date']| default('No definido') }},'
           '{{ hostvars[item.IP]['nombre_maquina'] | default('No disponible') }}',
           '{{ hostvars[item.IP]['suscrita'] | default('No aplica') }}'
         )"
