@@ -372,8 +372,8 @@
     - name: Extraer el score del reporte OpenSCAP (RHEL/CentOS)
       shell: |
         awk '
-          /<score>/ {
-            match($0, /<score>([^<]+)<\/score>/, s)
+          /<score / {
+            match($0, /<score[^>]*>([^<]+)<\/score>/, s)
             if (s[1] != "") {
               print s[1]
             }
@@ -395,14 +395,14 @@
     - name: Extraer el score del reporte OpenSCAP (Ubuntu/Debian)
       shell: |
         awk '
-          /<score>/ {
-            match($0, /<score>([^<]+)<\/score>/, s)
+          /<score / {
+            match($0, /<score[^>]*>([^<]+)<\/score>/, s)
             if (s[1] != "") {
               print s[1]
             }
           }
         ' /tmp/openscap-results.xml
-      register: scan_score_ubuntu
+      register: scan_score_ubuntu 
       when:
         - ansible_distribution in ["Ubuntu", "Debian"]
         - results_file_check_ubuntu.stat.exists
