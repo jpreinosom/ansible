@@ -119,11 +119,12 @@
       debug:
         msg: "Hosts en grafana_hosts: {{ groups['grafana_hosts'] }}"
 
+
 - name: Ejecutar análisis de vulnerabilidades con OpenSCAP en dynamic_hosts
   hosts: dynamic_hosts
   gather_facts: yes
   become: yes
-  strategy: free  # Permite que los hosts ejecuten tareas independientemente
+  strategy: free
   tasks:
     - name: Depurar ansible_distribution
       debug:
@@ -158,7 +159,7 @@
         - ansible_distribution in ["Ubuntu", "Debian"]
         - awk_check_ubuntu.failed
 
-    # Ejecutar análisis de vulnerabilidades con OpenSCAP de forma asíncrona
+    # Ejecutar análisis OpenSCAP (RHEL/AlmaLinux/RockyLinux)
     - name: Ejecutar análisis de vulnerabilidades con OpenSCAP (RHEL/AlmaLinux/RockyLinux)
       command:
         argv:
@@ -173,8 +174,8 @@
           - '/tmp/openscap-report.html'
           - '/usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml'
       register: scan_result_rhel
-      async: 3600  # Tiempo máximo de ejecución en segundos
-      poll: 0      # No esperar a que la tarea termine
+      async: 3600
+      poll: 0
       changed_when: false
       failed_when: false
       when: ansible_distribution in ["RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
@@ -228,7 +229,7 @@
       retries: 60
       delay: 10
       when: scan_result_rhel.ansible_job_id is defined
-      failed_when: false  # Evita que la tarea falle automáticamente
+      failed_when: false
 
     - name: Esperar a que terminen los análisis de OpenSCAP (CentOS)
       async_status:
@@ -238,7 +239,7 @@
       retries: 60
       delay: 10
       when: scan_result_centos.ansible_job_id is defined
-      failed_when: false  # Evita que la tarea falle automáticamente
+      failed_when: false
 
     - name: Esperar a que terminen los análisis de OpenSCAP (Ubuntu/Debian)
       async_status:
@@ -248,9 +249,9 @@
       retries: 60
       delay: 10
       when: scan_result_ubuntu.ansible_job_id is defined
-      failed_when: false  # Evita que la tarea falle automáticamente
+      failed_when: false
 
-    # Manejar los resultados de las tareas asíncronas
+    # Manejar resultados de las tareas asíncronas
     - name: Manejar resultado del análisis de OpenSCAP (RHEL)
       set_fact:
         scan_output_rhel: "{{ job_result_rhel }}"
@@ -269,7 +270,7 @@
       when:
         - job_result_ubuntu is defined
 
-    # Verificar y procesar los resultados
+    # Verificar resultados
     - name: Verificar resultados de OpenSCAP (RHEL)
       fail:
         msg: "El análisis de OpenSCAP en {{ inventory_hostname }} para RHEL/CentOS falló."
@@ -294,26 +295,7 @@
         - scan_output_ubuntu.rc is defined
         - scan_output_ubuntu.rc not in [0, 2]
 
-    # Tareas de depuración para verificar el contenido de los resultados
-    - name: Depurar scan_output_rhel
-      debug:
-        var: scan_output_rhel
-      when:
-        - scan_output_rhel is defined
-
-    - name: Depurar scan_output_centos
-      debug:
-        var: scan_output_centos
-      when:
-        - scan_output_centos is defined
-
-    - name: Depurar scan_output_ubuntu
-      debug:
-        var: scan_output_ubuntu
-      when:
-        - scan_output_ubuntu is defined
-
-    # Verificar si el archivo de resultados existe (RHEL/CentOS/Ubuntu/Debian)
+    # Verificar el archivo de resultados
     - name: Verificar si el archivo de resultados existe (RHEL/CentOS)
       stat:
         path: /tmp/openscap-results.xml
@@ -340,6 +322,7 @@
         - ansible_distribution in ["Ubuntu", "Debian"]
         - not results_file_check_ubuntu.stat.exists
 
+    # Extraer vulnerabilidades (RHEL/CentOS)
     - name: Extraer valores del archivo de resultados XML (RHEL/CentOS)
       shell: |
         awk '
@@ -362,6 +345,7 @@
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
         - results_file_check_rhel.stat.exists
 
+    # Extraer vulnerabilidades (Ubuntu/Debian)
     - name: Extraer valores del archivo de resultados XML (Ubuntu/Debian)
       shell: |
         awk '
@@ -384,20 +368,38 @@
         - ansible_distribution in ["Ubuntu", "Debian"]
         - results_file_check_ubuntu.stat.exists
 
-    - name: Depurar xml_vuln_data_rhel.stdout
-      debug:
-        var: xml_vuln_data_rhel.stdout
+    # >>> Nuevo <<<: Extraer el score con awk
+    - name: Extraer el score del reporte OpenSCAP (RHEL/CentOS)
+      shell: |
+        awk '
+          /<score>/ {
+            match($0, /<score>([^<]+)<\/score>/, s)
+            if (s[1] != "") {
+              print s[1]
+            }
+          }
+        ' /tmp/openscap-results.xml
+      register: scan_score_rhel
       when:
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
-        - xml_vuln_data_rhel.stdout is defined
+        - results_file_check_rhel.stat.exists
 
-    - name: Depurar xml_vuln_data_ubuntu.stdout
-      debug:
-        var: xml_vuln_data_ubuntu.stdout
+    - name: Extraer el score del reporte OpenSCAP (Ubuntu/Debian)
+      shell: |
+        awk '
+          /<score>/ {
+            match($0, /<score>([^<]+)<\/score>/, s)
+            if (s[1] != "") {
+              print s[1]
+            }
+          }
+        ' /tmp/openscap-results.xml
+      register: scan_score_ubuntu
       when:
         - ansible_distribution in ["Ubuntu", "Debian"]
-        - xml_vuln_data_ubuntu.stdout is defined
+        - results_file_check_ubuntu.stat.exists
 
+    # Parsear datos de vulnerabilidad en una lista (RHEL/CentOS)
     - name: Parse vulnerability data (RHEL/CentOS)
       set_fact:
         vulnerability_data_host: "{{ vulnerability_data_host | default([]) + [{'idref': idref, 'result': result, 'severity': severity, 'ip': ansible_host}] }}"
@@ -410,6 +412,7 @@
         - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
         - xml_vuln_data_rhel.stdout
 
+    # Parsear datos de vulnerabilidad (Ubuntu/Debian)
     - name: Parse vulnerability data (Ubuntu/Debian)
       set_fact:
         vulnerability_data_host: "{{ vulnerability_data_host | default([]) + [{'idref': idref, 'result': result, 'severity': severity, 'ip': ansible_host}] }}"
@@ -422,6 +425,27 @@
         - ansible_distribution in ["Ubuntu", "Debian"]
         - xml_vuln_data_ubuntu.stdout
 
+    # >>> Nuevo <<<: Agregar el score a cada vulnerabilidad (asumiendo que es el mismo para todo el host)
+    - name: Agregar score a la lista de vulnerabilidades (RHEL/CentOS)
+      set_fact:
+        vulnerability_data_host: >-
+          {{ vulnerability_data_host | default([]) |
+             map('combine', {'score': scan_score_rhel.stdout}) | list }}
+      when:
+        - ansible_distribution in ["CentOS", "RedHat", "OracleLinux", "AlmaLinux", "RockyLinux"]
+        - vulnerability_data_host is defined
+        - scan_score_rhel is defined
+
+    - name: Agregar score a la lista de vulnerabilidades (Ubuntu/Debian)
+      set_fact:
+        vulnerability_data_host: >-
+          {{ vulnerability_data_host | default([]) |
+             map('combine', {'score': scan_score_ubuntu.stdout}) | list }}
+      when:
+        - ansible_distribution in ["Ubuntu", "Debian"]
+        - vulnerability_data_host is defined
+        - scan_score_ubuntu is defined
+
     - name: Guardar vulnerabilidades en una variable para cada host
       set_fact:
         host_vulnerabilities: "{{ vulnerability_data_host }}"
@@ -431,6 +455,7 @@
       debug:
         var: host_vulnerabilities
       when: host_vulnerabilities is defined
+
 
 - name: Guardar vulnerabilidades en la base de datos
   hosts: grafana_hosts
@@ -450,7 +475,7 @@
       debug:
         var: all_vulnerability_data
 
-    - name: Generar archivo SQL para inserciones
+    - name: Generar archivo SQL para inserciones de vulnerabilidades
       copy:
         dest: /tmp/insert_vulnerabilities.sql
         content: |
@@ -459,8 +484,38 @@
           {% endfor %}
       when: all_vulnerability_data | length > 0
 
-    - name: Ejecutar archivo SQL
+    - name: Ejecutar archivo SQL para vulnerabilidades
       command: psql -U {{ vulnerability_user }} -d {{ vulnerability_db }} -f /tmp/insert_vulnerabilities.sql
       environment:
         PGPASSWORD: "{{ vulnerability_password }}"
       when: all_vulnerability_data | length > 0
+
+    # >>> Nuevo <<<: Recolectar scores de cada host (solo necesitamos un score por host)
+    - name: Recolectar scores de cada host
+      set_fact:
+        all_scores: "{{ all_scores | default([]) + [{'ip': hostvars[item].host_vulnerabilities[0].ip, 'score': hostvars[item].host_vulnerabilities[0].score}] }}"
+      loop: "{{ groups['dynamic_hosts'] }}"
+      when:
+        - hostvars[item].host_vulnerabilities is defined
+        - hostvars[item].host_vulnerabilities|length > 0
+
+    - name: Depurar all_scores
+      debug:
+        var: all_scores
+      when: all_scores is defined
+
+    # Generar el archivo SQL para insertar scores
+    - name: Generar archivo SQL para inserciones de score
+      copy:
+        dest: /tmp/insert_score.sql
+        content: |
+          {% for sc in all_scores %}
+          INSERT INTO public.vulnerabilidad_score(ip, score) VALUES ('{{ sc.ip }}', '{{ sc.score }}');
+          {% endfor %}
+      when: all_scores is defined and all_scores | length > 0
+
+    - name: Ejecutar archivo SQL para scores
+      command: psql -U {{ vulnerability_user }} -d {{ vulnerability_db }} -f /tmp/insert_score.sql
+      environment:
+        PGPASSWORD: "{{ vulnerability_password }}"
+      when: all_scores is defined and all_scores | length > 0
