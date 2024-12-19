@@ -17,50 +17,12 @@
   hosts: local
   gather_facts: no
   vars:
-    grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
     aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
     aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
     aws_region: "us-east-1"  # Ajustar a tu región
     key_name: "ansible"      # Nombre de la key pair de AWS
   tasks:
-    - name: Verificar que el archivo Grafana CSV existe
-      stat:
-        path: "{{ grafana_file }}"
-      register: grafana_file_check
-
-    - name: Fallar si el archivo de inventario Grafana no existe
-      fail:
-        msg: "El archivo de inventario {{ grafana_file }} no existe."
-      when: not grafana_file_check.stat.exists
-
-    - name: Leer contenido del archivo Grafana CSV
-      set_fact:
-        grafana_csv_content: "{{ lookup('file', grafana_file) }}"
-
-    - name: Extraer encabezados del archivo Grafana CSV
-      set_fact:
-        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
-
-    - name: Extraer filas del archivo Grafana CSV
-      set_fact:
-        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
-
-    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
-      fail:
-        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
-      when: row | length != grafana_headers | length
-      loop: "{{ grafana_rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
-      set_fact:
-        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
-      loop: "{{ grafana_rows }}"
-      loop_control:
-        loop_var: row
-
     - name: Listar instancias EC2 en AWS (usando amazon.aws.ec2_instance_facts)
       amazon.aws.ec2_instance:
         region: "{{ aws_region }}"
@@ -202,30 +164,3 @@
       set_fact:
         suscrita: "No aplica"
       when: ansible_distribution not in ["RedHat"]
-
-- name: Insertar registros en la tabla inventario en la base de datos
-  hosts: grafana_hosts
-  become: yes
-  tasks:
-    - name: Insertar registros desde dynamic_hosts en la base de datos
-      command: >
-        psql -U grafana_user -d grafana_db -c "
-        INSERT INTO inventario (
-          ip, distribucion, version, familia, soportada, eol, release, nombre, suscrita
-        ) VALUES (
-           '{{ item.IP }}',
-          '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
-          '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
-          '{{ hostvars[item.IP]['os_family'] | default('No disponible') }}',
-          '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}',
-          '{{ hostvars[item.IP]['eol_date']| default('No definido') }}',
-          '{{ hostvars[item.IP]['release_date']| default('No definido') }}',
-          '{{ hostvars[item.IP]['nombre_maquina'] | default('No disponible') }}',
-          '{{ hostvars[item.IP]['suscrita'] | default('No aplica') }}'
-        )"
-      loop: "{{ hostvars['localhost']['grafana_csv_data'] }}"
-      loop_control:
-        loop_var: item
-      environment:
-        PGPASSWORD: "grafana_password"
-      become: no
