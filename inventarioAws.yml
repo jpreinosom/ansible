@@ -22,7 +22,15 @@
     aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
     aws_region: "us-east-1"  # Ajustar a tu región
     key_name: "ansible"      # Nombre de la key pair de AWS
+    
   tasks:
+    - name: Mostrar la instalación de aws_access_key 
+      debug:
+        msg: "{{ aws_access_key}}"
+    - name: Mostrar la instalación de aws_secret_key
+      debug:
+        msg: "{{ aws_secret_key}}"
+
     - name: Listar instancias EC2 en AWS (usando amazon.aws.ec2_instance_facts)
       amazon.aws.ec2_instance:
         region: "{{ aws_region }}"
