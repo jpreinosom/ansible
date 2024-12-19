@@ -1,25 +1,28 @@
 ---
-- name: Instalar colecciones necesarias para interactuar con AWS y procesar los datos
-  hosts: localhost
+# Este playbook asegura que la colección amazon.aws esté instalada
+# antes de ejecutar las tareas que requieren el módulo ec2_instance_facts.
+
+- name: Asegurar que la colección amazon.aws esté instalada
+  hosts: local
   gather_facts: no
   tasks:
-    - name: Instalar la colección amazon.aws si no está instalada
-      ansible.builtin.pip:
-        name: "amazon.aws"
-        state: present
-      become: yes
-      tags: install
-
-    - name: Verificar que la colección amazon.aws esté instalada
-      command: ansible-galaxy collection list amazon.aws
-      register: result
+    - name: Instalar la colección amazon.aws
+      ansible.builtin.command:
+        cmd: "ansible-galaxy collection install amazon.aws --force"
+      register: install_result
       changed_when: false
 
-    - name: Mostrar la instalación de amazon.aws
-      debug:
-        msg: "{{ result.stdout }}"
+    - name: Verificar que la colección amazon.aws está instalada
+      ansible.builtin.command:
+        cmd: "ansible-galaxy collection list amazon.aws"
+      register: verify_result
+      changed_when: false
 
-- name: Leer y procesar el archivo Grafana CSV y listar instancias EC2 en AWS
+    - name: Mostrar la versión instalada de amazon.aws
+      debug:
+        msg: "{{ verify_result.stdout }}"
+
+- name: Leer y procesar el archivo Grafana CSV, obtener instancias EC2 y agregar hosts
   hosts: localhost
   gather_facts: no
   vars:
@@ -27,8 +30,8 @@
     delimiter: ";"
     aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
     aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
-    aws_region: "us-east-1"  # Define tu región de AWS aquí
-    key_name: "ansible"  # Nombre de la key pair de AWS
+    aws_region: "us-east-1"  # Ajustar a tu región
+    key_name: "ansible"      # Nombre de la key pair de AWS
   tasks:
     - name: Verificar que el archivo Grafana CSV existe
       stat:
@@ -67,7 +70,7 @@
       loop_control:
         loop_var: row
 
-    - name: Listar instancias EC2 en AWS
+    - name: Listar instancias EC2 en AWS (usando amazon.aws.ec2_instance_facts)
       amazon.aws.ec2_instance_facts:
         region: "{{ aws_region }}"
         aws_access_key: "{{ aws_access_key }}"
@@ -84,8 +87,8 @@
         name: "{{ item.public_ip }}"
         groups: dynamic_hosts
         ansible_host: "{{ item.public_ip }}"
-        ansible_user: ec2-user  # Usualmente para Amazon Linux
-        ansible_ssh_private_key_file: "/home/ansible/ansible.pem"  # Ruta a tu archivo .pem de la key pair
+        ansible_user: ec2-user
+        ansible_ssh_private_key_file: "/home/ansible/ansible.pem"
         ansible_connection: ssh
         remote_tmp: /tmp/ansible
       loop: "{{ ec2_facts.instances }}"
@@ -118,9 +121,9 @@
 
     - name: Obtener la fecha actual del sistema
       set_fact:
-        current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
+        current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"
 
-    - name: Mostrar información del sistema 
+    - name: Mostrar información del sistema
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
 
