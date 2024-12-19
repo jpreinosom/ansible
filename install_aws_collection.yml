@@ -1,0 +1,20 @@
+---
+- name: Instalar colecciones necesarias para interactuar con AWS
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Instalar colección amazon.aws
+      ansible.builtin.pip:
+        name: "amazon.aws"
+        state: present
+      become: yes
+      tags: install
+
+    - name: Verificar que la colección amazon.aws está instalada
+      command: ansible-galaxy collection list amazon.aws
+      register: result
+      changed_when: false
+
+    - name: Mostrar la instalación de amazon.aws
+      debug:
+        msg: "{{ result.stdout }}"
