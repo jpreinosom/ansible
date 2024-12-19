@@ -1,6 +1,6 @@
 ---
 - name: Instalar colecciones necesarias para interactuar con AWS
-  hosts: localhost
+  hosts: local
   gather_facts: no
   tasks:
     - name: Instalar la colección amazon.aws utilizando pip
