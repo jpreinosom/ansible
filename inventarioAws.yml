@@ -20,20 +20,12 @@
     aws_region: "us-east-1"  # Ajustar a tu región
     key_name: "ansible"      # Nombre de la key pair de AWS
   tasks:
-    - name: Configurar las credenciales de AWS usando boto3
-      set_fact:
-        aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
-        aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
+    # Ya no configuramos ni mostramos credenciales, se asume que la credencial AWS 
+    # está configurada a nivel de Job Template en AAP.
 
-    - name: Mostrar las credenciales de AWS (debug)
-      debug:
-        msg: "AWS Access Key: {{ aws_access_key }}, AWS Secret Key: {{ aws_secret_key }}"
-
-    - name: Listar instancias EC2 en AWS (usando amazon.aws.ec2_instance_facts)
+    - name: Listar instancias EC2 en AWS
       amazon.aws.ec2_instance:
         region: "{{ aws_region }}"
-        aws_access_key: "{{ aws_access_key }}"
-        aws_secret_key: "{{ aws_secret_key }}"
       register: ec2_facts
 
     - name: Verificar que se han encontrado instancias EC2
