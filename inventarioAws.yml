@@ -3,12 +3,7 @@
   hosts: local
   gather_facts: no
   tasks:
-    - name: Instalar la colección amazon.aws utilizando pip
-      ansible.builtin.pip:
-        name: "amazon.aws"
-        state: present
-      become: yes  # Asegúrate de tener permisos de administrador si es necesario
-
+   
     - name: Verificar que la colección amazon.aws esté instalada
       command: ansible-galaxy collection list amazon.aws
       register: result
