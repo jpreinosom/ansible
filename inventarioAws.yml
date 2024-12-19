@@ -3,7 +3,6 @@
   hosts: local
   gather_facts: no
   tasks:
-   
     - name: Verificar que la colección amazon.aws esté instalada
       command: ansible-galaxy collection list amazon.aws
       register: result
@@ -18,18 +17,17 @@
   gather_facts: no
   vars:
     delimiter: ";"
-    aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
-    aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
     aws_region: "us-east-1"  # Ajustar a tu región
     key_name: "ansible"      # Nombre de la key pair de AWS
-    
   tasks:
-    - name: Mostrar la instalación de aws_access_key 
+    - name: Configurar las credenciales de AWS usando boto3
+      set_fact:
+        aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
+        aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
+
+    - name: Mostrar las credenciales de AWS (debug)
       debug:
-        msg: "{{ aws_access_key}}"
-    - name: Mostrar la instalación de aws_secret_key
-      debug:
-        msg: "{{ aws_secret_key}}"
+        msg: "AWS Access Key: {{ aws_access_key }}, AWS Secret Key: {{ aws_secret_key }}"
 
     - name: Listar instancias EC2 en AWS (usando amazon.aws.ec2_instance_facts)
       amazon.aws.ec2_instance:
