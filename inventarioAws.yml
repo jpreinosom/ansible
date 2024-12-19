@@ -2,7 +2,7 @@
 # playbooks/analizar_vulnerabilidades.yml
 
 - name: Leer y procesar el archivo Grafana CSV
-  hosts: localhost
+  hosts: local
   gather_facts: no
   vars:
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
