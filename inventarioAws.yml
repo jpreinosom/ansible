@@ -18,19 +18,20 @@
   vars:
     delimiter: ";"
     aws_region: "us-east-1"  # Ajustar a tu región
-    key_name: "ansible"      # Nombre de la key pair de AWS
+    key_name: "ansible"      # Nombre de la key pair
+    vpc_id: "vpc-022be8fc39b5294ff"
   tasks:
-    # Ya no configuramos ni mostramos credenciales, se asume que la credencial AWS 
-    # está configurada a nivel de Job Template en AAP.
-
+    # Listar instancias en el VPC especificado
     - name: Listar instancias EC2 en AWS
-      amazon.aws.ec2_instance:
+      amazon.aws.ec2_instance_info:
         region: "{{ aws_region }}"
+        filters:
+          "vpc-id": "{{ vpc_id }}"
       register: ec2_facts
 
     - name: Verificar que se han encontrado instancias EC2
       fail:
-        msg: "No se encontraron instancias EC2 en la región {{ aws_region }}"
+        msg: "No se encontraron instancias EC2 en la región {{ aws_region }} dentro del VPC {{ vpc_id }}"
       when: ec2_facts.instances | length == 0
 
     - name: Agregar instancias EC2 al grupo 'dynamic_hosts'
@@ -47,6 +48,7 @@
         loop_var: item
 
     - name: Agregar hosts dinámicamente al grupo 'grafana_hosts' desde el archivo Grafana CSV
+      # Suponemos que 'grafana_csv_data' está disponible en el contexto (por ejemplo, vía include_vars)
       add_host:
         name: "{{ item.IP }}"
         groups: grafana_hosts
