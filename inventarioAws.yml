@@ -1,29 +1,25 @@
 ---
-# Este playbook asegura que la colección amazon.aws esté instalada
-# antes de ejecutar las tareas que requieren el módulo ec2_instance_facts.
-
-- name: Asegurar que la colección amazon.aws esté instalada
-  hosts: local
+- name: Instalar colecciones necesarias para interactuar con AWS
+  hosts: localhost
   gather_facts: no
   tasks:
-    - name: Instalar la colección amazon.aws
-      ansible.builtin.command:
-        cmd: "ansible-galaxy collection install amazon.aws --force"
-      register: install_result
+    - name: Instalar la colección amazon.aws utilizando pip
+      ansible.builtin.pip:
+        name: "amazon.aws"
+        state: present
+      become: yes  # Asegúrate de tener permisos de administrador si es necesario
+
+    - name: Verificar que la colección amazon.aws esté instalada
+      command: ansible-galaxy collection list amazon.aws
+      register: result
       changed_when: false
 
-    - name: Verificar que la colección amazon.aws está instalada
-      ansible.builtin.command:
-        cmd: "ansible-galaxy collection list amazon.aws"
-      register: verify_result
-      changed_when: false
-
-    - name: Mostrar la versión instalada de amazon.aws
+    - name: Mostrar la instalación de amazon.aws
       debug:
-        msg: "{{ verify_result.stdout }}"
+        msg: "{{ result.stdout }}"
 
 - name: Leer y procesar el archivo Grafana CSV, obtener instancias EC2 y agregar hosts
-  hosts: localhost
+  hosts: local
   gather_facts: no
   vars:
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
@@ -121,9 +117,9 @@
 
     - name: Obtener la fecha actual del sistema
       set_fact:
-        current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"
+        current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
 
-    - name: Mostrar información del sistema
+    - name: Mostrar información del sistema 
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
 
