@@ -1,54 +1,219 @@
 ---
-# YAML documents begin with the document separator ---
+# playbooks/analizar_vulnerabilidades.yml
 
-# The minus in YAML this indicates a list item.  The playbook contains a list
-# of plays, with each play being a dictionary
--
-
-  # Hosts: where our play will run and options it will run with
-  hosts: local
-  connection: local
-  gather_facts: false
-
-  # Tasks: the list of tasks that will be executed within the play, this section
-  # can also be used for pre and post tasks
+- name: Leer y procesar el archivo Grafana CSV
+  hosts: localhost
+  gather_facts: no
+  vars:
+    grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
+    delimiter: ";"
+    aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
+    aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
+    aws_region: "us-east-1"  # Define tu región de AWS aquí
+    key_name: "ansible"  # Nombre de la key pair de AWS
   tasks:
-    - name: Create a security group in AWS for SSH access and HTTP
-      ec2_group:
-         name: ansible
-         description: Ansible Security Group
-         region: us-east-1
-         rules:
-            - proto: tcp
-              from_port: 80
-              to_port: 80
-              cidr_ip: 0.0.0.0/0
-            - proto: tcp
-              from_port: 22
-              to_port: 22
-              cidr_ip: 0.0.0.0/0
+    - name: Verificar que el archivo Grafana CSV existe
+      stat:
+        path: "{{ grafana_file }}"
+      register: grafana_file_check
 
-    - name: Provision a set of instances and/or capture existing information
-      ec2_instance:
-        key_name: ansible
-        name: Ansible
-        security_group: ansible
-        instance_type: t2.micro
-        image_id: ami-0fe630eb857a6ec83
-        region: us-east-1
-        wait: true
-        count: 20
-      register: ec2
+    - name: Fallar si el archivo de inventario Grafana no existe
+      fail:
+        msg: "El archivo de inventario {{ grafana_file }} no existe."
+      when: not grafana_file_check.stat.exists
 
-    - name: Add all instance public IPs to host group
+    - name: Leer contenido del archivo Grafana CSV
+      set_fact:
+        grafana_csv_content: "{{ lookup('file', grafana_file) }}"
+
+    - name: Extraer encabezados del archivo Grafana CSV
+      set_fact:
+        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del archivo Grafana CSV
+      set_fact:
+        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != grafana_headers | length
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
+      set_fact:
+        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Listar instancias EC2 en AWS
+      ec2_instance_facts:
+        region: "{{ aws_region }}"
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+      register: ec2_facts
+
+    - name: Verificar que se han encontrado instancias EC2
+      fail:
+        msg: "No se encontraron instancias EC2 en la región {{ aws_region }}"
+      when: ec2_facts.instances | length == 0
+
+    - name: Agregar instancias EC2 al grupo 'dynamic_hosts'
       add_host:
-        hostname: "{{ item.public_ip_address }}"
-        groups: ansiblehosts
-      with_items: "{{ ec2.instances }}"
+        name: "{{ item.public_ip }}"
+        groups: dynamic_hosts
+        ansible_host: "{{ item.public_ip }}"
+        ansible_user: ec2-user  # Usualmente para Amazon Linux
+        ansible_ssh_private_key_file: "/home/ansible/ansible.pem"  # Ruta a tu archivo .pem de la key pair
+        ansible_connection: ssh
+        remote_tmp: /tmp/ansible
+      loop: "{{ ec2_facts.instances }}"
+      loop_control:
+        loop_var: item
 
-    - name: Show group
+    - name: Agregar hosts dinámicamente al grupo 'grafana_hosts' desde el archivo Grafana CSV
+      add_host:
+        name: "{{ item.IP }}"
+        groups: grafana_hosts
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
+        ansible_connection: ssh
+        ansible_ssh_pass: "{{ item.Contraseña }}"
+      loop: "{{ grafana_csv_data }}"
+      loop_control:
+        loop_var: item
+
+- name: Obtener información y verificar EoL de los servidores
+  hosts: dynamic_hosts
+  gather_facts: yes
+  vars_files:
+    - vars/eol_map.yml
+    - vars/release_map.yml
+  tasks:
+    - name: Determinar la familia del sistema operativo
+      set_fact:
+        os_family: "Linux"
+
+    - name: Obtener la fecha actual del sistema
+      set_fact:
+        current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
+
+    - name: Mostrar información del sistema 
       debug:
-        var: groups.ansiblehosts
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
 
-# Three dots indicate the end of a YAML document
-...
+    - name: Determinar la fecha de EoL para la distribución y versión
+      set_fact:
+        eol_date: >-
+          {{
+            (eol_map.get(ansible_distribution, {})
+            | dict2items
+            | selectattr('key', '==', ansible_distribution_version)
+            | map(attribute='value')
+            | list
+            | first)
+            | default(
+              (eol_map.get(ansible_distribution, {})
+              | dict2items
+              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
+              | map(attribute='value')
+              | list
+              | first),
+              'No definido'
+            )
+          }}
+
+    - name: Determinar la fecha de lanzamiento para la distribución y versión
+      set_fact:
+        release_date: >-
+          {{
+            (release_map.get(ansible_distribution, {})
+            | dict2items
+            | selectattr('key', '==', ansible_distribution_version)
+            | map(attribute='value')
+            | list
+            | first)
+            | default(
+              (release_map.get(ansible_distribution, {})
+              | dict2items
+              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
+              | map(attribute='value')
+              | list
+              | first),
+              'No definido'
+            )
+          }}
+
+    - name: Establecer el estado de suscripción
+      set_fact:
+        subscription_status: >-
+          {% if eol_date != 'No definido' %}
+            {% if current_date | int > (eol_date | regex_replace('-', '') | int) %}
+              Deprecado
+            {% else %}
+              Soportada
+            {% endif %}
+          {% else %}
+            Versión sin fecha establecida de EoL
+          {% endif %}
+
+    - name: Mostrar información del sistema operativo
+      debug:
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, EOL: {{ eol_date }}, Release: {{ release_date }}, Estado de suscripción: {{ subscription_status }}"
+
+- name: Obtener nombre de la máquina y estado de suscripción (para RedHat)
+  hosts: dynamic_hosts
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: Obtener nombre de la máquina (FQDN)
+      set_fact:
+        nombre_maquina: "{{ ansible_fqdn | default(ansible_hostname) }}"
+
+    - name: Obtener estado de suscripción en RedHat
+      command: subscription-manager status
+      register: subscription_status_output
+      when: ansible_distribution in ["RedHat"]
+      ignore_errors: yes
+
+    - name: Establecer estado de suscripción para RedHat
+      set_fact:
+        suscrita: "{{ 'Suscrita' if 'Overall Status: Current' in subscription_status_output.stdout else 'No Suscrita' }}"
+      when: ansible_distribution in ["RedHat"]
+      ignore_errors: yes
+
+    - name: Establecer estado de suscripción a "No aplica" para otras distribuciones
+      set_fact:
+        suscrita: "No aplica"
+      when: ansible_distribution not in ["RedHat"]
+
+- name: Insertar registros en la tabla inventario en la base de datos
+  hosts: grafana_hosts
+  become: yes
+  tasks:
+    - name: Insertar registros desde dynamic_hosts en la base de datos
+      command: >
+        psql -U grafana_user -d grafana_db -c "
+        INSERT INTO inventario (
+          ip, distribucion, version, familia, soportada, eol, release, nombre, suscrita
+        ) VALUES (
+           '{{ item.IP }}',
+          '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
+          '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
+          '{{ hostvars[item.IP]['os_family'] | default('No disponible') }}',
+          '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}',
+          '{{ hostvars[item.IP]['eol_date']| default('No definido') }}',
+          '{{ hostvars[item.IP]['release_date']| default('No definido') }}',
+          '{{ hostvars[item.IP]['nombre_maquina'] | default('No disponible') }}',
+          '{{ hostvars[item.IP]['suscrita'] | default('No aplica') }}'
+        )"
+      loop: "{{ hostvars['localhost']['grafana_csv_data'] }}"
+      loop_control:
+        loop_var: item
+      environment:
+        PGPASSWORD: "grafana_password"
+      become: no
