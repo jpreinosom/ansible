@@ -40,7 +40,7 @@
     - name: Ver contenido de ec2_facts
       debug:
         var: ec2_facts.instances
-        
+
     - name: Agregar instancias EC2 al grupo 'dynamic_hosts'
       add_host:
         name: "{{ item.public_ip_address }}"
@@ -51,20 +51,6 @@
         ansible_connection: ssh
         remote_tmp: /tmp/ansible
       loop: "{{ ec2_facts.instances }}"
-      loop_control:
-        loop_var: item
-
-    - name: Agregar hosts dinámicamente al grupo 'grafana_hosts' desde el archivo Grafana CSV
-      # Suponemos que 'grafana_csv_data' está disponible en el contexto
-      add_host:
-        name: "{{ item.IP }}"
-        groups: grafana_hosts
-        ansible_host: "{{ item.IP }}"
-        ansible_user: "{{ item.Usuario }}"
-        ansible_password: "{{ item.Contraseña }}"
-        ansible_connection: ssh
-        ansible_ssh_pass: "{{ item.Contraseña }}"
-      loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
 
