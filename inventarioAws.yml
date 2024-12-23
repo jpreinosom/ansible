@@ -17,16 +17,19 @@
   gather_facts: no
   vars:
     delimiter: ";"
-    aws_region: "us-east-1"  # Ajustar a tu región
-    key_name: "ansible"      # Nombre de la key pair
+    aws_region: "us-east-1"       # Ajustar a tu región
+    key_name: "ansible"           # Nombre de la key pair
     vpc_id: "vpc-022be8fc39b5294ff"
+  vars_files:
+    - vars/aws_credentials.yml    # <-- tu archivo Vaulted con aws_access_key y aws_secret_key
   tasks:
-    # Listar instancias en el VPC especificado
     - name: Listar instancias EC2 en AWS
       amazon.aws.ec2_instance_info:
         region: "{{ aws_region }}"
         filters:
           "vpc-id": "{{ vpc_id }}"
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
       register: ec2_facts
 
     - name: Verificar que se han encontrado instancias EC2
@@ -48,7 +51,7 @@
         loop_var: item
 
     - name: Agregar hosts dinámicamente al grupo 'grafana_hosts' desde el archivo Grafana CSV
-      # Suponemos que 'grafana_csv_data' está disponible en el contexto (por ejemplo, vía include_vars)
+      # Suponemos que 'grafana_csv_data' está disponible en el contexto
       add_host:
         name: "{{ item.IP }}"
         groups: grafana_hosts
