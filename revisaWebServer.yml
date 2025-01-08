@@ -194,10 +194,20 @@
         var: ssl_cert_expiration
       when: ssl_cert_expiration is defined
 
+    - name: "Obtener la fecha actual como datetime"
+      set_fact:
+        current_time: "{{ ansible_date_time.iso8601 | to_datetime('%Y-%m-%dT%H:%M:%S%z') }}"
+      when: ansible_date_time.iso8601 is defined
+
+    - name: "Verificar el valor de current_time"
+      debug:
+        var: current_time
+      when: current_time is defined
+
     - name: "Calcular días restantes para vencimiento"
       set_fact:
-        days_left: "{{ (ssl_cert_expiration - (ansible_date_time.iso8601 | to_datetime('%Y-%m-%dT%H:%M:%S%z'))).days }}"
-      when: ssl_cert_expiration is defined
+        days_left: "{{ (ssl_cert_expiration - current_time).days }}"
+      when: ssl_cert_expiration is defined and current_time is defined
 
     - name: "Mostrar resultado en pantalla (debug)"
       debug:
