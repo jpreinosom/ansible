@@ -184,17 +184,3 @@
     - name: "Mostrar resultado en pantalla (debug)"
       debug:
         msg: "El certificado de {{ inventory_hostname }} vence en {{ days_left }} días (Expira el: {{ ssl_cert_expiration }})."
-
-    - name: "Enviar alerta por correo si faltan menos de {{ alert_days }} días"
-      mail:
-        host: "smtp.servidor.de.correo"       # Cambia al servidor de correo que uses
-        port: 25                              # Ajusta el puerto según tu configuración
-        to: "{{ email_recipients | join(',') }}"
-        from: "alertas-certificados@aguasandinas.cl"
-        subject: "ALERTA: Certificado SSL próximo a vencer en {{ inventory_hostname }}"
-        body: |-
-          El certificado SSL de {{ inventory_hostname }} vence en {{ days_left }} días.
-          Fecha de expiración: {{ ssl_cert_expiration }}.
-          Por favor, inicie el proceso de renovación.
-
-      when: days_left is defined and days_left < alert_days
