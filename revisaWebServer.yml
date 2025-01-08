@@ -8,6 +8,8 @@
     input_file: "{{ playbook_dir }}/inventory/webServer.csv"
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
+    cert_check_port: 443
+    alert_days: 90
   tasks:
     - name: Verificar que el archivo CSV existe
       stat:
