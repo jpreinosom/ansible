@@ -169,7 +169,7 @@
         msg: "No se pudo obtener el certificado SSL desde {{ inventory_hostname }} en el puerto {{ cert_check_port }}."
       when: ssl_cert_info.stdout is not regex("notBefore=|notAfter=")
 
-    - name: "Extraer la fecha de expiración (notAfter)"
+     - name: "Extraer la fecha de expiración (notAfter)"
       set_fact:
         ssl_cert_expiration_raw: "{{ (ssl_cert_info.stdout | regex_search('notAfter=(.*)', '\\1')) | first | trim }}"
       when: ssl_cert_info.stdout is not none
@@ -179,14 +179,24 @@
         var: ssl_cert_expiration_raw
       when: ssl_cert_expiration_raw is defined
 
+    - name: "Limpiar ssl_cert_expiration_raw"
+      set_fact:
+        ssl_cert_expiration_clean: "{{ ssl_cert_expiration_raw | regex_replace('\\s+', ' ') | trim }}"
+      when: ssl_cert_expiration_raw is defined
+
     - name: "Convertir fecha de expiración a formato date Ansible"
       set_fact:
-        ssl_cert_expiration: "{{ ssl_cert_expiration_raw | to_datetime('%b %d %H:%M:%S %Y %Z') }}"
-      when: ssl_cert_expiration_raw is defined
+        ssl_cert_expiration: "{{ ssl_cert_expiration_clean | to_datetime('%b %d %H:%M:%S %Y %Z') }}"
+      when: ssl_cert_expiration_clean is defined
+
+    - name: "Verificar el valor de ssl_cert_expiration"
+      debug:
+        var: ssl_cert_expiration
+      when: ssl_cert_expiration is defined
 
     - name: "Calcular días restantes para vencimiento"
       set_fact:
-        days_left: "{{ (ssl_cert_expiration - ansible_date_time.iso8601 | to_datetime('%Y-%m-%dT%H:%M:%S%z')).days }}"
+        days_left: "{{ (ssl_cert_expiration - (ansible_date_time.iso8601 | to_datetime('%Y-%m-%dT%H:%M:%S%z'))).days }}"
       when: ssl_cert_expiration is defined
 
     - name: "Mostrar resultado en pantalla (debug)"
