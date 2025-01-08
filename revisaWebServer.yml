@@ -152,3 +152,49 @@
     - name: Mostrar el servidor web detectado
       debug:
         msg: "Servidor web instalado: {{ web_server }}"
+    - name: "Obtener el certificado SSL desde el puerto {{ cert_check_port }}"
+      shell: |
+        echo | openssl s_client -servername {{ inventory_hostname }} \
+                              -connect {{ inventory_hostname }}:{{ cert_check_port }} 2>/dev/null \
+          | openssl x509 -noout -dates
+      register: ssl_cert_info
+      changed_when: false
+      ignore_errors: true  # Para que no falle si algún servidor no responde o no tiene SSL
+
+    - name: "Examinar si se obtuvo el certificado"
+      fail:
+        msg: "No se pudo obtener el certificado SSL desde {{ inventory_hostname }} en el puerto {{ cert_check_port }}."
+      when: ssl_cert_info.stdout is not regex("notBefore=|notAfter=")
+
+    - name: "Extraer la fecha de expiración (notAfter)"
+      set_fact:
+        ssl_cert_expiration_raw: "{{ ssl_cert_info.stdout | regex_search('notAfter=(.*)', '\\1') | trim }}"
+      when: ssl_cert_info.stdout is not none
+
+    - name: "Convertir fecha de expiración a formato date Ansible"
+      set_fact:
+        ssl_cert_expiration: "{{ ssl_cert_expiration_raw | to_datetime('%b %d %H:%M:%S %Y %Z') }}"
+      when: ssl_cert_expiration_raw is defined
+
+    - name: "Calcular días restantes para vencimiento"
+      set_fact:
+        days_left: "{{ (ssl_cert_expiration - ansible_date_time.iso8601 | to_datetime('%Y-%m-%dT%H:%M:%S%z')).days }}"
+      when: ssl_cert_expiration is defined
+
+    - name: "Mostrar resultado en pantalla (debug)"
+      debug:
+        msg: "El certificado de {{ inventory_hostname }} vence en {{ days_left }} días (Expira el: {{ ssl_cert_expiration }})."
+
+    - name: "Enviar alerta por correo si faltan menos de {{ alert_days }} días"
+      mail:
+        host: "smtp.servidor.de.correo"       # Cambia al servidor de correo que uses
+        port: 25                              # Ajusta el puerto según tu configuración
+        to: "{{ email_recipients | join(',') }}"
+        from: "alertas-certificados@aguasandinas.cl"
+        subject: "ALERTA: Certificado SSL próximo a vencer en {{ inventory_hostname }}"
+        body: |-
+          El certificado SSL de {{ inventory_hostname }} vence en {{ days_left }} días.
+          Fecha de expiración: {{ ssl_cert_expiration }}.
+          Por favor, inicie el proceso de renovación.
+
+      when: days_left is defined and days_left < alert_days
