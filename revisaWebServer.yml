@@ -124,7 +124,7 @@
     - name: Mostrar información del sistema 
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
-    
+
     - name: Verificar si NGINX está instalado
       command: which nginx
       register: nginx_installed
@@ -156,7 +156,7 @@
     - name: Mostrar el servidor web detectado
       debug:
         msg: "Servidor web instalado: {{ web_server }}"
-    
+
     - name: "Obtener el certificado SSL desde el puerto {{ cert_check_port }}"
       shell: |
         echo | openssl s_client -servername {{ inventory_hostname }} \
@@ -186,36 +186,22 @@
         ssl_cert_expiration_clean: "{{ ssl_cert_expiration_raw | regex_replace('\\s+', ' ') | trim }}"
       when: ssl_cert_expiration_raw is defined
 
-    - name: "Convertir fecha de expiración a formato date Ansible"
-      set_fact:
-        ssl_cert_expiration_dt: "{{ ssl_cert_expiration_clean | to_datetime('%b %d %H:%M:%S %Y %Z') }}"
+    - name: "Convertir fecha de expiración a timestamp"
+      shell: "date -d '{{ ssl_cert_expiration_clean }}' +%s"
+      register: ssl_cert_expiration_ts
       when: ssl_cert_expiration_clean is defined
 
-    - name: "Verificar el valor de ssl_cert_expiration_dt"
-      debug:
-        var: ssl_cert_expiration_dt
-      when: ssl_cert_expiration_dt is defined
-
-    - name: "Convertir ssl_cert_expiration_dt a timestamp"
-      set_fact:
-        ssl_cert_expiration_ts: "{{ ssl_cert_expiration_dt | to_timestamp }}"
-      when: ssl_cert_expiration_dt is defined
-
     - name: "Obtener la fecha actual como timestamp"
-      set_fact:
-        current_time_ts: "{{ ansible_date_time.iso8601 | to_datetime('%Y-%m-%dT%H:%M:%S%z') | to_timestamp }}"
-      when: ansible_date_time.iso8601 is defined
-
-    - name: "Verificar el valor de current_time_ts"
-      debug:
-        var: current_time_ts
-      when: current_time_ts is defined
+      shell: "date -u +%s"
+      register: current_time_ts
+      when: ssl_cert_expiration_clean is defined
 
     - name: "Calcular días restantes para vencimiento"
       set_fact:
-        days_left: "{{ ((ssl_cert_expiration_ts - current_time_ts) / 86400) | int }}"
-      when: ssl_cert_expiration_ts is defined and current_time_ts is defined
+        days_left: "{{ ((ssl_cert_expiration_ts.stdout | int) - (current_time_ts.stdout | int)) / 86400 | int }}"
+      when: ssl_cert_expiration_ts.stdout is defined and current_time_ts.stdout is defined
 
     - name: "Mostrar resultado en pantalla (debug)"
       debug:
-        msg: "El certificado de {{ inventory_hostname }} vence en {{ days_left }} días (Expira el: {{ ssl_cert_expiration_dt }})."
+        msg: "El certificado de {{ inventory_hostname }} vence en {{ days_left }} días (Expira el: {{ ssl_cert_expiration_clean }})."
+      when: days_left is defined
