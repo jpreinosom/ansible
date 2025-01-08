@@ -208,7 +208,7 @@
 
     - name: "Calcular días restantes para vencimiento"
       set_fact:
-        days_left: "{{ ((ssl_cert_expiration | to_datetime('%b %d %H:%M:%S %Y %Z')) - (current_time | to_datetime('%Y-%m-%dT%H:%M:%S%z'))).days }}"
+        days_left: "{{ (ssl_cert_expiration - current_time).days }}"
       when: ssl_cert_expiration is defined and current_time is defined
 
     - name: "Mostrar resultado en pantalla (debug)"
