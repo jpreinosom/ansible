@@ -124,6 +124,7 @@
     - name: Mostrar información del sistema 
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
+    
     - name: Verificar si NGINX está instalado
       command: which nginx
       register: nginx_installed
@@ -155,6 +156,7 @@
     - name: Mostrar el servidor web detectado
       debug:
         msg: "Servidor web instalado: {{ web_server }}"
+    
     - name: "Obtener el certificado SSL desde el puerto {{ cert_check_port }}"
       shell: |
         echo | openssl s_client -servername {{ inventory_hostname }} \
@@ -206,7 +208,7 @@
 
     - name: "Calcular días restantes para vencimiento"
       set_fact:
-        days_left: "{{ (ssl_cert_expiration - current_time).days }}"
+        days_left: "{{ ((ssl_cert_expiration | to_datetime('%b %d %H:%M:%S %Y %Z')) - (current_time | to_datetime('%Y-%m-%dT%H:%M:%S%z'))).days }}"
       when: ssl_cert_expiration is defined and current_time is defined
 
     - name: "Mostrar resultado en pantalla (debug)"
