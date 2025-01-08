@@ -171,8 +171,13 @@
 
     - name: "Extraer la fecha de expiración (notAfter)"
       set_fact:
-        ssl_cert_expiration_raw: "{{ ssl_cert_info.stdout | regex_search('notAfter=(.*)', '\\1') | trim }}"
+        ssl_cert_expiration_raw: "{{ (ssl_cert_info.stdout | regex_search('notAfter=(.*)', '\\1')) | first | trim }}"
       when: ssl_cert_info.stdout is not none
+
+    - name: "Verificar el valor de ssl_cert_expiration_raw"
+      debug:
+        var: ssl_cert_expiration_raw
+      when: ssl_cert_expiration_raw is defined
 
     - name: "Convertir fecha de expiración a formato date Ansible"
       set_fact:
