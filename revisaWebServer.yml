@@ -169,7 +169,7 @@
         msg: "No se pudo obtener el certificado SSL desde {{ inventory_hostname }} en el puerto {{ cert_check_port }}."
       when: ssl_cert_info.stdout is not regex("notBefore=|notAfter=")
 
-     - name: "Extraer la fecha de expiración (notAfter)"
+    - name: "Extraer la fecha de expiración (notAfter)"
       set_fact:
         ssl_cert_expiration_raw: "{{ (ssl_cert_info.stdout | regex_search('notAfter=(.*)', '\\1')) | first | trim }}"
       when: ssl_cert_info.stdout is not none
