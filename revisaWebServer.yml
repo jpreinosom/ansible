@@ -188,29 +188,34 @@
 
     - name: "Convertir fecha de expiración a formato date Ansible"
       set_fact:
-        ssl_cert_expiration: "{{ ssl_cert_expiration_clean | to_datetime('%b %d %H:%M:%S %Y %Z') }}"
+        ssl_cert_expiration_dt: "{{ ssl_cert_expiration_clean | to_datetime('%b %d %H:%M:%S %Y %Z') }}"
       when: ssl_cert_expiration_clean is defined
 
-    - name: "Verificar el valor de ssl_cert_expiration"
+    - name: "Verificar el valor de ssl_cert_expiration_dt"
       debug:
-        var: ssl_cert_expiration
-      when: ssl_cert_expiration is defined
+        var: ssl_cert_expiration_dt
+      when: ssl_cert_expiration_dt is defined
 
-    - name: "Obtener la fecha actual como datetime"
+    - name: "Convertir ssl_cert_expiration_dt a timestamp"
       set_fact:
-        current_time: "{{ ansible_date_time.iso8601 | to_datetime('%Y-%m-%dT%H:%M:%S%z') }}"
+        ssl_cert_expiration_ts: "{{ ssl_cert_expiration_dt | to_timestamp }}"
+      when: ssl_cert_expiration_dt is defined
+
+    - name: "Obtener la fecha actual como timestamp"
+      set_fact:
+        current_time_ts: "{{ ansible_date_time.iso8601 | to_datetime('%Y-%m-%dT%H:%M:%S%z') | to_timestamp }}"
       when: ansible_date_time.iso8601 is defined
 
-    - name: "Verificar el valor de current_time"
+    - name: "Verificar el valor de current_time_ts"
       debug:
-        var: current_time
-      when: current_time is defined
+        var: current_time_ts
+      when: current_time_ts is defined
 
     - name: "Calcular días restantes para vencimiento"
       set_fact:
-        days_left: "{{ (ssl_cert_expiration - current_time).days }}"
-      when: ssl_cert_expiration is defined and current_time is defined
+        days_left: "{{ ((ssl_cert_expiration_ts - current_time_ts) / 86400) | int }}"
+      when: ssl_cert_expiration_ts is defined and current_time_ts is defined
 
     - name: "Mostrar resultado en pantalla (debug)"
       debug:
-        msg: "El certificado de {{ inventory_hostname }} vence en {{ days_left }} días (Expira el: {{ ssl_cert_expiration }})."
+        msg: "El certificado de {{ inventory_hostname }} vence en {{ days_left }} días (Expira el: {{ ssl_cert_expiration_dt }})."
