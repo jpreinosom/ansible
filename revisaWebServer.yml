@@ -245,4 +245,10 @@
         command: python3 /tmp/send_email.py "{{ item.host }}" "{{ item.days_left }}"
         loop: "{{ ssl_expiration_list | default([]) }}"
         when: (item.days_left | int) <= alert_days
+        register: send_email_results
+        ignore_errors: yes 
+
+      - name: Mostrar resultados de envío de correo
+        debug:
+          var: send_email_results
 ...
