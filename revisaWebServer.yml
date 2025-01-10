@@ -205,50 +205,46 @@
         msg: "El certificado de {{ inventory_hostname }} vence en {{ days_left }} días (Expira el: {{ ssl_cert_expiration_clean }})."
       when: days_left is defined
     # Acumular days_left en una lista en el host local
-    - name: Acumular days_left en local
+    - name: Acumular days_left en grafana_hosts
       set_fact:
         ssl_expiration_list: "{{ ssl_expiration_list | default([]) + [{'host': inventory_hostname, 'days_left': days_left}] }}"
       when: days_left is defined
-      delegate_to: local
+      delegate_to: grafana_hosts
 
-    - name: "Verificar ssl_expiration_list en local"
+    - name: "Verificar ssl_expiration_list en grafana_hosts"
       debug:
         var: ssl_expiration_list
-      delegate_to: local
+      delegate_to: grafana_hosts
 
-- name: envio mail
-  hosts: local
+- name: Insertar registros en la tabla inventario en la base de datos
+  hosts: grafana_hosts
   become: yes
-  vars:
-    alert_days: 400  # Asegúrate de que este valor coincida con el anterior
   tasks:
-      - name: Copiar script Python al host
-        copy:
-          src: python/send_email.py  # Ruta local del script Python
-          dest: /tmp/send_email.py       # Ruta de destino en el host
-          mode: '0755'
-      - name: "Recopilar ssl_expiration_list desde todos los dynamic_hosts"
-        set_fact:
-          ssl_expiration_list: "{{ ssl_expiration_list | default([]) + [ {'host': item, 'days_left': hostvars[item].days_left | int } ] }}"
-        loop: "{{ groups['dynamic_hosts'] }}"
-        run_once: true
+    - name: "Recopilar ssl_expiration_list desde todos los dynamic_hosts"
+      set_fact:
+        ssl_expiration_list: "{{ ssl_expiration_list | default([]) + [ {'host': item, 'days_left': hostvars[item].days_left | int } ] }}"
+      loop: "{{ groups['dynamic_hosts'] }}"
+      run_once: true
 
-      - name: "Verificar ssl_expiration_list en envio mail"
-        debug:
-          var: ssl_expiration_list
+    - name: "Verificar ssl_expiration_list en envio mail"
+      debug:
+        var: ssl_expiration_list
 
-      - name: "Mostrar número de elementos en ssl_expiration_list"
-        debug:
-          msg: "Número de certificados a verificar: {{ ssl_expiration_list | length }}"
-
-      - name: Ejecutar el script Python para enviar correo por cada certificado próximo a expirar
-        command: python3 /tmp/send_email.py "{{ item.host }}" "{{ item.days_left }}"
-        loop: "{{ ssl_expiration_list | default([]) }}"
-        when: (item.days_left | int) <= alert_days
-        register: send_email_results
-        ignore_errors: yes 
-
-      - name: Mostrar resultados de envío de correo
-        debug:
-          var: send_email_results
+    - name: "Mostrar número de elementos en ssl_expiration_list"
+      debug:
+        msg: "Número de certificados a verificar: {{ ssl_expiration_list | length }}"
+        
+    - name: Insertar registros desde dynamic_hosts en la base de datos
+      command: >
+        psql -U grafana_user -d grafana_db -c "
+        INSERT INTO certificado (
+          host, restantes
+        ) VALUES (
+           '{{ item.host }}',
+          '{{ item.days_left }}'
+        )"
+      loop: "{{ ssl_expiration_list | default([]) }}"
+      environment:
+        PGPASSWORD: "grafana_password"
+      become: no
 ...
