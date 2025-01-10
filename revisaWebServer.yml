@@ -2,7 +2,7 @@
 # playbooks/revisaWebServer.yml
 
 - name: Leer y procesar el inventario CSV
-  hosts: localhost
+  hosts: local
   gather_facts: no
   vars:
     input_file: "{{ playbook_dir }}/inventory/webServer.csv"
@@ -211,7 +211,6 @@
 - name: envio mail
   hosts: local
   become: yes
-  gather_facts: no
   tasks:
       - name: Copiar script Python al host
         copy:
