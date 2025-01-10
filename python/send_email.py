@@ -2,14 +2,15 @@
 import sys
 import smtplib
 from email.mime.text import MIMEText
+import os
 
 def send_email(host, days_left):
-    sender = 'juanpablo@betel-tech.com'
+    sender = 'juanpablo@betel-tech.cl'
     receiver = 'jpreinosom@gmail.com'
     smtp_server = "smtp.gmail.com"
     smtp_port = 587
-    smtp_password = "cohjocamjhnymopm"
-    smtp_user = "juanpablo@betel-tech.com"
+    smtp_user = os.getenv('SMTP_USER')          # Obtén desde variable de entorno
+    smtp_password = os.getenv('SMTP_PASSWORD')  # Obtén desde variable de entorno
 
     subject = f"Alerta: Certificado SSL próximo a expirar en {host}"
     body = f"El certificado SSL del host {host} vence en {days_left} días."
@@ -20,7 +21,10 @@ def send_email(host, days_left):
     msg['To'] = receiver
 
     try:
-        with smtplib.SMTP(smtp_server,smtp_port) as server:
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.ehlo()            # Identificarse con el servidor
+            server.starttls()        # Iniciar TLS
+            server.ehlo()            # Reidentificarse después de iniciar TLS
             server.login(smtp_user, smtp_password)
             server.sendmail(sender, receiver, msg.as_string())
         print(f"Correo enviado para {host}")
@@ -34,3 +38,4 @@ if __name__ == "__main__":
     host = sys.argv[1]
     days_left = sys.argv[2]
     send_email(host, days_left)
+
