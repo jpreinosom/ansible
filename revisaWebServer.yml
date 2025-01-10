@@ -232,4 +232,4 @@
         command: python3 /tmp/send_email.py "{{ item.host }}" "{{ item.days_left }}"
         loop: "{{ hostvars['localhost'].ssl_expiration_list | default([]) }}"
         when: item.days_left <= alert_days
-...
+        
