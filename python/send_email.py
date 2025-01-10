@@ -4,12 +4,12 @@ import smtplib
 from email.mime.text import MIMEText
 
 def send_email(host, days_left):
-    sender = 'juanpablo@betel-tech.cl'
+    sender = 'juanpablo@betel-tech.com'
     receiver = 'jpreinosom@gmail.com'
     smtp_server = "smtp.gmail.com"
     smtp_port = 587
     smtp_password = "cohjocamjhnymopm"
-    smtp_user = "juanpablo@betel-tech.cl"
+    smtp_user = "juanpablo@betel-tech.com"
 
     subject = f"Alerta: Certificado SSL próximo a expirar en {host}"
     body = f"El certificado SSL del host {host} vence en {days_left} días."
