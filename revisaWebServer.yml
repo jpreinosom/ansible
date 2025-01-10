@@ -214,7 +214,7 @@
   tasks:
       - name: Copiar script Python al host
         copy:
-          src: /ruta/local/send_email.py  # Ruta local del script Python
+          src: /home/ansible/send_email.py  # Ruta local del script Python
           dest: /tmp/send_email.py       # Ruta de destino en el host
           mode: '0755'
       # Nueva tarea para ejecutar el script Python
