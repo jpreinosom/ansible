@@ -115,8 +115,6 @@
   gather_facts: yes
   vars:
     cert_check_port: 443
-    alert_days: 400
-    
   tasks:
     - name: Determinar la familia del sistema operativo
       set_fact:
@@ -206,24 +204,27 @@
       debug:
         msg: "El certificado de {{ inventory_hostname }} vence en {{ days_left }} días (Expira el: {{ ssl_cert_expiration_clean }})."
       when: days_left is defined
-        # Nueva tarea para compartir la variable days_left con la máquina local
-    - name: Establecer days_left en la máquina local
+    # Acumular days_left en una lista en el host local
+    - name: Acumular days_left en local
       set_fact:
-        days_left: "{{ days_left }}"
+        ssl_expiration_list: "{{ ssl_expiration_list | default([]) + [{'host': inventory_hostname, 'days_left': days_left}] }}"
+      when: days_left is defined
       delegate_to: local
 
-# Nueva tarea para copiar el script Python al host de destino
 - name: envio mail
   hosts: local
   become: yes
+  vars:
+    alert_days: 400  # Asegúrate de que este valor coincida con el anterior
   tasks:
       - name: Copiar script Python al host
         copy:
           src: python/send_email.py  # Ruta local del script Python
           dest: /tmp/send_email.py       # Ruta de destino en el host
           mode: '0755'
-      # Nueva tarea para ejecutar el script Python
-      - name: Ejecutar el script Python para enviar correo si el certificado vence en menos de 90 días
-        command: python3 /tmp/send_email.py
-        when: days_left <= alert_days
+
+      - name: Ejecutar el script Python para enviar correo por cada certificado próximo a expirar
+        command: python3 /tmp/send_email.py "{{ item.host }}" "{{ item.days_left }}"
+        loop: "{{ ssl_expiration_list | default([]) }}"
+        when: item.days_left <= alert_days
 ...
