@@ -207,18 +207,18 @@
         msg: "El certificado de {{ inventory_hostname }} vence en {{ days_left }} días (Expira el: {{ ssl_cert_expiration_clean }})."
       when: days_left is defined
 
-# Nueva tarea para copiar el script Python al host de destino
-- name: envio mail
-  hosts: local
-  become: yes
-  tasks:
-      - name: Copiar script Python al host
-        copy:
-          src: python/send_email.py  # Ruta local del script Python
-          dest: /tmp/send_email.py       # Ruta de destino en el host
-          mode: '0755'
-      # Nueva tarea para ejecutar el script Python
-      - name: Ejecutar el script Python para enviar correo si el certificado vence en menos de 90 días
-        command: python3 /tmp/send_email.py
-        when: days_left <= alert_days
+    # Nueva tarea para copiar el script Python al host de destino
+    - name: envio mail
+      hosts: local
+      become: yes
+      tasks:
+          - name: Copiar script Python al host
+            copy:
+              src: python/send_email.py  # Ruta local del script Python
+              dest: /tmp/send_email.py       # Ruta de destino en el host
+              mode: '0755'
+          # Nueva tarea para ejecutar el script Python
+          - name: Ejecutar el script Python para enviar correo si el certificado vence en menos de 90 días
+            command: python3 /tmp/send_email.py
+            when: days_left <= alert_days
 ...
