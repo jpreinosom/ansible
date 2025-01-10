@@ -227,8 +227,11 @@
           src: python/send_email.py  # Ruta local del script Python
           dest: /tmp/send_email.py       # Ruta de destino en el host
           mode: '0755'
+      - name: "Mostrar número de elementos en ssl_expiration_list"
+        debug:
+          msg: "Número de certificados a verificar: {{ ssl_expiration_list | length }}"
 
       - name: Ejecutar el script Python para enviar correo por cada certificado próximo a expirar
         command: python3 /tmp/send_email.py "{{ item.host }}" "{{ item.days_left }}"
-        loop: "{{ hostvars['localhost'].ssl_expiration_list | default([]) }}"
+        loop: "{{ hostvars['local'].ssl_expiration_list | default([]) }}"
         when: item.days_left <= alert_days
