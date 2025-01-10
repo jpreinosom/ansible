@@ -210,6 +210,7 @@
 # Nueva tarea para copiar el script Python al host de destino
 - name: envio mail
   hosts: local
+  become: yes
   gather_facts: no
   tasks:
       - name: Copiar script Python al host
