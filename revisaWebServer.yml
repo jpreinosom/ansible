@@ -230,6 +230,6 @@
 
       - name: Ejecutar el script Python para enviar correo por cada certificado próximo a expirar
         command: python3 /tmp/send_email.py "{{ item.host }}" "{{ item.days_left }}"
-        loop: "{{ ssl_expiration_list | default([]) }}"
+        loop: "{{ hostvars['localhost'].ssl_expiration_list | default([]) }}"
         when: item.days_left <= alert_days
 ...
