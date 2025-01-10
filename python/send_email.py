@@ -53,8 +53,8 @@ def fetch_certificates(db_host, db_port, db_name, db_user, db_password):
 
 def main():
     # Obtener credenciales SMTP desde variables de entorno
-    smtp_user = os.getenv('SMTP_USER')
-    smtp_password = os.getenv('SMTP_PASSWORD')
+    smtp_user = 'juanpablo@betel-tech.cl'
+    smtp_password = 'dilgimlcfpxgblgr'
 
     if not smtp_user or not smtp_password:
         logging.error("Las variables de entorno SMTP_USER y SMTP_PASSWORD deben estar definidas.")
