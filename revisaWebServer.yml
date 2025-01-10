@@ -2,7 +2,7 @@
 # playbooks/revisaWebServer.yml
 
 - name: Leer y procesar el inventario CSV
-  hosts: local
+  hosts: localhost
   gather_facts: no
   vars:
     input_file: "{{ playbook_dir }}/inventory/webServer.csv"
