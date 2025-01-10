@@ -197,7 +197,7 @@
 
     - name: "Calcular días restantes para vencimiento"
       set_fact:
-        days_left: "{{ ((ssl_cert_expiration_ts.stdout | int) - (current_time_ts.stdout | int)) / 86400 | int }}"
+        days_left: "{{ ((ssl_cert_expiration_ts.stdout | int) - (current_time_ts.stdout | int)) // 86400 }}"
       when: ssl_cert_expiration_ts.stdout is defined and current_time_ts.stdout is defined
 
     - name: "Mostrar resultado en pantalla (debug)"
@@ -232,4 +232,3 @@
         command: python3 /tmp/send_email.py "{{ item.host }}" "{{ item.days_left }}"
         loop: "{{ hostvars['localhost'].ssl_expiration_list | default([]) }}"
         when: item.days_left <= alert_days
-        
