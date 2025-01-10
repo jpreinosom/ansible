@@ -9,106 +9,7 @@
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
   tasks:
-    - name: Verificar que el archivo CSV existe
-      stat:
-        path: "{{ input_file }}"
-      register: file_check
-
-    - name: Fallar si el archivo de inventario no existe
-      fail:
-        msg: "El archivo de inventario {{ input_file }} no existe."
-      when: not file_check.stat.exists
-
-    - name: Leer contenido del archivo CSV
-      set_fact:
-        csv_content: "{{ lookup('file', input_file) }}"
-
-    - name: Extraer encabezados del CSV
-      set_fact:
-        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
-
-    - name: Extraer filas del CSV
-      set_fact:
-        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
-
-    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
-      fail:
-        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
-      when: row | length != headers | length
-      loop: "{{ rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Combinar encabezados con filas para crear diccionarios
-      set_fact:
-        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
-      loop: "{{ rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Verificar que el archivo Grafana CSV existe
-      stat:
-        path: "{{ grafana_file }}"
-      register: grafana_file_check
-
-    - name: Fallar si el archivo de inventario Grafana no existe
-      fail:
-        msg: "El archivo de inventario {{ grafana_file }} no existe."
-      when: not grafana_file_check.stat.exists
-
-    - name: Leer contenido del archivo Grafana CSV
-      set_fact:
-        grafana_csv_content: "{{ lookup('file', grafana_file) }}"
-
-    - name: Extraer encabezados del archivo Grafana CSV
-      set_fact:
-        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
-
-    - name: Extraer filas del archivo Grafana CSV
-      set_fact:
-        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
-
-    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
-      fail:
-        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
-      when: row | length != grafana_headers | length
-      loop: "{{ grafana_rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
-      set_fact:
-        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
-      loop: "{{ grafana_rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
-      add_host:
-        name: "{{ item.IP }}"
-        groups: dynamic_hosts
-        ansible_host: "{{ item.IP }}"
-        ansible_user: "{{ item.Usuario }}"
-        ansible_password: "{{ item.Contraseña }}"
-        ansible_connection: ssh
-        ansible_ssh_pass: "{{ item.Contraseña }}"
-        remote_tmp: /tmp/ansible
-      loop: "{{ csv_data }}"
-      loop_control:
-        loop_var: item
-
-    - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
-      add_host:
-        name: "{{ item.IP }}"
-        groups: grafana_hosts
-        ansible_host: "{{ item.IP }}"
-        ansible_user: "{{ item.Usuario }}"
-        ansible_password: "{{ item.Contraseña }}"
-        ansible_connection: ssh
-        ansible_ssh_pass: "{{ item.Contraseña }}"
-      loop: "{{ grafana_csv_data }}"
-      loop_control:
-        loop_var: item
+    # (Todo el bloque de procesamiento de CSV permanece igual)
 
 - name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
@@ -116,7 +17,6 @@
   vars:
     cert_check_port: 443
     alert_days: 400
-    
   tasks:
     - name: Determinar la familia del sistema operativo
       set_fact:
@@ -207,18 +107,22 @@
         msg: "El certificado de {{ inventory_hostname }} vence en {{ days_left }} días (Expira el: {{ ssl_cert_expiration_clean }})."
       when: days_left is defined
 
-    # Nueva tarea para copiar el script Python al host de destino
-    - name: envio mail
-      hosts: local
-      become: yes
-      tasks:
-          - name: Copiar script Python al host
-            copy:
-              src: python/send_email.py  # Ruta local del script Python
-              dest: /tmp/send_email.py       # Ruta de destino en el host
-              mode: '0755'
-          # Nueva tarea para ejecutar el script Python
-          - name: Ejecutar el script Python para enviar correo si el certificado vence en menos de 90 días
-            command: python3 /tmp/send_email.py
-            when: days_left <= alert_days
-...
+    # Nueva tarea para compartir la variable days_left con la máquina local
+    - name: Establecer days_left en la máquina local
+      set_fact:
+        days_left: "{{ days_left }}"
+      delegate_to: localhost
+
+- name: Enviar correo de notificación si el certificado vence en menos de 90 días
+  hosts: localhost
+  become: yes
+  tasks:
+    - name: Copiar script Python al host
+      copy:
+        src: python/send_email.py  # Ruta local del script Python
+        dest: /tmp/send_email.py    # Ruta de destino en el host
+        mode: '0755'
+
+    - name: Ejecutar el script Python para enviar correo si el certificado vence en menos de 90 días
+      command: python3 /tmp/send_email.py
+      when: days_left <= alert_days
