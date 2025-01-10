@@ -211,6 +211,11 @@
       when: days_left is defined
       delegate_to: local
 
+    - name: "Verificar ssl_expiration_list en local"
+      debug:
+        var: ssl_expiration_list
+      delegate_to: local
+
 - name: envio mail
   hosts: local
   become: yes
