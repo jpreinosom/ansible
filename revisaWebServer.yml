@@ -116,6 +116,12 @@
   vars:
     cert_check_port: 443
     alert_days: 90
+    email_from: "juanpablo@betel-tech.cl"  # Dirección de correo del remitente (tu cuenta de Gmail)
+    email_to: "jpreinosom@gmail.com"  # Dirección de correo del destinatario
+    smtp_server: "smtp.gmail.com"  # Servidor SMTP de Gmail
+    smtp_port: 587  # Puerto SMTP para STARTTLS
+    smtp_user: "juanpablo@betel-tech.cl"  # Tu correo electrónico de Gmail
+    smtp_password: "ohjocamjhnymopmr"  # Contraseña de aplicación generada en Gmail
   tasks:
     - name: Determinar la familia del sistema operativo
       set_fact:
@@ -205,4 +211,20 @@
       debug:
         msg: "El certificado de {{ inventory_hostname }} vence en {{ days_left }} días (Expira el: {{ ssl_cert_expiration_clean }})."
       when: days_left is defined
+
+    # Nueva tarea para enviar correo si los días restantes son menores o iguales a 90
+    - name: Enviar correo de notificación si el certificado vence en menos de 90 días
+      mail:
+        to: "{{ email_to }}"
+        from: "{{ email_from }}"
+        subject: "¡Atención! El certificado SSL de {{ inventory_hostname }} está a punto de expirar"
+        body: |
+          El certificado SSL en el servidor {{ inventory_hostname }} expira en {{ days_left }} días (Expira el: {{ ssl_cert_expiration_clean }}).
+          Por favor, solicite un nuevo certificado lo antes posible.
+        smtp_host: "{{ smtp_server }}"
+        smtp_port: "{{ smtp_port }}"
+        smtp_user: "{{ smtp_user }}"
+        smtp_password: "{{ smtp_password }}"
+        secure: starttls
+      when: days_left <= alert_days
 ...
