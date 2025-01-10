@@ -2,8 +2,6 @@
 - name: envio mail
   hosts: local
   become: yes
-  vars:
-    alert_days: 400  # Asegúrate de que este valor coincida con el anterior
   tasks:
       - name: Copiar script Python al host
         copy:
@@ -12,4 +10,4 @@
           mode: '0755'
       
       - name: Ejecutar el script Python para enviar correo por cada certificado próximo a expirar
-        command: python3 /tmp/send_email.py "
+        command: python3 /tmp/send_email.py
