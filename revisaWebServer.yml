@@ -205,23 +205,4 @@
       debug:
         msg: "El certificado de {{ inventory_hostname }} vence en {{ days_left }} días (Expira el: {{ ssl_cert_expiration_clean }})."
       when: days_left is defined
-
-    - name: Enviar el archivo generado vía correo con sendmail desde un mail dummy
-      shell: |
-        (
-        echo "Subject: Reporte generado"
-        echo "From: juanpablo@betel-tech.cl"
-        echo "To: jpreinosom@gmail.com"
-        echo "MIME-Version: 1.0"
-        echo "Content-Type: text/plain; charset=UTF-8"
-        echo ""
-        echo "El certificado SSL de {{ inventory_hostname }} vence en {{ days_left }} días."
-        echo "Fecha de expiración: {{ ssl_cert_expiration_clean }}."
-        echo "Por favor, inicie el proceso de renovación."
-        echo ""
-        ) | /usr/sbin/sendmail -t -f juanpablo@betel-tech.cl
-
-    - name: Forzar el procesamiento de la cola de correo de Postfix
-      command: sudo postqueue -f
-      ignore_errors: yes
 ...
