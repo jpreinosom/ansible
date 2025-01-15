@@ -112,10 +112,10 @@
   hosts: dynamic_hosts
   vars:
     # Directorio y nombres de archivos en el host remoto
-    remote_cert_dir: "/etc/ssl/certs"
-    remote_key_dir: "/etc/ssl/certs"
-    cert_file_remote: "certificate.crt"
-    key_file_remote: "certificate.key"
+    remote_cert_dir: "/etc/httpd/ssl"
+    remote_key_dir: "/etc/httpd/ssl"
+    cert_file_remote: "mi_servidor.crt"
+    key_file_remote: "mi_servidor.key"
 
     # Archivos origen en el host de Ansible (o ruta accesible via una fuente central)
     new_cert_source: "/etc/ssl/certificado/certificate.crt"
