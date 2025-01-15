@@ -144,6 +144,7 @@
         owner: root
         group: root
         mode: '0644'
+        remote_src: yes
       when: cert_remote_stat.stat.exists
 
     - name: Copiar nueva clave si el archivo remoto existe
@@ -153,6 +154,7 @@
         owner: root
         group: root
         mode: '0600'
+        remote_src: yes
       when: key_remote_stat.stat.exists
 
     - name: Mostrar mensaje de omisión si no existen archivos para reemplazar
