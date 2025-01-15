@@ -24,7 +24,7 @@
 
     - name: Mostrar información del certificado
       debug:
-        msg: "Host {{ inventory_hostname }}: {{ cert_info.CN }}"
+        msg: "Host {{ inventory_hostname }}: {{ cert_info.stdout }}"
       delegate_to: localhost
 
     - name: Guardar nombre del host en una variable
