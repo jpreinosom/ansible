@@ -126,20 +126,17 @@
       stat:
         path: "{{ new_cert_source }}"
       register: new_cert_source_stat
-      delegate_to: localhost
 
     - name: Verificar que la nueva clave existe en el controlador
       stat:
         path: "{{ new_key_source }}"
       register: new_key_source_stat
-      delegate_to: localhost
 
     - name: Mostrar estado de archivos de origen en el controlador
       debug:
         msg: >
           Nuevo certificado existe: {{ new_cert_source_stat.stat.exists }},
           Nueva clave existe: {{ new_key_source_stat.stat.exists }}
-      delegate_to: localhost
 
     - name: Verificar existencia del certificado remoto
       stat:
