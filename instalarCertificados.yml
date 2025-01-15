@@ -170,3 +170,4 @@
       debug:
         msg: "No se encontraron archivos de certificado y/o clave para actualizar. Se omite la tarea."
       when: not (cert_remote_stat.stat.exists and key_remote_stat.stat.exists)
+...
