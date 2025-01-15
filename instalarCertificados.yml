@@ -107,7 +107,7 @@
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
-
+        
 - name: Verificar e instalar nuevo certificado SSL si existen archivos previos
   hosts: dynamic_hosts
   become: yes
@@ -119,9 +119,33 @@
     key_file_remote: "mi_servidor.key"
 
     # Archivos origen en el host de Ansible (o ruta accesible vía una fuente central)
-    new_cert_source: "/home/{{ ansible_user}}/certificado/certificate.crt"
-    new_key_source: "/home/{{ ansible_user}}/certificate.key"
+    new_cert_source: "/home/{{ ansible_user }}/certificado/certificate.crt"
+    new_key_source: "/home/{{ ansible_user }}/certificate.key"
   tasks:
+    - name: Verificar que el nuevo certificado existe en el controlador
+      stat:
+        path: "{{ new_cert_source }}"
+      register: new_cert_source_stat
+      delegate_to: localhost
+
+    - name: Fallar si el nuevo certificado no existe en el controlador
+      fail:
+        msg: "El archivo nuevo certificado (new_cert_source: {{ new_cert_source }}) no existe en el controlador."
+      when: not new_cert_source_stat.stat.exists
+      delegate_to: localhost
+
+    - name: Verificar que la nueva clave existe en el controlador
+      stat:
+        path: "{{ new_key_source }}"
+      register: new_key_source_stat
+      delegate_to: localhost
+
+    - name: Fallar si la nueva clave no existe en el controlador
+      fail:
+        msg: "El archivo nueva clave (new_key_source: {{ new_key_source }}) no existe en el controlador."
+      when: not new_key_source_stat.stat.exists
+      delegate_to: localhost
+
     - name: Verificar existencia del certificado remoto
       stat:
         path: "{{ remote_cert_dir }}/{{ cert_file_remote }}"
@@ -170,4 +194,3 @@
       debug:
         msg: "No se encontraron archivos de certificado y/o clave para actualizar. Se omite la tarea."
       when: not (cert_remote_stat.stat.exists and key_remote_stat.stat.exists)
-...
