@@ -14,21 +14,24 @@
     # Rutas de destino en el servidor remoto
     ssl_cert_dest: "/etc/ssl/certs/certificate.crt"
     ssl_key_dest: "/etc/ssl/private/certificate.key"
-    # Define el servidor web a configurar ('apache' o 'nginx')
+    # Nota: Puedes definir aquí el tipo de servidor web a configurar ('apache' o 'nginx') si fuera necesario
   tasks:
     - name: Extraer información del certificado (.crt)
-      command: "openssl x509 -in {{ cert_directory }}/{{ key_file }} -noout -fingerprint -subject"
+      command: "openssl x509 -in {{ ssl_cert_source }} -noout -fingerprint -subject"
       register: cert_info
       failed_when: cert_info.rc != 0
       changed_when: false
 
     - name: Mostrar información del certificado
       debug:
+        msg: "Host {{ inventory_hostname }}: {{ cert_info.stdout }}"
+      delegate_to: localhost
+
+    - name: Guardar nombre del host en una variable
       set_fact:
         host: "{{ inventory_hostname }}"
-        msg: "Host {{ inventory_hostname }}: {{ cert_info.stdout }}"
-        delegate_to: localhost
 
+#---------------------------------------------------------------------
 - name: Leer y procesar el inventario CSV
   hosts: localhost
   gather_facts: no
@@ -124,7 +127,8 @@
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
-      when: ansible_host = host
+      # Se compara la IP del host agregado con el host obtenido en la primera parte
+      when: item.IP == host
 
     - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
       add_host:
