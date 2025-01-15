@@ -1,37 +1,4 @@
 ---
-- name: Instalar y configurar certificado SSL usando archivos de directorio
-  hosts: local
-  become: yes
-  vars:
-    # Directorio donde se encuentran los certificados en el host de Ansible
-    cert_directory: "/home/ansible/certificado"
-    # Nombres de los archivos (puedes parametrizarlos o iterar si fuera necesario)
-    cert_file: "certificate.crt"
-    key_file: "llave.key"
-    # Rutas completas en el host de Ansible para buscar los certificados
-    ssl_cert_source: "{{ cert_directory }}/{{ cert_file }}"
-    ssl_key_source: "{{ cert_directory }}/{{ key_file }}"
-    # Rutas de destino en el servidor remoto
-    ssl_cert_dest: "/etc/ssl/certs/certificate.crt"
-    ssl_key_dest: "/etc/ssl/private/certificate.key"
-    # Nota: Puedes definir aquí el tipo de servidor web a configurar ('apache' o 'nginx') si fuera necesario
-  tasks:
-    - name: Extraer información del certificado (.crt)
-      command: "openssl x509 -in {{ ssl_cert_source }} -noout -fingerprint -subject"
-      register: cert_info
-      failed_when: cert_info.rc != 0
-      changed_when: false
-
-    - name: Mostrar información del certificado
-      debug:
-        msg: "Host {{ inventory_hostname }}: {{ cert_info.stdout }}"
-      delegate_to: localhost
-
-    - name: Guardar nombre del host en una variable
-      set_fact:
-        host: "{{ inventory_hostname }}"
-
-#---------------------------------------------------------------------
 - name: Leer y procesar el inventario CSV
   hosts: localhost
   gather_facts: no
@@ -127,8 +94,6 @@
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
-      # Se compara la IP del host agregado con el host obtenido en la primera parte
-      when: item.IP == host
 
     - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
       add_host:
@@ -142,3 +107,56 @@
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
+        
+- name: Verificar e instalar nuevo certificado SSL si existen archivos previos
+  hosts: dynamic_hosts
+  become: yes
+  vars:
+    # Directorio y nombres de archivos en el host remoto
+    remote_cert_dir: "/etc/ssl/certs"
+    remote_key_dir: "/etc/ssl/certs"
+    cert_file_remote: "certificate.crt"
+    key_file_remote: "certificate.key"
+
+    # Archivos origen en el host de Ansible (o ruta accesible via una fuente central)
+    new_cert_source: "/etc/ssl/certificado/certificado.crt"
+    new_key_source: "/etc/ssl/certificado/llave.key"
+  tasks:
+    - name: Verificar existencia del certificado remoto
+      stat:
+        path: "{{ remote_cert_dir }}/{{ cert_file_remote }}"
+      register: cert_remote_stat
+
+    - name: Verificar existencia de la clave remota
+      stat:
+        path: "{{ remote_key_dir }}/{{ key_file_remote }}"
+      register: key_remote_stat
+
+    - name: Mostrar estado de certificados remotos
+      debug:
+        msg: >
+          Certificado existe: {{ cert_remote_stat.stat.exists }},
+          Clave existe: {{ key_remote_stat.stat.exists }}
+
+    - name: Copiar nuevo certificado si el archivo remoto existe
+      copy:
+        src: "{{ new_cert_source }}"
+        dest: "{{ remote_cert_dir }}/{{ cert_file_remote }}"
+        owner: root
+        group: root
+        mode: '0644'
+      when: cert_remote_stat.stat.exists
+
+    - name: Copiar nueva clave si el archivo remoto existe
+      copy:
+        src: "{{ new_key_source }}"
+        dest: "{{ remote_key_dir }}/{{ key_file_remote }}"
+        owner: root
+        group: root
+        mode: '0600'
+      when: key_remote_stat.stat.exists
+
+    - name: Mostrar mensaje de omisión si no existen archivos para reemplazar
+      debug:
+        msg: "No se encontraron archivos de certificado y/o clave para actualizar. Se omite la tarea."
+      when: not (cert_remote_stat.stat.exists and key_remote_stat.stat.exists)
