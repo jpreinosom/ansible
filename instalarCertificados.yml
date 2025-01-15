@@ -120,6 +120,7 @@
     # Archivos origen en el host de Ansible (o ruta accesible via una fuente central)
     new_cert_source: "/etc/ssl/certificado/certificate.crt"
     new_key_source: "/etc/ssl/certificado/certificate.key"
+    become: yes
   tasks:
     - name: Verificar existencia del certificado remoto
       stat:
@@ -145,7 +146,6 @@
         group: root
         mode: '0644'
         remote_src: yes
-        become: yes
       when: cert_remote_stat.stat.exists
 
     - name: Copiar nueva clave si el archivo remoto existe
@@ -156,7 +156,6 @@
         group: root
         mode: '0600'
         remote_src: yes
-        become: yes
       when: key_remote_stat.stat.exists
 
     - name: Mostrar mensaje de omisión si no existen archivos para reemplazar
