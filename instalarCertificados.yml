@@ -6,7 +6,7 @@
     # Directorio donde se encuentran los certificados en el host de Ansible
     cert_directory: "/home/ansible/certificado"
     # Nombres de los archivos (puedes parametrizarlos o iterar si fuera necesario)
-    cert_file: "certificado.crt"
+    cert_file: "certificate.crt"
     key_file: "llave.key"
     # Rutas completas en el host de Ansible para buscar los certificados
     ssl_cert_source: "{{ cert_directory }}/{{ cert_file }}"
