@@ -119,8 +119,8 @@
     key_file_remote: "mi_servidor.key"
 
     # Archivos origen en el host de Ansible (o ruta accesible vía una fuente central)
-    new_cert_source: "/home/{{ ansible_host}}/certificado/certificate.crt"
-    new_key_source: "/home/{{ ansible_host}}/certificate.key"
+    new_cert_source: "/home/{{ ansible_user}}/certificado/certificate.crt"
+    new_key_source: "/home/{{ ansible_user}}/certificate.key"
   tasks:
     - name: Verificar existencia del certificado remoto
       stat:
