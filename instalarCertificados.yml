@@ -110,7 +110,6 @@
         
 - name: Verificar e instalar nuevo certificado SSL si existen archivos previos
   hosts: dynamic_hosts
-  become: yes
   vars:
     # Directorio y nombres de archivos en el host remoto
     remote_cert_dir: "/etc/ssl/certs"
