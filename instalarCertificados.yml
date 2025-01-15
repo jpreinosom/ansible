@@ -120,7 +120,7 @@
 
     # Archivos origen en el host de Ansible (o ruta accesible vía una fuente central)
     new_cert_source: "/home/{{ ansible_user }}/certificado/certificate.crt"
-    new_key_source: "/home/{{ ansible_user }}/certificate.key"
+    new_key_source: "/home/{{ ansible_user }}/certificado/certificate.key"
   tasks:
     - name: Verificar que el nuevo certificado existe en el controlador
       stat:
