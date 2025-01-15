@@ -107,7 +107,7 @@
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
-        
+
 - name: Verificar e instalar nuevo certificado SSL si existen archivos previos
   hosts: dynamic_hosts
   become: yes
@@ -128,22 +128,17 @@
       register: new_cert_source_stat
       delegate_to: localhost
 
-    - name: Fallar si el nuevo certificado no existe en el controlador
-      fail:
-        msg: "El archivo nuevo certificado (new_cert_source: {{ new_cert_source }}) no existe en el controlador."
-      when: not new_cert_source_stat.stat.exists
-      delegate_to: localhost
-
     - name: Verificar que la nueva clave existe en el controlador
       stat:
         path: "{{ new_key_source }}"
       register: new_key_source_stat
       delegate_to: localhost
 
-    - name: Fallar si la nueva clave no existe en el controlador
-      fail:
-        msg: "El archivo nueva clave (new_key_source: {{ new_key_source }}) no existe en el controlador."
-      when: not new_key_source_stat.stat.exists
+    - name: Mostrar estado de archivos de origen en el controlador
+      debug:
+        msg: >
+          Nuevo certificado existe: {{ new_cert_source_stat.stat.exists }},
+          Nueva clave existe: {{ new_key_source_stat.stat.exists }}
       delegate_to: localhost
 
     - name: Verificar existencia del certificado remoto
@@ -159,8 +154,8 @@
     - name: Mostrar estado de certificados remotos
       debug:
         msg: >
-          Certificado existe: {{ cert_remote_stat.stat.exists }},
-          Clave existe: {{ key_remote_stat.stat.exists }}
+          Certificado remoto existe: {{ cert_remote_stat.stat.exists }},
+          Clave remota existe: {{ key_remote_stat.stat.exists }}
 
     - name: Asegurarse de que el directorio de destino exista y sea escribible
       file:
@@ -170,7 +165,7 @@
         group: root
         mode: '0755'
 
-    - name: Copiar nuevo certificado si el archivo remoto existe
+    - name: Copiar nuevo certificado si el archivo origen existe
       ansible.builtin.copy:
         src: "{{ new_cert_source }}"
         dest: "{{ remote_cert_dir }}/{{ cert_file_remote }}"
@@ -178,9 +173,9 @@
         group: root
         mode: '0644'
         remote_src: yes
-      when: cert_remote_stat.stat.exists
+      when: new_cert_source_stat.stat.exists and cert_remote_stat.stat.exists
 
-    - name: Copiar nueva clave si el archivo remoto existe
+    - name: Copiar nueva clave si el archivo origen existe
       ansible.builtin.copy:
         src: "{{ new_key_source }}"
         dest: "{{ remote_key_dir }}/{{ key_file_remote }}"
@@ -188,9 +183,9 @@
         group: root
         mode: '0600'
         remote_src: yes
-      when: key_remote_stat.stat.exists
+      when: new_key_source_stat.stat.exists and key_remote_stat.stat.exists
 
     - name: Mostrar mensaje de omisión si no existen archivos para reemplazar
       debug:
         msg: "No se encontraron archivos de certificado y/o clave para actualizar. Se omite la tarea."
-      when: not (cert_remote_stat.stat.exists and key_remote_stat.stat.exists)
+      when: not ((new_cert_source_stat.stat.exists and cert_remote_stat.stat.exists) and (new_key_source_stat.stat.exists and key_remote_stat.stat.exists))
