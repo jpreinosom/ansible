@@ -107,9 +107,10 @@
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
-        
+
 - name: Verificar e instalar nuevo certificado SSL si existen archivos previos
   hosts: dynamic_hosts
+  become: yes
   vars:
     # Directorio y nombres de archivos en el host remoto
     remote_cert_dir: "/etc/httpd/ssl"
@@ -117,10 +118,9 @@
     cert_file_remote: "mi_servidor.crt"
     key_file_remote: "mi_servidor.key"
 
-    # Archivos origen en el host de Ansible (o ruta accesible via una fuente central)
+    # Archivos origen en el host de Ansible (o ruta accesible vía una fuente central)
     new_cert_source: "/etc/ssl/certificado/certificate.crt"
     new_key_source: "/etc/ssl/certificado/certificate.key"
-    become: yes
   tasks:
     - name: Verificar existencia del certificado remoto
       stat:
@@ -138,8 +138,16 @@
           Certificado existe: {{ cert_remote_stat.stat.exists }},
           Clave existe: {{ key_remote_stat.stat.exists }}
 
+    - name: Asegurarse de que el directorio de destino exista y sea escribible
+      file:
+        path: "{{ remote_cert_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
     - name: Copiar nuevo certificado si el archivo remoto existe
-      copy:
+      ansible.builtin.copy:
         src: "{{ new_cert_source }}"
         dest: "{{ remote_cert_dir }}/{{ cert_file_remote }}"
         owner: root
@@ -149,7 +157,7 @@
       when: cert_remote_stat.stat.exists
 
     - name: Copiar nueva clave si el archivo remoto existe
-      copy:
+      ansible.builtin.copy:
         src: "{{ new_key_source }}"
         dest: "{{ remote_key_dir }}/{{ key_file_remote }}"
         owner: root
@@ -162,4 +170,3 @@
       debug:
         msg: "No se encontraron archivos de certificado y/o clave para actualizar. Se omite la tarea."
       when: not (cert_remote_stat.stat.exists and key_remote_stat.stat.exists)
-
