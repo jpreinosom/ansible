@@ -145,6 +145,7 @@
         group: root
         mode: '0644'
         remote_src: yes
+        become: yes
       when: cert_remote_stat.stat.exists
 
     - name: Copiar nueva clave si el archivo remoto existe
@@ -155,9 +156,11 @@
         group: root
         mode: '0600'
         remote_src: yes
+        become: yes
       when: key_remote_stat.stat.exists
 
     - name: Mostrar mensaje de omisión si no existen archivos para reemplazar
       debug:
         msg: "No se encontraron archivos de certificado y/o clave para actualizar. Se omite la tarea."
       when: not (cert_remote_stat.stat.exists and key_remote_stat.stat.exists)
+
