@@ -87,9 +87,8 @@
         groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
-        ansible_ssh_pass: "{{ item.Contraseña }}"
+        ansible_ssh_private_key_file: "{{ playbook_dir }}/key/id_rsa.pub"
         remote_tmp: /tmp/ansible
       loop: "{{ csv_data }}"
       loop_control:
@@ -101,9 +100,8 @@
         groups: grafana_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
-        ansible_ssh_pass: "{{ item.Contraseña }}"
+        ansible_ssh_private_key_file: "{{ playbook_dir }}/key/id_rsa.pub"
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
