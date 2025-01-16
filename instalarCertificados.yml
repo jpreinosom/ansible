@@ -1,6 +1,6 @@
 ---
 - name: Leer y procesar el inventario CSV
-  hosts: localhost
+  hosts: local
   gather_facts: no
   vars:
     input_file: "{{ playbook_dir }}/inventory/webServer.csv"
