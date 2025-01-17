@@ -3,8 +3,8 @@
   hosts: local
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventory/webServer.csv"
-    grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
+    input_file: "/home/ansible/configuracion/webServer.csv"
+    grafana_file: "/home/ansible/configuracion/grafana.csv"
     delimiter: ";"
   tasks:
     - name: Verificar que el archivo CSV existe
