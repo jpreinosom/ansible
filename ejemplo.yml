@@ -21,6 +21,7 @@
       -o ProxyCommand="sshpass -p '{{ pivot_password }}' ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=QUIET {{ pivot_user }}@{{ pivot_host }} \"ssh -W %h:%p -i {{ remote_key_on_pivot }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=QUIET\""
       -o ConnectTimeout=10
 
+
   tasks:
     - name: Verificar que el archivo CSV existe
       stat:
