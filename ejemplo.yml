@@ -5,23 +5,9 @@
   hosts: localhost
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventory/webServer.csv"
+    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
-
-    # Variables para la máquina pivote (bastión)
-    pivot_user: "ansible"                            # Usuario para la máquina pivote
-    pivot_host: "192.168.100.51"                      # IP/hostname de la máquina pivote
-    pivot_password: "password"          # Contraseña para autenticar en el pivote
-    remote_key_on_pivot: "/home/ansible/.ssh/id_rsa"  # Ruta en el pivote de la clave privada para acceder a destinos
-
-    # Cadena de conexión (ProxyCommand)
-    # Se agrega la opción "-o LogLevel=QUIET" en ambos niveles para evitar que se envíe salida adicional.
-    common_ssh_args: >-
-      -o ProxyCommand="sshpass -p '{{ pivot_password }}' ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=QUIET {{ pivot_user }}@{{ pivot_host }} \"ssh -W %h:%p -i {{ remote_key_on_pivot }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=QUIET\""
-      -o ConnectTimeout=10
-
-
   tasks:
     - name: Verificar que el archivo CSV existe
       stat:
@@ -65,7 +51,7 @@
         path: "{{ grafana_file }}"
       register: grafana_file_check
 
-    - name: Fallar si el archivo de inventario Grafana no existe.
+    - name: Fallar si el archivo de inventario Grafana no existe
       fail:
         msg: "El archivo de inventario {{ grafana_file }} no existe."
       when: not grafana_file_check.stat.exists
@@ -104,11 +90,18 @@
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_connection: ssh
-        ansible_ssh_common_args: "{{ common_ssh_args }}"
-        remote_tmp: /tmp/ansible
+        # Opción 1: usar la clave por defecto (~/.ssh/id_rsa) con un ProxyJump
+        ansible_ssh_common_args: >-
+          -o ProxyJump=ansible@192.168.100.51
+
+        # Opción 2: si usas una clave específica
+        #ansible_ssh_private_key_file: "~/.ssh/tu_clave.pem"
+        #ansible_ssh_common_args: >-
+        #  -o ProxyJump=your_pivot_user@192.168.100.51
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
+
 
     - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
       add_host:
@@ -116,15 +109,19 @@
         groups: grafana_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
+        ansible_password: "{{ item.Contraseña }}"
         ansible_connection: ssh
-        ansible_ssh_common_args: "{{ common_ssh_args }}"
+        ansible_ssh_pass: "{{ item.Contraseña }}"
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
-  
+
 - name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
   gather_facts: yes
+  vars_files:
+    - vars/eol_map.yml
+    - vars/release_map.yml
   tasks:
     - name: Mostrar información del sistema 
       debug:
