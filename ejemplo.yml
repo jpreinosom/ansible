@@ -16,11 +16,10 @@
     remote_key_on_pivot: "/home/ansible/.ssh/id_rsa"  # Ruta en el pivote de la clave privada para acceder a destinos
 
     # Definición de argumentos SSH comunes
-    # La idea es que se ejecute en la máquina de control:
-    #   1) sshpass usa el password para conectarse al pivote.
-    #   2) Una vez en el pivote, se ejecuta un segundo ssh que utiliza la clave almacenada en el pivote para conectarse al host destino.
+    # Se usa ProxyCommand con sshpass para conectarse al pivote usando password,
+    # y desde allí se conecta al destino usando la clave que reside en el pivote.
     common_ssh_args: >-
-      -o ProxyCommand="sshpass -p '{{ pivot_password }}' ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ pivot_user }}@{{ pivot_host }} \"ssh -i {{ remote_key_on_pivot }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p\""
+      -o ProxyCommand="sshpass -p '{{ pivot_password }}' ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ pivot_user }}@{{ pivot_host }} \"ssh -i {{ remote_key_on_pivot }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p\""
       -o ConnectTimeout=10
 
   tasks:
