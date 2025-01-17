@@ -5,7 +5,7 @@
   hosts: localhost
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
+    input_file: "{{ playbook_dir }}/inventory/webServer.csv"
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
 
