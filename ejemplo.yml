@@ -15,11 +15,14 @@
     pivot_password: "password"          # Contraseña para autenticar en el pivote
     remote_key_on_pivot: "/home/ansible/.ssh/id_rsa"  # Ruta en el pivote de la clave privada para acceder a destinos
 
-    # Definición de argumentos SSH comunes
-    # Se usa ProxyCommand con sshpass para conectarse al pivote usando password,
-    # y desde allí se conecta al destino usando la clave que reside en el pivote.
+    # Cadena de conexión (ProxyCommand) para establecer:
+    #  1) Conexión desde la máquina de control al pivote usando sshpass (sin asignar pseudo-TTY).
+    #  2) Desde el pivote, conexión al host destino usando la clave privada que reside en el pivote.
+    #
+    # Se recomienda que el comando resultante funcione manualmente. Por ejemplo:
+    # sshpass -p "EL_PASSWORD_DEL_PIVOTE" ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ansible@192.168.100.51 "ssh -W %h:%p -i /home/ansible/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
     common_ssh_args: >-
-      -o ProxyCommand="sshpass -p '{{ pivot_password }}' ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ pivot_user }}@{{ pivot_host }} \"ssh -i {{ remote_key_on_pivot }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p\""
+      -o ProxyCommand="sshpass -p '{{ pivot_password }}' ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ pivot_user }}@{{ pivot_host }} \"ssh -W %h:%p -i {{ remote_key_on_pivot }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null\""
       -o ConnectTimeout=10
 
   tasks:
