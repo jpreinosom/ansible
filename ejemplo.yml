@@ -83,16 +83,17 @@
       loop_control:
         loop_var: row
 
-    - name: Agregar hosts dinámicamente
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
       add_host:
         name: "{{ item.IP }}"
         groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_connection: ssh
-        ansible_ssh_common_args: >-
-          -o ProxyJump=pivot_user@192.168.100.51
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
       loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
 
     - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
       add_host:
