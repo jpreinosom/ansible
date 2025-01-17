@@ -120,14 +120,7 @@
 - name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
   gather_facts: yes
-  vars_files:
-    - vars/eol_map.yml
-    - vars/release_map.yml
   tasks:
-    - name: Determinar la familia del sistema operativo
-      set_fact:
-        os_family: "Linux"
-
     - name: Mostrar información del sistema 
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
