@@ -83,25 +83,16 @@
       loop_control:
         loop_var: row
 
-    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
+    - name: Agregar hosts dinámicamente
       add_host:
         name: "{{ item.IP }}"
         groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_connection: ssh
-        # Opción 1: usar la clave por defecto (~/.ssh/id_rsa) con un ProxyJump
         ansible_ssh_common_args: >-
-          -o ProxyJump=ansible@192.168.100.51
-
-        # Opción 2: si usas una clave específica
-        #ansible_ssh_private_key_file: "~/.ssh/tu_clave.pem"
-        #ansible_ssh_common_args: >-
-        #  -o ProxyJump=your_pivot_user@192.168.100.51
+          -o ProxyJump=pivot_user@192.168.100.51
       loop: "{{ csv_data }}"
-      loop_control:
-        loop_var: item
-
 
     - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
       add_host:
