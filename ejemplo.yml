@@ -6,7 +6,7 @@
   gather_facts: no
   vars:
     input_file: "/home/ansible/configuracion/webServer.csv"
-    grafana_file: "/home/ansible/configuracion/grafana.csv "
+    grafana_file: "/home/ansible/configuracion/grafana.csv"
     delimiter: ";"
   tasks:
     - name: Verificar que el archivo CSV existe
@@ -20,8 +20,13 @@
       when: not file_check.stat.exists
 
     - name: Leer contenido del archivo CSV
+      slurp:
+        src: "{{ input_file }}"
+      register: slurped_file
+
+    - name: Establecer el contenido del archivo CSV
       set_fact:
-        csv_content: "{{ lookup('file', input_file) }}"
+        csv_content: "{{ slurped_file.content | b64decode }}"
 
     - name: Extraer encabezados del CSV
       set_fact:
@@ -57,8 +62,13 @@
       when: not grafana_file_check.stat.exists
 
     - name: Leer contenido del archivo Grafana CSV
+      slurp:
+        src: "{{ grafana_file }}"
+      register: slurped_grafana_file
+
+    - name: Establecer el contenido del archivo Grafana CSV
       set_fact:
-        grafana_csv_content: "{{ lookup('file', grafana_file) }}"
+        grafana_csv_content: "{{ slurped_grafana_file.content | b64decode }}"
 
     - name: Extraer encabezados del archivo Grafana CSV
       set_fact:
@@ -124,4 +134,3 @@
     - name: Mostrar información del sistema 
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
-...
