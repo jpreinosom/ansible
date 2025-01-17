@@ -9,10 +9,19 @@
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
 
-    # Variables para el servidor pivote (bastión)
-    pivot_private_key: "/home/ansible/.ssh/id_rsa"   # Cambia esta ruta por la ubicación real de la clave privada
-    pivot_user: "ansible"                            # Cambia este valor por el usuario con el que se accede al pivote
-    pivot_host: "192.168.100.51"                      # Cambia este valor por la IP o hostname del pivote
+    # Variables para la máquina pivote (bastión)
+    pivot_user: "ansible"                            # Usuario para la máquina pivote
+    pivot_host: "192.168.100.51"                      # IP/hostname de la máquina pivote
+    pivot_password: "password"          # Contraseña para autenticar en el pivote
+    remote_key_on_pivot: "/home/ansible/.ssh/id_rsa"  # Ruta en el pivote de la clave privada para acceder a destinos
+
+    # Definición de argumentos SSH comunes
+    # La idea es que se ejecute en la máquina de control:
+    #   1) sshpass usa el password para conectarse al pivote.
+    #   2) Una vez en el pivote, se ejecuta un segundo ssh que utiliza la clave almacenada en el pivote para conectarse al host destino.
+    common_ssh_args: >-
+      -o ProxyCommand="sshpass -p '{{ pivot_password }}' ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ pivot_user }}@{{ pivot_host }} \"ssh -i {{ remote_key_on_pivot }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p\""
+      -o ConnectTimeout=10
 
   tasks:
     - name: Verificar que el archivo CSV existe
@@ -96,8 +105,7 @@
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_connection: ssh
-        ansible_ssh_private_key_file: "{{ pivot_private_key }}"
-        ansible_ssh_common_args: "-o ProxyJump={{ pivot_user }}@{{ pivot_host }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
+        ansible_ssh_common_args: "{{ common_ssh_args }}"
         remote_tmp: /tmp/ansible
       loop: "{{ csv_data }}"
       loop_control:
@@ -110,8 +118,7 @@
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
         ansible_connection: ssh
-        ansible_ssh_private_key_file: "{{ pivot_private_key }}"
-        ansible_ssh_common_args: "-o ProxyJump={{ pivot_user }}@{{ pivot_host }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
+        ansible_ssh_common_args: "{{ common_ssh_args }}"
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
