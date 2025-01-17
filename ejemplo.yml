@@ -124,3 +124,4 @@
     - name: Mostrar información del sistema 
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
+...
