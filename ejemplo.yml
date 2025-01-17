@@ -11,8 +11,8 @@
 
     # Variables para el servidor pivote (bastión)
     pivot_private_key: "/home/ansible/.ssh/id_rsa"   # Cambia esta ruta por la ubicación real de la clave privada
-    pivot_user: "ansible"                 # Cambia este valor por el usuario con el que se accede al pivote
-    pivot_host: "192.168.100.51"                   # Cambia este valor por la IP o hostname del pivote
+    pivot_user: "ansible"                            # Cambia este valor por el usuario con el que se accede al pivote
+    pivot_host: "192.168.100.51"                      # Cambia este valor por la IP o hostname del pivote
 
   tasks:
     - name: Verificar que el archivo CSV existe
@@ -98,7 +98,7 @@
         ansible_connection: ssh
         # Se utiliza la clave privada y se configura el salto por el pivote
         ansible_ssh_private_key_file: "{{ pivot_private_key }}"
-        ansible_ssh_common_args: "-o ProxyJump={{ pivot_user }}@{{ pivot_host }}"
+        ansible_ssh_common_args: "-o ProxyJump={{ pivot_user }}@{{ pivot_host }} -o StrictHostKeyChecking=no"
         remote_tmp: /tmp/ansible
       loop: "{{ csv_data }}"
       loop_control:
@@ -112,7 +112,7 @@
         ansible_user: "{{ item.Usuario }}"
         ansible_connection: ssh
         ansible_ssh_private_key_file: "{{ pivot_private_key }}"
-        ansible_ssh_common_args: "-o ProxyJump={{ pivot_user }}@{{ pivot_host }}"
+        ansible_ssh_common_args: "-o ProxyJump={{ pivot_user }}@{{ pivot_host }} -o StrictHostKeyChecking=no"
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
