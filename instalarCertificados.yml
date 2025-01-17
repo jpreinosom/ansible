@@ -1,8 +1,7 @@
----
 - name: Leer y procesar el inventario CSV
   hosts: local
   gather_facts: no
-  become: true
+  # Para estas tareas los archivos se obtienen en el nodo de control, por ello se delega a localhost
   vars:
     input_file: "/home/ansible/configuracion/webServer.csv"
     grafana_file: "/home/ansible/configuracion/grafana.csv"
@@ -11,6 +10,8 @@
     - name: Verificar que el archivo CSV existe
       stat:
         path: "{{ input_file }}"
+      delegate_to: localhost
+      become: false
       register: file_check
 
     - name: Fallar si el archivo de inventario no existe
@@ -21,14 +22,20 @@
     - name: Leer contenido del archivo CSV
       set_fact:
         csv_content: "{{ lookup('file', input_file) }}"
+      delegate_to: localhost
+      become: false
 
     - name: Extraer encabezados del CSV
       set_fact:
         headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+      delegate_to: localhost
+      become: false
 
     - name: Extraer filas del CSV
       set_fact:
         rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+      delegate_to: localhost
+      become: false
 
     - name: Validar que cada fila tenga el mismo número de campos que los encabezados
       fail:
@@ -37,6 +44,8 @@
       loop: "{{ rows }}"
       loop_control:
         loop_var: row
+      delegate_to: localhost
+      become: false
 
     - name: Combinar encabezados con filas para crear diccionarios
       set_fact:
@@ -44,10 +53,14 @@
       loop: "{{ rows }}"
       loop_control:
         loop_var: row
+      delegate_to: localhost
+      become: false
 
     - name: Verificar que el archivo Grafana CSV existe
       stat:
         path: "{{ grafana_file }}"
+      delegate_to: localhost
+      become: false
       register: grafana_file_check
 
     - name: Fallar si el archivo de inventario Grafana no existe
@@ -58,14 +71,20 @@
     - name: Leer contenido del archivo Grafana CSV
       set_fact:
         grafana_csv_content: "{{ lookup('file', grafana_file) }}"
+      delegate_to: localhost
+      become: false
 
     - name: Extraer encabezados del archivo Grafana CSV
       set_fact:
         grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+      delegate_to: localhost
+      become: false
 
     - name: Extraer filas del archivo Grafana CSV
       set_fact:
         grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+      delegate_to: localhost
+      become: false
 
     - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
       fail:
@@ -74,6 +93,8 @@
       loop: "{{ grafana_rows }}"
       loop_control:
         loop_var: row
+      delegate_to: localhost
+      become: false
 
     - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
       set_fact:
@@ -81,6 +102,8 @@
       loop: "{{ grafana_rows }}"
       loop_control:
         loop_var: row
+      delegate_to: localhost
+      become: false
 
     - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
       add_host:
@@ -106,82 +129,3 @@
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
-
-- name: Verificar e instalar nuevo certificado SSL si existen archivos previos
-  hosts: dynamic_hosts
-  become: yes
-  vars:
-    # Directorio y nombres de archivos en el host remoto
-    remote_cert_dir: "/etc/httpd/ssl"
-    remote_key_dir: "/etc/httpd/ssl"
-    cert_file_remote: "mi_servidor.crt"
-    key_file_remote: "mi_servidor.key"
-
-    # Archivos origen en el host de Ansible (o ruta accesible vía una fuente central)
-    new_cert_source: "/home/{{ ansible_user }}/certificado/certificate.crt"
-    new_key_source: "/home/{{ ansible_user }}/certificado/certificate.key"
-  tasks:
-    - name: Verificar que el nuevo certificado existe en el controlador
-      stat:
-        path: "{{ new_cert_source }}"
-      register: new_cert_source_stat
-
-    - name: Verificar que la nueva clave existe en el controlador
-      stat:
-        path: "{{ new_key_source }}"
-      register: new_key_source_stat
-
-    - name: Mostrar estado de archivos de origen en el controlador
-      debug:
-        msg: >
-          Nuevo certificado existe: {{ new_cert_source_stat.stat.exists }},
-          Nueva clave existe: {{ new_key_source_stat.stat.exists }}
-
-    - name: Verificar existencia del certificado remoto
-      stat:
-        path: "{{ remote_cert_dir }}/{{ cert_file_remote }}"
-      register: cert_remote_stat
-
-    - name: Verificar existencia de la clave remota
-      stat:
-        path: "{{ remote_key_dir }}/{{ key_file_remote }}"
-      register: key_remote_stat
-
-    - name: Mostrar estado de certificados remotos
-      debug:
-        msg: >
-          Certificado remoto existe: {{ cert_remote_stat.stat.exists }},
-          Clave remota existe: {{ key_remote_stat.stat.exists }}
-
-    - name: Asegurarse de que el directorio de destino exista y sea escribible
-      file:
-        path: "{{ remote_cert_dir }}"
-        state: directory
-        owner: root
-        group: root
-        mode: '0755'
-
-    - name: Copiar nuevo certificado si el archivo origen existe
-      ansible.builtin.copy:
-        src: "{{ new_cert_source }}"
-        dest: "{{ remote_cert_dir }}/{{ cert_file_remote }}"
-        owner: root
-        group: root
-        mode: '0644'
-        remote_src: yes
-      when: new_cert_source_stat.stat.exists and cert_remote_stat.stat.exists
-
-    - name: Copiar nueva clave si el archivo origen existe
-      ansible.builtin.copy:
-        src: "{{ new_key_source }}"
-        dest: "{{ remote_key_dir }}/{{ key_file_remote }}"
-        owner: root
-        group: root
-        mode: '0600'
-        remote_src: yes
-      when: new_key_source_stat.stat.exists and key_remote_stat.stat.exists
-
-    - name: Mostrar mensaje de omisión si no existen archivos para reemplazar
-      debug:
-        msg: "No se encontraron archivos de certificado y/o clave para actualizar. Se omite la tarea."
-      when: not ((new_cert_source_stat.stat.exists and cert_remote_stat.stat.exists) and (new_key_source_stat.stat.exists and key_remote_stat.stat.exists))
