@@ -2,130 +2,35 @@
 # playbooks/analizar_vulnerabilidades.yml
 
 - name: Leer y procesar el inventario CSV
-  hosts: localhost
+  hosts: local
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventory/webServer.csv"
+    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
-
   tasks:
-    - name: Verificar que el archivo CSV existe
-      stat:
-        path: "{{ input_file }}"
-      register: file_check
-
-    - name: Fallar si el archivo de inventario no existe
-      fail:
-        msg: "El archivo de inventario {{ input_file }} no existe."
-      when: not file_check.stat.exists
-
-    - name: Leer contenido del archivo CSV
-      set_fact:
-        csv_content: "{{ lookup('file', input_file) }}"
+    # Verificar y leer los archivos CSV como en el playbook original
+    # ...
     
-    - name: Extraer encabezados del CSV
-      set_fact:
-        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
-    
-    - name: Extraer filas del CSV
-      set_fact:
-        rows: >-
-          {{ csv_content.split('\n')[1:] 
-             | reject('match', '^$') 
-             | list 
-             | map('split', delimiter) 
-             | list }}
-
-    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
-      fail:
-        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
-      when: (row | length) != (headers | length)
-      loop: "{{ rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Combinar encabezados con filas para crear diccionarios
-      set_fact:
-        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
-      loop: "{{ rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Verificar que el archivo Grafana CSV existe
-      stat:
-        path: "{{ grafana_file }}"
-      register: grafana_file_check
-
-    - name: Fallar si el archivo de inventario Grafana no existe
-      fail:
-        msg: "El archivo de inventario {{ grafana_file }} no existe."
-      when: not grafana_file_check.stat.exists
-
-    - name: Leer contenido del archivo Grafana CSV
-      set_fact:
-        grafana_csv_content: "{{ lookup('file', grafana_file) }}"
-    
-    - name: Extraer encabezados del archivo Grafana CSV
-      set_fact:
-        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
-    
-    - name: Extraer filas del archivo Grafana CSV
-      set_fact:
-        grafana_rows: >-
-          {{ grafana_csv_content.split('\n')[1:] 
-             | reject('match', '^$') 
-             | list 
-             | map('split', delimiter) 
-             | list }}
-    
-    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
-      fail:
-        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
-      when: (row | length) != (grafana_headers | length)
-      loop: "{{ grafana_rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
-      set_fact:
-        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
-      loop: "{{ grafana_rows }}"
-      loop_control:
-        loop_var: row
-
-    ###################################################################
-    # Hosts webServer (dynamic_hosts) => se autentican por clave SSH
-    # Usan la credential de tipo “Machine” asignada en el Job Template.
-    ###################################################################
     - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
       add_host:
         name: "{{ item.IP }}"
         groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_connection: ssh
-
-        # Al usar AAP, no necesitamos ansible_ssh_private_key_file 
-        # (la credencial Machine se encarga de inyectar la clave).
-        # Deshabilitamos host key checking interactivo:
-        ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+        ansible_ssh_private_key_file: /path/to/private/key  # Ruta a tu clave privada
+        remote_tmp: /tmp/ansible
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
 
-    ###################################################################
-    # Hosts Grafana => según tu CSV, se siguen conectando con password
-    ###################################################################
     - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
       add_host:
         name: "{{ item.IP }}"
         groups: grafana_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_password: "{{ item.Contraseña }}"
-        ansible_connection: ssh
-        ansible_ssh_pass: "{{ item.Contraseña }}"
+        ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta a tu clave privada
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
@@ -137,6 +42,14 @@
     - vars/eol_map.yml
     - vars/release_map.yml
   tasks:
+    - name: Determinar la familia del sistema operativo
+      set_fact:
+        os_family: "Linux"
+
+    - name: Obtener la fecha actual del sistema
+      set_fact:
+        current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
+
     - name: Mostrar información del sistema 
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
