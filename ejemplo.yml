@@ -8,6 +8,7 @@
     input_file: "{{ playbook_dir }}/inventory/webServer.csv"
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
+
   tasks:
     - name: Verificar que el archivo CSV existe
       stat:
@@ -22,19 +23,24 @@
     - name: Leer contenido del archivo CSV
       set_fact:
         csv_content: "{{ lookup('file', input_file) }}"
-
+    
     - name: Extraer encabezados del CSV
       set_fact:
         headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
-
+    
     - name: Extraer filas del CSV
       set_fact:
-        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+        rows: >-
+          {{ csv_content.split('\n')[1:] 
+             | reject('match', '^$') 
+             | list 
+             | map('split', delimiter) 
+             | list }}
 
     - name: Validar que cada fila tenga el mismo número de campos que los encabezados
       fail:
         msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
-      when: row | length != headers | length
+      when: (row | length) != (headers | length)
       loop: "{{ rows }}"
       loop_control:
         loop_var: row
@@ -59,19 +65,24 @@
     - name: Leer contenido del archivo Grafana CSV
       set_fact:
         grafana_csv_content: "{{ lookup('file', grafana_file) }}"
-
+    
     - name: Extraer encabezados del archivo Grafana CSV
       set_fact:
         grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
-
+    
     - name: Extraer filas del archivo Grafana CSV
       set_fact:
-        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
-
+        grafana_rows: >-
+          {{ grafana_csv_content.split('\n')[1:] 
+             | reject('match', '^$') 
+             | list 
+             | map('split', delimiter) 
+             | list }}
+    
     - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
       fail:
         msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
-      when: row | length != grafana_headers | length
+      when: (row | length) != (grafana_headers | length)
       loop: "{{ grafana_rows }}"
       loop_control:
         loop_var: row
@@ -83,19 +94,29 @@
       loop_control:
         loop_var: row
 
+    ###################################################################
+    # Hosts webServer (dynamic_hosts) => se autentican por clave SSH
+    # Usan la credential de tipo “Machine” asignada en el Job Template.
+    ###################################################################
     - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
       add_host:
         name: "{{ item.IP }}"
         groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_ssh_private_key_file: "~/.ssh/id_rsa"
         ansible_connection: ssh
+
+        # Al usar AAP, no necesitamos ansible_ssh_private_key_file 
+        # (la credencial Machine se encarga de inyectar la clave).
+        # Deshabilitamos host key checking interactivo:
         ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
 
+    ###################################################################
+    # Hosts Grafana => según tu CSV, se siguen conectando con password
+    ###################################################################
     - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
       add_host:
         name: "{{ item.IP }}"
