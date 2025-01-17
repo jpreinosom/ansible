@@ -117,6 +117,14 @@
       loop_control:
         loop_var: item
 
+    - name: Agregar claves SSH de los hosts a known_hosts
+      known_hosts:
+        name: "{{ item.IP }}"
+        key: "{{ lookup('pipe', 'ssh-keyscan -t rsa ' + item.IP) }}"
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+
 - name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
   gather_facts: yes
@@ -124,14 +132,7 @@
     - vars/eol_map.yml
     - vars/release_map.yml
   tasks:
-    - name: Determinar la familia del sistema operativo
-      set_fact:
-        os_family: "Linux"
-
-    - name: Obtener la fecha actual del sistema
-      set_fact:
-        current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
-
     - name: Mostrar información del sistema 
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
+...
