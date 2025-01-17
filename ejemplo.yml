@@ -8,7 +8,7 @@
     input_file: "/home/ansible/configuracion/webServer.csv"
     grafana_file: "/home/ansible/configuracion/grafana.csv"
     delimiter: ";"
-    ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta de la clave privada
+    ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta a la clave privada
   tasks:
     - name: Verificar que el archivo CSV existe
       stat:
@@ -94,23 +94,13 @@
       loop_control:
         loop_var: row
 
-    # Leer la clave privada y establecerla en la variable ansible_ssh_private_key
-    - name: Leer el contenido de la clave privada
-      slurp:
-        src: "{{ ansible_ssh_private_key_file }}"
-      register: private_key_file
-
-    - name: Establecer la clave privada para la autenticación SSH
-      set_fact:
-        ansible_ssh_private_key: "{{ private_key_file.content | b64decode }}"
-
     - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
       add_host:
         name: "{{ item.IP }}"
         groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_ssh_private_key: "{{ ansible_ssh_private_key }}"  # Usando la clave privada leída
+        ansible_ssh_private_key_file: "{{ ansible_ssh_private_key_file }}"  # Clave privada definida como variable
         remote_tmp: /tmp/ansible
       loop: "{{ csv_data }}"
       loop_control:
@@ -122,7 +112,7 @@
         groups: grafana_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_ssh_private_key: "{{ ansible_ssh_private_key }}"  # Usando la clave privada leída
+        ansible_ssh_private_key_file: "{{ ansible_ssh_private_key_file }}"  # Clave privada definida como variable
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
