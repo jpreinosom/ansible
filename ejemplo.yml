@@ -8,6 +8,7 @@
     input_file: "/home/ansible/configuracion/webServer.csv"
     grafana_file: "/home/ansible/configuracion/grafana.csv"
     delimiter: ";"
+    ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta a tu clave privada
   tasks:
     - name: Verificar que el archivo CSV existe
       stat:
@@ -99,7 +100,7 @@
         groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta a tu clave privada
+        ansible_ssh_private_key_file: "{{ ansible_ssh_private_key_file }}"  # Usando la variable de la clave privada
         remote_tmp: /tmp/ansible
       loop: "{{ csv_data }}"
       loop_control:
@@ -111,7 +112,7 @@
         groups: grafana_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta a tu clave privada
+        ansible_ssh_private_key_file: "{{ ansible_ssh_private_key_file }}"  # Usando la variable de la clave privada
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
