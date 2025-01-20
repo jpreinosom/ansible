@@ -3,6 +3,7 @@
 
 - name: Leer y procesar el inventario CSV
   hosts: local
+  connection: local  # Ejecutar localmente en la misma máquina
   gather_facts: no
   vars:
     input_file: "/home/ansible/configuracion/webServer.csv"
@@ -126,24 +127,11 @@
       loop_control:
         loop_var: item
 
-
 - name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
   gather_facts: yes
-  vars_files:
-    - vars/eol_map.yml
-    - vars/release_map.yml
+  remote_user: webserver  # Especifica el usuario remoto aquí
   tasks:
-    - name: Determinar la familia del sistema operativo
-      set_fact:
-        os_family: "Linux"
-
-    - name: Obtener la fecha actual del sistema
-      set_fact:
-        current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
-
     - name: Mostrar información del sistema 
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
-  vars:
-    ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Aquí defines la ruta a la clave privada
