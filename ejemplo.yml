@@ -1,14 +1,14 @@
 ---
-- name: Analizar sistema operativo de la máquina remota
-  hosts: 192.168.100.100
-  gather_facts: yes
-  become: yes  # Esto se usa si necesitas privilegios elevados para obtener la información
-  remote_user: webserver  # El usuario en la máquina remota (ajusta según sea necesario)
+- name: Mostrar el contenido de la llave privada
+  hosts: local  # La máquina en la que se ejecuta el playbook
+  gather_facts: no  # No es necesario recopilar hechos para esta tarea
 
   tasks:
-    - name: Mostrar información sobre el sistema operativo
-      debug:
-        msg: "La máquina remota tiene el sistema operativo {{ ansible_facts['os_family'] }} {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}."
+    - name: Leer el contenido de la llave privada
+      slurp:
+        src: /home/ansible/.ssh/id_rsa  # Ruta de la llave privada en la máquina local
+      register: private_key_content
 
-  vars:
-    ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta de la llave privada en la máquina 192.168.100.51
+    - name: Mostrar el contenido de la llave privada (decodificado)
+      debug:
+        msg: "{{ private_key_content.content | b64decode }}"
