@@ -6,8 +6,8 @@
   connection: local  # Ejecutar localmente en la misma máquina
   gather_facts: no
   vars:
-    input_file: "/home/ansible/configuracion/webServer.csv"
-    grafana_file: "/home/ansible/configuracion/grafana.csv"
+    input_file: "{{ playbook_dir }}/inventory/webServer.csv"
+    grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
     ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta a la clave privada
   tasks:
