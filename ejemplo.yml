@@ -1,10 +1,10 @@
 ---
 - name: Leer y procesar el inventario CSV y obtener información del servidor remoto
-  hosts: localhost  # La máquina en la que se ejecuta el playbook
+  hosts: local  # La máquina en la que se ejecuta el playbook
   gather_facts: no  # No es necesario recopilar hechos para esta tarea
 
   vars:
-    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
+    input_file: "{{ playbook_dir }}/inventory/webServer.csv"
     delimiter: ";"
 
   tasks:
