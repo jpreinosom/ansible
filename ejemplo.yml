@@ -11,15 +11,6 @@
     delimiter: ";"
     ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta a la clave privada
   tasks:
-    - name: Leer el contenido de la llave privada
-      slurp:
-        src: /home/ansible/.ssh/id_rsa  # Ruta de la llave privada en la máquina local
-      register: private_key_content
-
-    - name: Mostrar el contenido de la llave privada (decodificado)
-      debug:
-        msg: "{{ private_key_content.content | b64decode }}"
-
     - name: Verificar que el archivo CSV existe
       stat:
         path: "{{ input_file }}"
