@@ -109,7 +109,7 @@
         groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_private_key_file: "{{ private_key_content.content | b64decode }}"  # Clave privada definida como variable
+        ansible_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta correcta a la clave privada
         remote_tmp: /tmp/ansible
       loop: "{{ csv_data }}"
       loop_control:
@@ -121,10 +121,11 @@
         groups: grafana_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_private_key_file: "{{ private_key_content.content | b64decode }}"  # Clave privada definida como variable
+        ansible_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta correcta a la clave privada
       loop: "{{ grafana_csv_data }}"
       loop_control:
         loop_var: item
+
 
 - name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
