@@ -13,15 +13,12 @@
       debug:
         msg: "{{ private_key_content.content | b64decode }}"
 
-    - name: Conectarse al servidor remoto y obtener información de la distribución
-      ansible.builtin.shell: |
-        uname -a
-        cat /etc/*release
-      delegate_to: 192.168.100.100  # Conectar al servidor remoto
-      remote_user: webserver
-      ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta de la llave privada
-      register: remote_distro_info
-
-    - name: Mostrar la información de la distribución y versión del sistema operativo
+- name: Conectarse al servidor remoto y obtener información de la distribución
+  hosts: 192.168.100.100  # Conexión al servidor remoto
+  gather_facts: yes
+  remote_user: webserver  # El usuario remoto
+  ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta de la llave privada
+  tasks:
+    - name: Obtener la información de la distribución y versión del sistema operativo
       debug:
-        msg: "{{ remote_distro_info.stdout }}"
+        msg: "Distribución: {{ ansible_facts['distribution'] }}, Versión: {{ ansible_facts['distribution_version'] }}"
