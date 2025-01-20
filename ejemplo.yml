@@ -1,22 +1,67 @@
 ---
-- name: Mostrar el contenido de la llave privada y obtener información del servidor remoto
-  hosts: local  # La máquina en la que se ejecuta el playbook
+- name: Leer y procesar el inventario CSV y obtener información del servidor remoto
+  hosts: localhost  # La máquina en la que se ejecuta el playbook
   gather_facts: no  # No es necesario recopilar hechos para esta tarea
 
+  vars:
+    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
+    delimiter: ";"
+
   tasks:
-    - name: Leer el contenido de la llave privada
-      slurp:
-        src: /home/ansible/.ssh/id_rsa  # Ruta de la llave privada en la máquina local
-      register: private_key_content
+    - name: Verificar que el archivo CSV existe
+      stat:
+        path: "{{ input_file }}"
+      register: file_check
 
-    - name: Mostrar el contenido de la llave privada (decodificado)
-      debug:
-        msg: "{{ private_key_content.content | b64decode }}"
+    - name: Fallar si el archivo de inventario no existe
+      fail:
+        msg: "El archivo de inventario {{ input_file }} no existe."
+      when: not file_check.stat.exists
 
-    - name: Ejecutar comando remoto en 192.168.100.100 para obtener la distro
-      command: ssh webserver@192.168.100.100
-      register: remote_distro_info
+    - name: Leer contenido del archivo CSV
+      set_fact:
+        csv_content: "{{ lookup('file', input_file) }}"
 
+    - name: Extraer encabezados del CSV
+      set_fact:
+        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del CSV
+      set_fact:
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != headers | length
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas para crear diccionarios
+      set_fact:
+        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
+      add_host:
+        name: "{{ item.IP }}"
+        groups: dynamic_hosts
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta de la llave privada
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+
+- name: Obtener información del sistema operativo de los hosts dinámicos
+  hosts: dynamic_hosts
+  gather_facts: yes  # Obtiene la información del sistema operativo
+  remote_user: "{{ ansible_user }}"  # Usa el usuario desde el CSV
+
+  tasks:
     - name: Mostrar la información de la distribución y versión del sistema operativo
       debug:
-        msg: "{{ remote_distro_info.stdout }}"
+        msg: "Distribución: {{ ansible_facts['distribution'] }}, Versión: {{ ansible_facts['distribution_version'] }}"
