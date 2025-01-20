@@ -1,12 +1,14 @@
 ---
-- name: Leer y procesar el inventario CSV y obtener información del servidor remoto
-  hosts: local  # La máquina en la que se ejecuta el playbook
-  gather_facts: no  # No es necesario recopilar hechos para esta tarea
+# playbooks/analizar_vulnerabilidades.yml
 
+- name: Leer y procesar el inventario CSV
+  hosts: local
+  gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventory/webServer.csv"
+    input_file: "/home/ansible/configuracion/webServer.csv"
+    grafana_file: "/home/ansible/configuracion/grafana.csv"
     delimiter: ";"
-
+    ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta a la clave privada
   tasks:
     - name: Verificar que el archivo CSV existe
       stat:
@@ -19,8 +21,13 @@
       when: not file_check.stat.exists
 
     - name: Leer contenido del archivo CSV
+      slurp:
+        src: "{{ input_file }}"
+      register: slurped_file
+
+    - name: Establecer el contenido del archivo CSV
       set_fact:
-        csv_content: "{{ lookup('file', input_file) }}"
+        csv_content: "{{ slurped_file.content | b64decode }}"
 
     - name: Extraer encabezados del CSV
       set_fact:
@@ -45,23 +52,86 @@
       loop_control:
         loop_var: row
 
+    - name: Verificar que el archivo Grafana CSV existe
+      stat:
+        path: "{{ grafana_file }}"
+      register: grafana_file_check
+
+    - name: Fallar si el archivo de inventario Grafana no existe
+      fail:
+        msg: "El archivo de inventario {{ grafana_file }} no existe."
+      when: not grafana_file_check.stat.exists
+
+    - name: Leer contenido del archivo Grafana CSV
+      slurp:
+        src: "{{ grafana_file }}"
+      register: slurped_grafana_file
+
+    - name: Establecer el contenido del archivo Grafana CSV
+      set_fact:
+        grafana_csv_content: "{{ slurped_grafana_file.content | b64decode }}"
+
+    - name: Extraer encabezados del archivo Grafana CSV
+      set_fact:
+        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del archivo Grafana CSV
+      set_fact:
+        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != grafana_headers | length
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
+      set_fact:
+        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
     - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
       add_host:
         name: "{{ item.IP }}"
         groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta de la llave privada
+        ansible_ssh_private_key_file: "{{ ansible_ssh_private_key_file }}"  # Clave privada definida como variable
+        remote_tmp: /tmp/ansible
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
 
-- name: Obtener información del sistema operativo de los hosts dinámicos
-  hosts: dynamic_hosts
-  gather_facts: yes  # Obtiene la información del sistema operativo
-  remote_user: "{{ ansible_user }}"  # Usa el usuario desde el CSV
+    - name: Agregar hosts dinámicamente al grupo 'grafana_hosts'
+      add_host:
+        name: "{{ item.IP }}"
+        groups: grafana_hosts
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_ssh_private_key_file: "{{ ansible_ssh_private_key_file }}"  # Clave privada definida como variable
+      loop: "{{ grafana_csv_data }}"
+      loop_control:
+        loop_var: item
 
+- name: Obtener información y verificar EoL de los servidores
+  hosts: dynamic_hosts
+  gather_facts: yes
+  vars_files:
+    - vars/eol_map.yml
+    - vars/release_map.yml
   tasks:
-    - name: Mostrar la información de la distribución y versión del sistema operativo
+    - name: Determinar la familia del sistema operativo
+      set_fact:
+        os_family: "Linux"
+
+    - name: Obtener la fecha actual del sistema
+      set_fact:
+        current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
+
+    - name: Mostrar información del sistema 
       debug:
-        msg: "Distribución: {{ ansible_facts['distribution'] }}, Versión: {{ ansible_facts['distribution_version'] }}"
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
