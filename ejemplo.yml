@@ -5,4 +5,4 @@
 
   tasks:
     - name: Ejecutar el playbook /home/ansible/ejemplo/ejemplo.yml
-      import_playbook: /home/ansible/ejemplo/ejemplo.yml  # Ruta al playbook que quieres ejecutar
+      command: ansible-playbook /home/ansible/ejemplo/ejemplo.yml  # Ruta al playbook que quieres ejecutar
