@@ -145,3 +145,5 @@
     - name: Mostrar información del sistema 
       debug:
         msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
+  vars:
+    ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Aquí defines la ruta a la clave privada
