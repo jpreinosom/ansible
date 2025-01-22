@@ -44,6 +44,10 @@
       loop_control:
         loop_var: row
 
+    - name: Verificar contenido de csv_data
+      debug:
+        msg: "{{ csv_data }}"  # Mostrar el contenido de csv_data para asegurarse de que tiene las claves correctas
+
     - name: Verificar que el archivo Grafana CSV existe
       stat:
         path: "{{ grafana_file }}"
@@ -82,10 +86,16 @@
         loop_var: row
 
 - name: Ejecutar comando SSH en hosts definidos en CSV
-  hosts: local  # Ejecutamos en localhost porque estamos procesando los datos de csv_data
+  hosts: localhost  # Ejecutamos en localhost porque estamos procesando los datos de csv_data
   gather_facts: no
 
   tasks:
+    - name: Verificar que csv_data tiene las claves correctas
+      debug:
+        msg: "Clave IP: {{ item.IP }}, Clave Usuario: {{ item.Usuario }}"
+      loop: "{{ csv_data }}"  # Asegúrate de que csv_data tiene las claves correctas
+      when: item.IP is defined and item.Usuario is defined  # Verifica que las claves existan
+
     - name: Ejecutar comando SSH en cada servidor
       ansible.builtin.command:
         cmd: "ssh -i ~/.ssh/id_rsa {{ item.IP }}@{{ item.Usuario }} uname -a"
@@ -95,5 +105,5 @@
 
     - name: Mostrar resultados del comando
       debug:
-        msg: "Resultado en {{ item.item.ip_address }}: {{ item.stdout }}"
+        msg: "Resultado en {{ item.item.IP }}: {{ item.stdout }}"
       loop: "{{ command_results.results }}"
