@@ -230,5 +230,5 @@
       command: ssh -i ~/.ssh/id_rsa {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }} psql -U grafana_user -d grafana_db  -f /tmp/insert_inventario.sql
       environment:
         PGPASSWORD: "grafana_password"
-      when: all_scores is defined and all_scores | length > 0
+      when: server_data is defined and server_data | length > 0
       delegate_to: local
