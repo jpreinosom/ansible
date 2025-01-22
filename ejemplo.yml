@@ -207,5 +207,28 @@
       debug:
         msg: "IP: {{ grafana_csv_data[0]['IP'] }}, Usuario: {{ grafana_csv_data[0]['Usuario'] }}"
           
-    
+    - name: Insertar registros desde grafana_rows en la base de datos
+      ansible.builtin.command:
+        cmd: >
+          ssh -i ~/.ssh/id_rsa {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }} psql -U grafana_user -d grafana_db -c "
+          INSERT INTO inventario (
+            ip, distribucion, version, familia, soportada, eol, release, nombre, suscrita
+          ) VALUES (
+            '{{ item.IP }}',
+            '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
+            '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
+            '{{ hostvars[item.IP]['os_family'] | default('No disponible') }}',
+            '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}',
+            '{{ hostvars[item.IP]['eol_date'] | default('No definido') }}',
+            '{{ hostvars[item.IP]['release_date'] | default('No definido') }}',
+            '{{ hostvars[item.IP]['nombre_maquina'] | default('No disponible') }}',
+            '{{ hostvars[item.IP]['suscrita'] | default('No aplica') }}'
+          )"
+      loop: "{{ csv_data }}"  # Iteramos sobre grafana_rows para obtener las IPs y Usuarios de los servidores de Grafana
+      loop_control:
+        loop_var: item
+      environment:
+        PGPASSWORD: "grafana_password"
+      delegate_to: local # Delegamos la tarea a localhost para ejecutar el comando SSH en los servidores remotos
+
 
