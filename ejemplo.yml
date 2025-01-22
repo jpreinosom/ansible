@@ -98,7 +98,7 @@
 
     - name: Ejecutar comando SSH en cada servidor
       ansible.builtin.command:
-        cmd: "ssh -i ~/.ssh/id_rsa {{ item.IP }}@{{ item.Usuario }} uname -a"
+        cmd: "ssh -i ~/.ssh/id_rsa {{ item.Usuario }}@{{ item.IP }} uname -a"
       loop: "{{ csv_data }}"  # Iteramos directamente sobre csv_data
       register: command_results
       delegate_to: local  # Delegamos la ejecución de la tarea a la máquina local
