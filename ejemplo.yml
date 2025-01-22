@@ -88,7 +88,9 @@
 - name: Ejecutar comando SSH en hosts definidos en CSV
   hosts: localhost  # Ejecutamos en localhost porque estamos procesando los datos de csv_data
   gather_facts: no
-
+  vars_files:
+    - vars/eol_map.yml
+    - vars/release_map.yml
   tasks:
     - name: Verificar que csv_data tiene las claves correctas
       debug:
@@ -96,14 +98,101 @@
       loop: "{{ csv_data }}"  # Asegúrate de que csv_data tiene las claves correctas
       when: item.IP is defined and item.Usuario is defined  # Verifica que las claves existan
 
-    - name: Ejecutar comando SSH en cada servidor
+    - name: Obtener información y verificar EoL de los servidores
       ansible.builtin.command:
         cmd: "ssh -i ~/.ssh/id_rsa {{ item.Usuario }}@{{ item.IP }} uname -a"
       loop: "{{ csv_data }}"  # Iteramos directamente sobre csv_data
       register: command_results
       delegate_to: local  # Delegamos la ejecución de la tarea a la máquina local
 
-    - name: Mostrar resultados del comando
+    - name: Determinar la familia del sistema operativo
+      set_fact:
+        os_family: "Linux"
+
+    - name: Obtener la fecha actual del sistema
+      set_fact:
+        current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
+
+    - name: Mostrar información del sistema
       debug:
-        msg: "Resultado en {{ item.item.IP }}: {{ item.stdout }}"
-      loop: "{{ command_results.results }}"
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
+
+    - name: Determinar la fecha de EoL para la distribución y versión
+      set_fact:
+        eol_date: >-
+          {{
+            (eol_map.get(ansible_distribution, {})
+            | dict2items
+            | selectattr('key', '==', ansible_distribution_version)
+            | map(attribute='value')
+            | list
+            | first)
+            | default(
+              (eol_map.get(ansible_distribution, {})
+              | dict2items
+              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
+              | map(attribute='value')
+              | list
+              | first),
+              'No definido'
+            )
+          }}
+
+    - name: Determinar la fecha de lanzamiento para la distribución y versión
+      set_fact:
+        release_date: >-
+          {{
+            (release_map.get(ansible_distribution, {})
+            | dict2items
+            | selectattr('key', '==', ansible_distribution_version)
+            | map(attribute='value')
+            | list
+            | first)
+            | default(
+              (release_map.get(ansible_distribution, {})
+              | dict2items
+              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
+              | map(attribute='value')
+              | list
+              | first),
+              'No definido'
+            )
+          }}
+
+    - name: Establecer el estado de suscripción
+      set_fact:
+        subscription_status: >-
+          {% if eol_date != 'No definido' %}
+            {% if current_date | int > (eol_date | regex_replace('-', '') | int) %}
+              Deprecado
+            {% else %}
+              Soportada
+            {% endif %}
+          {% else %}
+            Versión sin fecha establecida de EoL
+          {% endif %}
+
+    - name: Mostrar información del sistema operativo
+      debug:
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, EOL: {{ eol_date }}, Release: {{ release_date }}, Estado de suscripción: {{ subscription_status }}"
+
+    - name: Obtener nombre de la máquina (FQDN)
+      set_fact:
+        nombre_maquina: "{{ ansible_fqdn | default(ansible_hostname) }}"
+
+    - name: Obtener estado de suscripción en RedHat
+      command: subscription-manager status
+      register: subscription_status_output
+      when: ansible_distribution in ["RedHat"]
+      ignore_errors: yes
+
+    - name: Establecer estado de suscripción para RedHat
+      set_fact:
+        suscrita: "{{ 'Suscrita' if 'Overall Status: Current' in subscription_status_output.stdout else 'No Suscrita' }}"
+      when: ansible_distribution in ["RedHat"]
+      ignore_errors: yes
+
+    - name: Establecer estado de suscripción a "No aplica" para otras distribuciones
+      set_fact:
+        suscrita: "No aplica"
+      when: ansible_distribution not in ["RedHat"]
