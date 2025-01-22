@@ -210,8 +210,7 @@
     - name: Insertar registros desde grafana_rows en la base de datos
       ansible.builtin.command:
         cmd: >
-          ssh -i ~/.ssh/id_rsa {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }} psql -U grafana_user -d grafana_db -c "
-          INSERT INTO inventario (
+          ssh -i ~/.ssh/id_rsa {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }} psql -U grafana_user -d grafana_db -c "INSERT INTO inventario (
             ip, distribucion, version, familia, soportada, eol, release, nombre, suscrita
           ) VALUES (
             '{{ item.IP }}',
