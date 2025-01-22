@@ -59,17 +59,27 @@
       loop: "{{ csv_data }}"
       when: item.IP is defined and item.Usuario is defined
 
-    - name: Obtener información y verificar EoL de los servidores
+    - name: Obtener información de cada servidor remoto
       ansible.builtin.command:
         cmd: "ssh -i ~/.ssh/id_rsa {{ item.Usuario }}@{{ item.IP }} uname -a"
       loop: "{{ csv_data }}"
       register: command_results
       delegate_to: local
 
-    - name: Determinar la familia del sistema operativo por nodo
-      set_fact:
-        os_family: "Linux"
+    - name: Obtener la familia del sistema operativo por nodo
+      ansible.builtin.command:
+        cmd: "ssh -i ~/.ssh/id_rsa {{ item.Usuario }}@{{ item.IP }} cat /etc/os-release | grep ^ID="
       loop: "{{ csv_data }}"
+      register: os_family_result
+      loop_control:
+        loop_var: item
+      when: item.IP is defined
+
+    - name: Obtener la versión de la distribución por nodo
+      ansible.builtin.command:
+        cmd: "ssh -i ~/.ssh/id_rsa {{ item.Usuario }}@{{ item.IP }} lsb_release -d"
+      loop: "{{ csv_data }}"
+      register: distribution_version_result
       loop_control:
         loop_var: item
       when: item.IP is defined
@@ -83,83 +93,26 @@
       when: item.IP is defined
 
     - name: Determinar la fecha de EoL para la distribución y versión por nodo
-      set_fact:
-        eol_date: >-
-          {{
-            (eol_map.get(ansible_distribution, {})
-            | dict2items
-            | selectattr('key', '==', ansible_distribution_version)
-            | map(attribute='value')
-            | list
-            | first)
-            | default(
-              (eol_map.get(ansible_distribution, {})
-              | dict2items
-              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
-              | map(attribute='value')
-              | list
-              | first),
-              'No definido'
-            )
-          }}
+      ansible.builtin.command:
+        cmd: "ssh -i ~/.ssh/id_rsa {{ item.Usuario }}@{{ item.IP }} cat /etc/os-release | grep ^VERSION_ID="
       loop: "{{ csv_data }}"
+      register: eol_date_result
       loop_control:
         loop_var: item
       when: item.IP is defined
 
-    - name: Determinar la fecha de lanzamiento para la distribución y versión por nodo
-      set_fact:
-        release_date: >-
-          {{
-            (release_map.get(ansible_distribution, {})
-            | dict2items
-            | selectattr('key', '==', ansible_distribution_version)
-            | map(attribute='value')
-            | list
-            | first)
-            | default(
-              (release_map.get(ansible_distribution, {})
-              | dict2items
-              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
-              | map(attribute='value')
-              | list
-              | first),
-              'No definido'
-            )
-          }}
+    - name: Obtener fecha de lanzamiento para la distribución y versión por nodo
+      ansible.builtin.command:
+        cmd: "ssh -i ~/.ssh/id_rsa {{ item.Usuario }}@{{ item.IP }} cat /etc/os-release | grep ^VERSION="
       loop: "{{ csv_data }}"
+      register: release_date_result
       loop_control:
         loop_var: item
       when: item.IP is defined
 
-    - name: Establecer el estado de suscripción por nodo
-      set_fact:
-        subscription_status: >-
-          {% if eol_date != 'No definido' %}
-            {% if current_date | int > (eol_date | regex_replace('-', '') | int) %}
-              Deprecado
-            {% else %}
-              Soportada
-            {% endif %}
-          {% else %}
-            Versión sin fecha establecida de EoL
-          {% endif %}
-      loop: "{{ csv_data }}"
-      loop_control:
-        loop_var: item
-      when: item.IP is defined
-
-    - name: Obtener nombre de la máquina (FQDN) por nodo
-      set_fact:
-        nombre_maquina: "{{ ansible_fqdn | default(ansible_hostname) }}"
-      loop: "{{ csv_data }}"
-      loop_control:
-        loop_var: item
-      when: item.IP is defined
-      ignore_errors: yes
-
-    - name: Obtener estado de suscripción en RedHat por nodo
-      command: subscription-manager status
+    - name: Obtener el estado de suscripción en RedHat por nodo
+      ansible.builtin.command:
+        cmd: "ssh -i ~/.ssh/id_rsa {{ item.Usuario }}@{{ item.IP }} subscription-manager status"
       register: subscription_status_output
       when: ansible_distribution in ["RedHat"]
       ignore_errors: yes
@@ -167,36 +120,40 @@
       loop_control:
         loop_var: item
 
-    - name: Establecer estado de suscripción para RedHat por nodo
+    - name: Establecer el estado de suscripción por nodo
       set_fact:
-        suscrita: "{{ 'Suscrita' if 'Overall Status: Current' in subscription_status_output.stdout else 'No Suscrita' }}"
+        subscription_status: >-
+          {% if 'Overall Status: Current' in subscription_status_output.stdout %}
+            Suscrita
+          {% else %}
+            No Suscrita
+          {% endif %}
+      loop: "{{ subscription_status_output.results }}"
+      loop_control:
+        loop_var: item
       when: ansible_distribution in ["RedHat"]
-      ignore_errors: yes
+
+    - name: Obtener nombre de la máquina (FQDN) por nodo
+      ansible.builtin.command:
+        cmd: "ssh -i ~/.ssh/id_rsa {{ item.Usuario }}@{{ item.IP }} hostname -f"
       loop: "{{ csv_data }}"
+      register: fqdn_result
       loop_control:
         loop_var: item
-
-    - name: Establecer estado de suscripción a "No aplica" para otras distribuciones por nodo
-      set_fact:
-        suscrita: "No aplica"
-      when: ansible_distribution not in ["RedHat"]
-      loop: "{{ csv_data }}"
-      loop_control:
-        loop_var: item
+      when: item.IP is defined
       ignore_errors: yes
-
     - name: Guardar los datos en una lista por nodo
       set_fact:
         server_data: "{{ server_data | default([]) + [{
           'IP': item.IP,
-          'distribucion': ansible_distribution,
-          'version': ansible_distribution_version,
-          'familia': os_family,
+          'distribucion': os_family_result.stdout | default('No disponible'),
+          'version': distribution_version_result.stdout | default('No disponible'),
+          'familia': os_family_result.stdout | default('No disponible'),
           'soportada': subscription_status,
-          'eol': eol_date,
-          'release': release_date,
-          'nombre': nombre_maquina,
-          'suscrita': suscrita
+          'eol': eol_date_result.stdout | default('No definido'),
+          'release': release_date_result.stdout | default('No definido'),
+          'nombre': fqdn_result,
+          'suscrita': subscription_status
         }] }}"
       loop: "{{ csv_data }}"
       loop_control:
