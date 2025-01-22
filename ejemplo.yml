@@ -228,6 +228,8 @@
         msg: "IP: {{ grafana_csv_data[0]['IP'] }}, Usuario: {{ grafana_csv_data[0]['Usuario'] }}"
 
     - name: Ejecutar archivo SQL para scores
-      command: PGPASSWORD={{ vulnerability_password }} ssh -i ~/.ssh/id_rsa {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }} psql -U grafana_user -d grafana_db  -f /tmp/insert_inventario.sql
+      command: ssh -i ~/.ssh/id_rsa {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }} psql -U grafana_user -d grafana_db  -f /tmp/insert_inventario.sql
+      environment:
+        PGPASSWORD: "{{ vulnerability_password }}"
       when: server_data is defined and server_data | length > 0
       delegate_to: local
