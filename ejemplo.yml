@@ -3,7 +3,7 @@
   hosts: localhost  # Ejecutamos en localhost para procesar los archivos
   gather_facts: no
   vars:
-    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
+    input_file: "{{ playbook_dir }}/inventory/webServer.csv"
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
   tasks:
@@ -88,7 +88,7 @@
   tasks:
     - name: Ejecutar comando SSH en cada servidor
       ansible.builtin.command:
-        cmd: "ssh -i ~/.ssh/id_rsa {{ item.ssh_user }}@{{ item.ip_address }} uname -a"
+        cmd: "ssh -i ~/.ssh/id_rsa {{ item.IP }}@{{ item.Usuario }} uname -a"
       loop: "{{ csv_data }}"  # Iteramos directamente sobre csv_data
       register: command_results
       delegate_to: local  # Delegamos la ejecución de la tarea a la máquina local
