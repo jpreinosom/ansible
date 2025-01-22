@@ -87,7 +87,7 @@
 
 - name: Ejecutar comando SSH en hosts definidos en CSV
   hosts: localhost  # Ejecutamos en localhost porque estamos procesando los datos de csv_data
-  gather_facts: no
+  gather_facts: yes
   vars_files:
     - vars/eol_map.yml
     - vars/release_map.yml
