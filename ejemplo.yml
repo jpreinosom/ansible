@@ -4,7 +4,6 @@
   gather_facts: no
   vars:
     input_file: "{{ playbook_dir }}/inventory/webServer.csv"
-    grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
   tasks:
     - name: Verificar que el archivo CSV existe
@@ -47,43 +46,6 @@
     - name: Verificar contenido de csv_data
       debug:
         msg: "{{ csv_data }}"  # Mostrar el contenido de csv_data para asegurarse de que tiene las claves correctas
-
-    - name: Verificar que el archivo Grafana CSV existe
-      stat:
-        path: "{{ grafana_file }}"
-      register: grafana_file_check
-
-    - name: Fallar si el archivo de inventario Grafana no existe
-      fail:
-        msg: "El archivo de inventario {{ grafana_file }} no existe."
-      when: not grafana_file_check.stat.exists
-
-    - name: Leer contenido del archivo Grafana CSV
-      set_fact:
-        grafana_csv_content: "{{ lookup('file', grafana_file) }}"
-
-    - name: Extraer encabezados del archivo Grafana CSV
-      set_fact:
-        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
-
-    - name: Extraer filas del archivo Grafana CSV
-      set_fact:
-        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
-
-    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
-      fail:
-        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
-      when: row | length != grafana_headers | length
-      loop: "{{ grafana_rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
-      set_fact:
-        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
-      loop: "{{ grafana_rows }}"
-      loop_control:
-        loop_var: row
 
 - name: Ejecutar comando SSH en hosts definidos en CSV
   hosts: localhost  # Ejecutamos en localhost porque estamos procesando los datos de csv_data
@@ -196,3 +158,77 @@
       set_fact:
         suscrita: "No aplica"
       when: ansible_distribution not in ["RedHat"]
+
+- name: Insertar registros en la tabla inventario en la base de datos
+  hosts: localhost  # Ejecutamos en localhost porque estamos procesando los datos de csv_data
+  gather_facts: no
+  vars:
+    grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
+    delimiter: ";"
+  tasks:
+    - name: Verificar que el archivo Grafana CSV existe
+      stat:
+        path: "{{ grafana_file }}"
+      register: grafana_file_check
+
+    - name: Fallar si el archivo de inventario Grafana no existe
+      fail:
+        msg: "El archivo de inventario {{ grafana_file }} no existe."
+      when: not grafana_file_check.stat.exists
+
+    - name: Leer contenido del archivo Grafana CSV
+      set_fact:
+        grafana_csv_content: "{{ lookup('file', grafana_file) }}"
+
+    - name: Extraer encabezados del archivo Grafana CSV
+      set_fact:
+        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del archivo Grafana CSV
+      set_fact:
+        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != grafana_headers | length
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
+      set_fact:
+        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Verificar contenido de grafana_rows
+      debug:
+        msg: "{{ grafana_rows }}"  # Mostrar el contenido de grafana_rows para asegurarse de que tiene las claves correctas
+          
+    - name: Insertar registros desde grafana_rows en la base de datos
+      ansible.builtin.command:
+        cmd: >
+          ssh -i ~/.ssh/id_rsa {{ grafana_rows.Usuario }}@{{ grafana_rows.IP }} psql -U grafana_user -d grafana_db -c "
+          INSERT INTO inventario (
+            ip, distribucion, version, familia, soportada, eol, release, nombre, suscrita
+          ) VALUES (
+            '{{ item.IP }}',
+            '{{ hostvars[item.IP]['ansible_distribution'] | default('No disponible') }}',
+            '{{ hostvars[item.IP]['ansible_distribution_version'] | default('No disponible') }}',
+            '{{ hostvars[item.IP]['os_family'] | default('No disponible') }}',
+            '{{ hostvars[item.IP]['subscription_status'] | default('No definido') | trim }}',
+            '{{ hostvars[item.IP]['eol_date'] | default('No definido') }}',
+            '{{ hostvars[item.IP]['release_date'] | default('No definido') }}',
+            '{{ hostvars[item.IP]['nombre_maquina'] | default('No disponible') }}',
+            '{{ hostvars[item.IP]['suscrita'] | default('No aplica') }}'
+          )"
+      loop: "{{ csv_data }}"  # Iteramos sobre grafana_rows para obtener las IPs y Usuarios de los servidores de Grafana
+      loop_control:
+        loop_var: item
+      environment:
+        PGPASSWORD: "grafana_password"
+      delegate_to: local # Delegamos la tarea a localhost para ejecutar el comando SSH en los servidores remotos
+
+
