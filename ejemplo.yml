@@ -173,7 +173,7 @@
         dest: /tmp/insert_inventario.sql
         content: |
           {% for sc in server_data %}
-          INSERT INTO inventario (ip, distribucion, version, familia, soportada, eol, release, nombre, suscrita)  VALUES ('{{ sc.IP }}', '{{ sc.distribucion }}', '{{ sc.version }} ,'{{ sc.familia }}','{{ sc.soportada }}','{{ sc.eol }},'{{ sc.release }}','{{ sc.nombre }}','{{ sc.suscrita }}');
+          INSERT INTO inventario (ip, distribucion, version, familia, soportada, eol, release, nombre, suscrita)  VALUES ('{{ sc.IP }}', '{{ sc.distribucion }}', '{{ sc.version }}' ,'{{ sc.familia }}','{{ sc.soportada }}','{{ sc.eol }}','{{ sc.release }}','{{ sc.nombre }}','{{ sc.suscrita }}');
           {% endfor %}
       when: server_data is defined and server_data | length > 0
       delegate_to: local
@@ -229,6 +229,6 @@
     - name: Ejecutar archivo SQL para scores
       command: ssh -i ~/.ssh/id_rsa {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }} psql -U grafana_user -d grafana_db  -f /tmp/insert_inventario.sql
       environment:
-        PGPASSWORD: "{{ vulnerability_password }}"
+        PGPASSWORD: "grafana_password"
       when: all_scores is defined and all_scores | length > 0
       delegate_to: local
