@@ -176,6 +176,7 @@
           INSERT INTO inventario (ip, distribucion, version, familia, soportada, eol, release, nombre, suscrita)  VALUES ('{{ sc.IP }}', '{{ sc.distribucion }}', '{{ sc.version }} ,'{{ sc.familia }}','{{ sc.soportada }}','{{ sc.eol }},'{{ sc.release }}','{{ sc.nombre }}','{{ sc.suscrita }}');
           {% endfor %}
       when: server_data is defined and server_data | length > 0
+      delegate_to: local
      # >>> Nuevo <<<: Recolectar scores de cada host (solo necesitamos un score por host)
 - name: Insertar registros en la tabla inventario en la base de datos
   hosts: localhost  # Ejecutamos en localhost porque estamos procesando los datos de csv_data
