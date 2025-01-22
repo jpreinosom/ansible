@@ -128,7 +128,7 @@
           {% else %}
             Versión sin fecha establecida de EoL
           {% endif %}
-          
+
     - name: Obtener nombre de la máquina (FQDN)
       set_fact:
         nombre_maquina: "{{ ansible_fqdn | default(ansible_hostname) }}"
@@ -170,3 +170,74 @@
     - name: Mostrar los datos recogidos
       debug:
         msg: "{{ server_data }}"
+
+- name: Insertar registros en la tabla inventario en la base de datos
+  hosts: localhost  # Ejecutamos en localhost porque estamos procesando los datos de csv_data
+  gather_facts: no
+  vars:
+    grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
+    delimiter: ";"
+  tasks:
+    - name: Verificar que el archivo Grafana CSV existe
+      stat:
+        path: "{{ grafana_file }}"
+      register: grafana_file_check
+
+    - name: Fallar si el archivo de inventario Grafana no existe
+      fail:
+        msg: "El archivo de inventario {{ grafana_file }} no existe."
+      when: not grafana_file_check.stat.exists
+
+    - name: Leer contenido del archivo Grafana CSV
+      set_fact:
+        grafana_csv_content: "{{ lookup('file', grafana_file) }}"
+
+    - name: Extraer encabezados del archivo Grafana CSV
+      set_fact:
+        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del archivo Grafana CSV
+      set_fact:
+        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != grafana_headers | length
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
+      set_fact:
+        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Acceder a un valor específico de grafana_csv_data (por ejemplo, IP y Usuario)
+      debug:
+        msg: "IP: {{ grafana_csv_data[0]['IP'] }}, Usuario: {{ grafana_csv_data[0]['Usuario'] }}"
+
+    - name: Insertar registros desde server_data en la base de datos
+      ansible.builtin.command:
+        cmd: >
+          ssh -i ~/.ssh/id_rsa {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }} psql -U grafana_user -d grafana_db -c "INSERT INTO inventario (
+            ip, distribucion, version, familia, soportada, eol, release, nombre, suscrita
+          ) VALUES (
+            '{{ item.IP }}',
+            '{{ item.distribucion | default('No disponible') }}',
+            '{{ item.version | default('No disponible') }}',
+            '{{ item.familia | default('No disponible') }}',
+            '{{ item.soportada | default('No definido') | trim }}',
+            '{{ item.eol | default('No definido') }}',
+            '{{ item.release | default('No definido') }}',
+            '{{ item.nombre | default('No disponible') }}',
+            '{{ item.suscrita | default('No aplica') }}'
+          )"
+      loop: "{{ server_data }}"  # Iteramos sobre server_data para obtener los datos de los servidores
+      loop_control:
+        loop_var: item
+      environment:
+        PGPASSWORD: "grafana_password"
+      delegate_to: local  # Delegamos la tarea a localhost para ejecutar el comando SSH en los servidores remotos
