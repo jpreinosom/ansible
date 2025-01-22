@@ -184,7 +184,6 @@
   vars:
     grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
     delimiter: ";"
-    grafana_password = "grafana_password"
   tasks:
     - name: Verificar que el archivo Grafana CSV existe
       stat:
