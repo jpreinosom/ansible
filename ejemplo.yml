@@ -167,10 +167,16 @@
       loop_control:
         loop_var: item
 
-    - name: Mostrar los datos recogidos
-      debug:
-        msg: "{{ server_data }}"
-
+        # Generar el archivo SQL para insertar scores
+    - name: Generar archivo SQL para inserciones de score
+      copy:
+        dest: /tmp/insert_inventario.sql
+        content: |
+          {% for sc in server_data %}
+          INSERT INTO inventario (ip, distribucion, version, familia, soportada, eol, release, nombre, suscrita)  VALUES ('{{ sc.ip }}', '{{ sc.distribucion }}', '{{ sc.version }} ,'{{ sc.familia }}','{{ sc.soportada }}','{{ sc.eol }},'{{ sc.release }}','{{ sc.nombre }}','{{ sc.suscrita }}');
+          {% endfor %}
+      when: server_data is defined and server_data | length > 0
+     # >>> Nuevo <<<: Recolectar scores de cada host (solo necesitamos un score por host)
 - name: Insertar registros en la tabla inventario en la base de datos
   hosts: localhost  # Ejecutamos en localhost porque estamos procesando los datos de csv_data
   gather_facts: no
@@ -219,25 +225,8 @@
       debug:
         msg: "IP: {{ grafana_csv_data[0]['IP'] }}, Usuario: {{ grafana_csv_data[0]['Usuario'] }}"
 
-    - name: Insertar registros desde server_data en la base de datos
-      ansible.builtin.command:
-        cmd: >
-          ssh -i ~/.ssh/id_rsa {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }} psql -U grafana_user -d grafana_db -c "INSERT INTO inventario (
-            ip, distribucion, version, familia, soportada, eol, release, nombre, suscrita
-          ) VALUES (
-            '{{ item.IP }}',
-            '{{ item.distribucion | default('No disponible') }}',
-            '{{ item.version | default('No disponible') }}',
-            '{{ item.familia | default('No disponible') }}',
-            '{{ item.soportada | default('No definido') | trim }}',
-            '{{ item.eol | default('No definido') }}',
-            '{{ item.release | default('No definido') }}',
-            '{{ item.nombre | default('No disponible') }}',
-            '{{ item.suscrita | default('No aplica') }}'
-          )"
-      loop: "{{ server_data }}"  # Iteramos sobre server_data para obtener los datos de los servidores
-      loop_control:
-        loop_var: item
+    - name: Ejecutar archivo SQL para scores
+      command: ssh -i ~/.ssh/id_rsa {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }} psql -U grafana_user -d grafana_db  -f /tmp/insert_score.sql
       environment:
-        PGPASSWORD: "grafana_password"
-      delegate_to: local  # Delegamos la tarea a localhost para ejecutar el comando SSH en los servidores remotos
+        PGPASSWORD: "{{ vulnerability_password }}"
+      when: all_scores is defined and all_scores | length > 0
