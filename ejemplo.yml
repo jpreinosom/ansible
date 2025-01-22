@@ -229,7 +229,7 @@
 
     - name: copiar archivo SQL para inventario
       command: >
-        scp /tmp/insert_inventario.sql {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }}:/home/grafana/"
+        scp /tmp/insert_inventario.sql {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }}:/home/grafana/
       when: server_data is defined and server_data | length > 0
       delegate_to: local
 
