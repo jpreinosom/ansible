@@ -241,7 +241,7 @@
       delegate_to: local
 
     - name: eliminar archivo SQL para inventario
-    command: >
-      ssh -i ~/.ssh/id_rsa {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }} rm -rf /home/grafana/insert_inventario.sql
-    when: server_data is defined and server_data | length > 0
-    delegate_to: local
+      command: >
+        ssh -i ~/.ssh/id_rsa {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }} rm -rf /home/grafana/insert_inventario.sql
+      when: server_data is defined and server_data | length > 0
+      delegate_to: local
