@@ -156,6 +156,7 @@
       loop_control:
         loop_var: item
       when: item.IP is defined
+      ignore_errors: yes
 
     - name: Obtener estado de suscripción en RedHat por nodo
       command: subscription-manager status
@@ -182,6 +183,7 @@
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
+      ignore_errors: yes
 
     - name: Guardar los datos en una lista por nodo
       set_fact:
