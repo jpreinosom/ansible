@@ -82,7 +82,7 @@
         loop_var: row
 
 - name: Ejecutar comando SSH en hosts definidos en CSV
-  hosts: localhost  # Ejecutamos en localhost porque estamos procesando los datos de csv_data
+  hosts: local  # Ejecutamos en localhost porque estamos procesando los datos de csv_data
   gather_facts: no
 
   tasks:
