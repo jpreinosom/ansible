@@ -46,7 +46,7 @@
       debug:
         msg: "{{ csv_data }}"  # Mostrar el contenido de csv_data para asegurarse de que tiene las claves correctas
 
-- name: Ejecutar comando SSH en hosts definidos en CSV y obtener información del sistema
+- name: Ejecutar comandos e información por cada servidor
   hosts: localhost
   gather_facts: yes
   vars_files:
@@ -66,15 +66,23 @@
       register: command_results
       delegate_to: local
 
-    - name: Determinar la familia del sistema operativo
+    - name: Determinar la familia del sistema operativo por nodo
       set_fact:
         os_family: "Linux"
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+      when: item.IP is defined
 
-    - name: Obtener la fecha actual del sistema
+    - name: Obtener la fecha actual del sistema por nodo
       set_fact:
         current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+      when: item.IP is defined
 
-    - name: Determinar la fecha de EoL para la distribución y versión
+    - name: Determinar la fecha de EoL para la distribución y versión por nodo
       set_fact:
         eol_date: >-
           {{
@@ -94,8 +102,12 @@
               'No definido'
             )
           }}
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+      when: item.IP is defined
 
-    - name: Determinar la fecha de lanzamiento para la distribución y versión
+    - name: Determinar la fecha de lanzamiento para la distribución y versión por nodo
       set_fact:
         release_date: >-
           {{
@@ -115,8 +127,12 @@
               'No definido'
             )
           }}
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+      when: item.IP is defined
 
-    - name: Establecer el estado de suscripción
+    - name: Establecer el estado de suscripción por nodo
       set_fact:
         subscription_status: >-
           {% if eol_date != 'No definido' %}
@@ -128,29 +144,46 @@
           {% else %}
             Versión sin fecha establecida de EoL
           {% endif %}
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+      when: item.IP is defined
 
-    - name: Obtener nombre de la máquina (FQDN)
+    - name: Obtener nombre de la máquina (FQDN) por nodo
       set_fact:
         nombre_maquina: "{{ ansible_fqdn | default(ansible_hostname) }}"
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+      when: item.IP is defined
 
-    - name: Obtener estado de suscripción en RedHat
+    - name: Obtener estado de suscripción en RedHat por nodo
       command: subscription-manager status
       register: subscription_status_output
       when: ansible_distribution in ["RedHat"]
       ignore_errors: yes
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
 
-    - name: Establecer estado de suscripción para RedHat
+    - name: Establecer estado de suscripción para RedHat por nodo
       set_fact:
         suscrita: "{{ 'Suscrita' if 'Overall Status: Current' in subscription_status_output.stdout else 'No Suscrita' }}"
       when: ansible_distribution in ["RedHat"]
       ignore_errors: yes
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
 
-    - name: Establecer estado de suscripción a "No aplica" para otras distribuciones
+    - name: Establecer estado de suscripción a "No aplica" para otras distribuciones por nodo
       set_fact:
         suscrita: "No aplica"
       when: ansible_distribution not in ["RedHat"]
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
 
-    - name: Guardar los datos en una lista
+    - name: Guardar los datos en una lista por nodo
       set_fact:
         server_data: "{{ server_data | default([]) + [{
           'IP': item.IP,
@@ -166,6 +199,10 @@
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
+
+    - name: Mostrar los datos recogidos por nodo
+      debug:
+        msg: "{{ server_data }}"
 
         # Generar el archivo SQL para insertar scores
     - name: Generar archivo SQL para inserciones de score
