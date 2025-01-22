@@ -128,6 +128,27 @@
           {% else %}
             Versión sin fecha establecida de EoL
           {% endif %}
+          
+    - name: Obtener nombre de la máquina (FQDN)
+      set_fact:
+        nombre_maquina: "{{ ansible_fqdn | default(ansible_hostname) }}"
+
+    - name: Obtener estado de suscripción en RedHat
+      command: subscription-manager status
+      register: subscription_status_output
+      when: ansible_distribution in ["RedHat"]
+      ignore_errors: yes
+
+    - name: Establecer estado de suscripción para RedHat
+      set_fact:
+        suscrita: "{{ 'Suscrita' if 'Overall Status: Current' in subscription_status_output.stdout else 'No Suscrita' }}"
+      when: ansible_distribution in ["RedHat"]
+      ignore_errors: yes
+
+    - name: Establecer estado de suscripción a "No aplica" para otras distribuciones
+      set_fact:
+        suscrita: "No aplica"
+      when: ansible_distribution not in ["RedHat"]
 
     - name: Guardar los datos en una lista
       set_fact:
