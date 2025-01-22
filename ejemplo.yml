@@ -1,8 +1,99 @@
 ---
-- name: Ejecutar otro playbook en la máquina local
-  hosts: local
+- name: Leer y procesar el inventario CSV
+  hosts: localhost  # Ejecutamos en localhost para procesar los archivos
+  gather_facts: no
+  vars:
+    input_file: "{{ playbook_dir }}/inventory/inventario.csv"
+    grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
+    delimiter: ";"
+  tasks:
+    - name: Verificar que el archivo CSV existe
+      stat:
+        path: "{{ input_file }}"
+      register: file_check
+
+    - name: Fallar si el archivo de inventario no existe
+      fail:
+        msg: "El archivo de inventario {{ input_file }} no existe."
+      when: not file_check.stat.exists
+
+    - name: Leer contenido del archivo CSV
+      set_fact:
+        csv_content: "{{ lookup('file', input_file) }}"
+
+    - name: Extraer encabezados del CSV
+      set_fact:
+        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del CSV
+      set_fact:
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != headers | length
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas para crear diccionarios
+      set_fact:
+        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Verificar que el archivo Grafana CSV existe
+      stat:
+        path: "{{ grafana_file }}"
+      register: grafana_file_check
+
+    - name: Fallar si el archivo de inventario Grafana no existe
+      fail:
+        msg: "El archivo de inventario {{ grafana_file }} no existe."
+      when: not grafana_file_check.stat.exists
+
+    - name: Leer contenido del archivo Grafana CSV
+      set_fact:
+        grafana_csv_content: "{{ lookup('file', grafana_file) }}"
+
+    - name: Extraer encabezados del archivo Grafana CSV
+      set_fact:
+        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del archivo Grafana CSV
+      set_fact:
+        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != grafana_headers | length
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
+      set_fact:
+        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+- name: Ejecutar comando SSH en hosts definidos en CSV
+  hosts: localhost  # Ejecutamos en localhost porque estamos procesando los datos de csv_data
   gather_facts: no
 
   tasks:
-    - name: Ejecutar el playbook /home/ansible/ejemplo/ejemplo.yml
-      command: ansible-playbook /home/ansible/ejemplo/ejemplo.yml  # Ruta al playbook que quieres ejecutar
+    - name: Ejecutar comando SSH en cada servidor
+      ansible.builtin.command:
+        cmd: "ssh -i ~/.ssh/id_rsa {{ item.ssh_user }}@{{ item.ip_address }} uname -a"
+      loop: "{{ csv_data }}"  # Iteramos directamente sobre csv_data
+      register: command_results
+      delegate_to: local  # Delegamos la ejecución de la tarea a la máquina local
+
+    - name: Mostrar resultados del comando
+      debug:
+        msg: "Resultado en {{ item.item.ip_address }}: {{ item.stdout }}"
+      loop: "{{ command_results.results }}"
