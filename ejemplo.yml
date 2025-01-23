@@ -1,13 +1,25 @@
 ---
-- name: Construir inventario dinámico a partir de CSV y usar llave inline
+# playbooks/analizar_vulnerabilidades.yml
+
+- name: Leer y procesar el inventario CSV
   hosts: localhost
+  connection: local  # Ejecutar localmente en la misma máquina
   gather_facts: no
-
   vars:
-    input_file: "{{ playbook_dir }}/inventory/webServer.csv"
+    input_file: "/home/ansible/configuracion/webServer.csv"
+    grafana_file: "/home/ansible/configuracion/grafana.csv"
     delimiter: ";"
-
+    ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta a la clave privada
   tasks:
+    - name: Leer el contenido de la llave privada
+      slurp:
+        src: /home/ansible/.ssh/id_rsa  # Ruta de la llave privada en la máquina local
+      register: private_key_content
+
+    - name: Mostrar el contenido de la llave privada (decodificado)
+      debug:
+        msg: "{{ private_key_content.content | b64decode }}"
+
     - name: Verificar que el archivo CSV existe
       stat:
         path: "{{ input_file }}"
@@ -18,85 +30,236 @@
         msg: "El archivo de inventario {{ input_file }} no existe."
       when: not file_check.stat.exists
 
-    - name: Fallar si el archivo está vacío
-      fail:
-        msg: "El archivo {{ input_file }} está vacío."
-      when: file_check.stat.size == 0
-
     - name: Leer contenido del archivo CSV
-      set_fact:
-        csv_content: "{{ lookup('file', input_file) }}"
+      slurp:
+        src: "{{ input_file }}"
+      register: slurped_file
 
-    - name: Extraer encabezados (primera línea)
+    - name: Establecer el contenido del archivo CSV
       set_fact:
-        headers: >-
-          {{ 
-            csv_content.splitlines() 
-            | first 
-            | split(delimiter) 
-            | map('trim') 
-            | list
-          }}
+        csv_content: "{{ slurped_file.content | b64decode }}"
 
-    - name: Extraer filas (omitiendo la primera línea y vacías)
+    - name: Extraer encabezados del CSV
       set_fact:
-        rows: >-
-          {{ 
-            csv_content.splitlines()[1:] 
-            | reject('match', '^$') 
-            | list
-          }}
+        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
 
-    - name: Validar que existan filas con datos
+    - name: Extraer filas del CSV
+      set_fact:
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
       fail:
-        msg: "El archivo no tiene filas de datos (solo encabezados)."
-      when: rows | length == 0
-
-    - name: Separar columnas en cada fila
-      set_fact:
-        row_splits: "{{ rows | map('split', delimiter) | list }}"
-
-    - name: Validar que cada fila tenga el mismo número de columnas que los encabezados
-      fail:
-        msg: "La fila {{ row }} no coincide con el número de columnas de los encabezados."
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
       when: row | length != headers | length
-      loop: "{{ row_splits }}"
+      loop: "{{ rows }}"
       loop_control:
         loop_var: row
 
-    - name: Combinar encabezados y filas en una lista de diccionarios
+    - name: Combinar encabezados con filas para crear diccionarios
       set_fact:
         csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
-      loop: "{{ row_splits }}"
+      loop: "{{ rows }}"
       loop_control:
         loop_var: row
 
-    # Aquí cargamos la llave privada en una variable (opcionalmente, podría venir de un vault)
-    - name: Cargar contenido de la llave privada (id_rsa)
-      set_fact:
-        my_private_key: "{{ lookup('file', '/home/ansible/.ssh/id_rsa') }}"
-      delegate_to: local
+    - name: Verificar que el archivo Grafana CSV existe
+      stat:
+        path: "{{ grafana_file }}"
+      register: grafana_file_check
 
-    - name: Crear hosts dinámicos con la llave "inline"
-      add_host:
+    - name: Fallar si el archivo de inventario Grafana no existe
+      fail:
+        msg: "El archivo de inventario {{ grafana_file }} no existe."
+      when: not grafana_file_check.stat.exists
+
+    - name: Leer contenido del archivo Grafana CSV
+      slurp:
+        src: "{{ grafana_file }}"
+      register: slurped_grafana_file
+
+    - name: Establecer el contenido del archivo Grafana CSV
+      set_fact:
+        grafana_csv_content: "{{ slurped_grafana_file.content | b64decode }}"
+
+    - name: Extraer encabezados del archivo Grafana CSV
+      set_fact:
+        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del archivo Grafana CSV
+      set_fact:
+        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != grafana_headers | length
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
+      set_fact:
+        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts' y agregar 'csv_data'
+      ansible.builtin.add_host:
         name: "{{ item.IP }}"
-        groups: "dynamic_hosts"
+        groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_ssh_private_key_data: "{{ my_private_key }}"
+        ansible_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta correcta a la clave privada
+        remote_tmp: /tmp/ansible
+        csv_data: "{{ csv_data }}"  # Aquí agregamos 'csv_data' explícitamente al host
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
 
+    - name: Agregar hosts dinámicamente al grupo 'grafana_hosts' y agregar 'csv_data'
+      ansible.builtin.add_host:
+        name: "{{ item.IP }}"
+        groups: grafana_hosts
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta correcta a la clave privada
+        remote_tmp: /tmp/ansible
+        csv_data: "{{ grafana_csv_data }}"  # Aquí agregamos 'grafana_csv_data' explícitamente al host
+      loop: "{{ grafana_csv_data }}"
+      loop_control:
+        loop_var: item
 
-- name: Obtener información de los hosts dinámicos
+- name: Obtener información y verificar EoL de los servidores
   hosts: dynamic_hosts
   gather_facts: yes
-
+  vars_files:
+    - vars/eol_map.yml
+    - vars/release_map.yml
   tasks:
-    - name: Mostrar facts
+    - name: Determinar la familia del sistema operativo
+      set_fact:
+        os_family: "Linux"
+
+    - name: Obtener la fecha actual del sistema
+      set_fact:
+        current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
+
+    - name: Mostrar información del sistema 
       debug:
-        msg: >
-          Host: {{ inventory_hostname }} | 
-          Distribución: {{ ansible_facts['distribution'] }}, 
-          Versión: {{ ansible_facts['distribution_version'] }}
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
+        
+    - name: Determinar la fecha de EoL para la distribución y versión
+      set_fact:
+        eol_date: >-
+          {{
+            (eol_map.get(ansible_distribution, {})
+            | dict2items
+            | selectattr('key', '==', ansible_distribution_version)
+            | map(attribute='value')
+            | list
+            | first)
+            | default(
+              (eol_map.get(ansible_distribution, {})
+              | dict2items
+              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
+              | map(attribute='value')
+              | list
+              | first),
+              'No definido'
+            )
+          }}
+    - name: Determinar la fecha de lanzamiento para la distribución y versión
+      set_fact:
+        release_date: >-
+          {{
+            (release_map.get(ansible_distribution, {})
+            | dict2items
+            | selectattr('key', '==', ansible_distribution_version)
+            | map(attribute='value')
+            | list
+            | first)
+            | default(
+              (release_map.get(ansible_distribution, {})
+              | dict2items
+              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
+              | map(attribute='value')
+              | list
+              | first),
+              'No definido'
+            )
+          }}
+
+    - name: Establecer el estado de suscripción
+      set_fact:
+        subscription_status: >-
+          {% if eol_date != 'No definido' %}
+            {% if current_date | int > (eol_date | regex_replace('-', '') | int) %}
+              Deprecado
+            {% else %}
+              Soportada
+            {% endif %}
+          {% else %}
+            Versión sin fecha establecida de EoL
+          {% endif %}
+
+    - name: Mostrar información del sistema operativo
+      debug:
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, EOL: {{ eol_date }}, Release: {{ release_date }}, Estado de suscripción: {{ subscription_status }}"     
+
+    - name: Mostrar información de EoL
+      debug:
+        msg: "EOL: {{ eol_date }}"
+
+- name: Obtener nombre de la máquina y estado de suscripción (para RedHat)
+  hosts: dynamic_hosts
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: Obtener nombre de la máquina (FQDN)
+      set_fact:
+        nombre_maquina: "{{ ansible_fqdn | default(ansible_hostname) }}"
+
+    - name: Obtener estado de suscripción en RedHat
+      command: subscription-manager status
+      register: subscription_status_output
+      when: ansible_distribution in ["RedHat"]
+      ignore_errors: yes
+
+    - name: Establecer estado de suscripción para RedHat
+      set_fact:
+        suscrita: "{{ 'Suscrita' if 'Overall Status: Current' in subscription_status_output.stdout else 'No Suscrita' }}"
+      when: ansible_distribution in ["RedHat"]
+      ignore_errors: yes
+
+    - name: Establecer estado de suscripción a "No aplica" para otras distribuciones
+      set_fact:
+        suscrita: "No aplica"
+      when: ansible_distribution not in ["RedHat"]
+
+- name: Insertar registros en la base de datos
+  hosts: grafana_hosts
+  become: yes
+  tasks:
+    - name: Insertar registros desde dynamic_hosts en la base de datos
+      command: >
+        psql -U grafana_user -d grafana_db -c "
+        INSERT INTO inventario (
+          ip, distribucion, version, familia, soportada, eol, release, nombre, suscrita
+        ) VALUES (
+           '{{ item.IP }}',
+          '{{ hostvars[item.IP].ansible_distribution | default('No disponible') }}',
+          '{{ hostvars[item.IP].ansible_distribution_version | default('No disponible') }}',
+          '{{ hostvars[item.IP].os_family | default('No disponible') }}',
+          '{{ hostvars[item.IP].subscription_status | default('No definido') | trim }}',
+          '{{ hostvars[item.IP].eol_date| default('No definido') }}',
+          '{{ hostvars[item.IP].release_date| default('No definido') }}',
+          '{{ hostvars[item.IP].nombre_maquina | default('No disponible') }}',
+          '{{ hostvars[item.IP].suscrita | default('No aplica') }}'
+        )"
+      loop: "{{ hostvars['localhost'].csv_data }}"
+      loop_control:
+        loop_var: item
+      environment:
+        PGPASSWORD: "grafana_password"
+      become: no
