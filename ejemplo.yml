@@ -1,9 +1,12 @@
-- name: Leer y procesar el inventario CSV
-  hosts: localhost  # Ejecutamos en localhost para procesar los archivos
-  gather_facts: no
+---
+- name: Leer y procesar el inventario CSV y obtener información del servidor remoto
+  hosts: local  # La máquina en la que se ejecuta el playbook
+  gather_facts: no  # No es necesario recopilar hechos para esta tarea
+
   vars:
     input_file: "{{ playbook_dir }}/inventory/webServer.csv"
     delimiter: ";"
+
   tasks:
     - name: Verificar que el archivo CSV existe
       stat:
@@ -42,206 +45,24 @@
       loop_control:
         loop_var: row
 
-    - name: Verificar contenido de csv_data
-      debug:
-        msg: "{{ csv_data }}"  # Mostrar el contenido de csv_data para asegurarse de que tiene las claves correctas
-
-- name: Ejecutar comando SSH en hosts definidos en CSV y obtener información del sistema
-  hosts: localhost
-  gather_facts: yes
-  vars_files:
-    - vars/eol_map.yml
-    - vars/release_map.yml
-  tasks:
-    - name: Verificar que csv_data tiene las claves correctas
-      debug:
-        msg: "Clave IP: {{ item.IP }}, Clave Usuario: {{ item.Usuario }}"
-      loop: "{{ csv_data }}"
-      when: item.IP is defined and item.Usuario is defined
-
-    - name: Obtener información y verificar EoL de los servidores
-      ansible.builtin.command:
-        cmd: "ssh -i ~/.ssh/id_rsa {{ item.Usuario }}@{{ item.IP }} uname -a"
-      loop: "{{ csv_data }}"
-      register: command_results
-      delegate_to: local
-
-    - name: Determinar la familia del sistema operativo
-      set_fact:
-        os_family: "Linux"
-
-    - name: Obtener la fecha actual del sistema
-      set_fact:
-        current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
-
-    - name: Determinar la fecha de EoL para la distribución y versión
-      set_fact:
-        eol_date: >-
-          {{
-            (eol_map.get(ansible_distribution, {})
-            | dict2items
-            | selectattr('key', '==', ansible_distribution_version)
-            | map(attribute='value')
-            | list
-            | first)
-            | default(
-              (eol_map.get(ansible_distribution, {})
-              | dict2items
-              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
-              | map(attribute='value')
-              | list
-              | first),
-              'No definido'
-            )
-          }}
-
-    - name: Determinar la fecha de lanzamiento para la distribución y versión
-      set_fact:
-        release_date: >-
-          {{
-            (release_map.get(ansible_distribution, {})
-            | dict2items
-            | selectattr('key', '==', ansible_distribution_version)
-            | map(attribute='value')
-            | list
-            | first)
-            | default(
-              (release_map.get(ansible_distribution, {})
-              | dict2items
-              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
-              | map(attribute='value')
-              | list
-              | first),
-              'No definido'
-            )
-          }}
-
-    - name: Establecer el estado de suscripción
-      set_fact:
-        subscription_status: >-
-          {% if eol_date != 'No definido' %}
-            {% if current_date | int > (eol_date | regex_replace('-', '') | int) %}
-              Deprecado
-            {% else %}
-              Soportada
-            {% endif %}
-          {% else %}
-            Versión sin fecha establecida de EoL
-          {% endif %}
-
-    - name: Obtener nombre de la máquina (FQDN)
-      set_fact:
-        nombre_maquina: "{{ ansible_fqdn | default(ansible_hostname) }}"
-
-    - name: Obtener estado de suscripción en RedHat
-      command: subscription-manager status
-      register: subscription_status_output
-      when: ansible_distribution in ["RedHat"]
-      ignore_errors: yes
-
-    - name: Establecer estado de suscripción para RedHat
-      set_fact:
-        suscrita: "{{ 'Suscrita' if 'Overall Status: Current' in subscription_status_output.stdout else 'No Suscrita' }}"
-      when: ansible_distribution in ["RedHat"]
-      ignore_errors: yes
-
-    - name: Establecer estado de suscripción a "No aplica" para otras distribuciones
-      set_fact:
-        suscrita: "No aplica"
-      when: ansible_distribution not in ["RedHat"]
-
-    - name: Guardar los datos en una lista
-      set_fact:
-        server_data: "{{ server_data | default([]) + [{
-          'IP': item.IP,
-          'distribucion': ansible_distribution,
-          'version': ansible_distribution_version,
-          'familia': os_family,
-          'soportada': subscription_status,
-          'eol': eol_date,
-          'release': release_date,
-          'nombre': nombre_maquina,
-          'suscrita': suscrita
-        }] }}"
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
+      add_host:
+        name: "{{ item.IP }}"
+        groups: dynamic_hosts
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta de la llave privada
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
 
-        # Generar el archivo SQL para insertar scores
-    - name: Generar archivo SQL para inserciones de score
-      copy:
-        dest: /tmp/insert_inventario.sql
-        content: |
-          {% for sc in server_data %}
-          INSERT INTO inventario (ip, distribucion, version, familia, soportada, eol, release, nombre, suscrita)  VALUES ('{{ sc.IP }}', '{{ sc.distribucion }}', '{{ sc.version }}' ,'{{ sc.familia }}','{{ sc.soportada }}','{{ sc.eol }}','{{ sc.release }}','{{ sc.nombre }}','{{ sc.suscrita }}');
-          {% endfor %}
-      when: server_data is defined and server_data | length > 0
-      delegate_to: local
-     # >>> Nuevo <<<: Recolectar scores de cada host (solo necesitamos un score por host)
-- name: Insertar registros en la tabla inventario en la base de datos
-  hosts: localhost  # Ejecutamos en localhost porque estamos procesando los datos de csv_data
-  gather_facts: no
-  vars:
-    grafana_file: "{{ playbook_dir }}/inventory/grafana.csv"
-    delimiter: ";"
-    vulnerability_password: "grafana_password"
+- name: Obtener información del sistema operativo de los hosts dinámicos
+  hosts: dynamic_hosts
+  gather_facts: yes  # Obtiene la información del sistema operativo
+  remote_user: "{{ ansible_user }}"  # Usa el usuario desde el CSV
+
   tasks:
-    - name: Verificar que el archivo Grafana CSV existe
-      stat:
-        path: "{{ grafana_file }}"
-      register: grafana_file_check
-
-    - name: Fallar si el archivo de inventario Grafana no existe
-      fail:
-        msg: "El archivo de inventario {{ grafana_file }} no existe."
-      when: not grafana_file_check.stat.exists
-
-    - name: Leer contenido del archivo Grafana CSV
-      set_fact:
-        grafana_csv_content: "{{ lookup('file', grafana_file) }}"
-
-    - name: Extraer encabezados del archivo Grafana CSV
-      set_fact:
-        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
-
-    - name: Extraer filas del archivo Grafana CSV
-      set_fact:
-        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
-
-    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
-      fail:
-        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
-      when: row | length != grafana_headers | length
-      loop: "{{ grafana_rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
-      set_fact:
-        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
-      loop: "{{ grafana_rows }}"
-      loop_control:
-        loop_var: row
-
-    - name: Acceder a un valor específico de grafana_csv_data (por ejemplo, IP y Usuario)
+    - name: Mostrar la información de la distribución y versión del sistema operativo
       debug:
-        msg: "IP: {{ grafana_csv_data[0]['IP'] }}, Usuario: {{ grafana_csv_data[0]['Usuario'] }}"
-
-    - name: copiar archivo SQL para inventario
-      command: >
-        scp /tmp/insert_inventario.sql {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }}:/home/grafana/
-      when: server_data is defined and server_data | length > 0
-      delegate_to: local
-
-
-    - name: Ejecutar archivo SQL para inventario
-      command: >
-        ssh -i ~/.ssh/id_rsa {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }} "env PGPASSWORD={{ vulnerability_password }} psql -U grafana_user -d grafana_db -f /home/grafana/insert_inventario.sql"
-      when: server_data is defined and server_data | length > 0
-      delegate_to: local
-
-    - name: eliminar archivo SQL para inventario
-      command: >
-        ssh -i ~/.ssh/id_rsa {{ grafana_csv_data[0]['Usuario'] }}@{{ grafana_csv_data[0]['IP'] }} rm -rf /home/grafana/insert_inventario.sql
-      when: server_data is defined and server_data | length > 0
-      delegate_to: local
+        msg: "Distribución: {{ ansible_facts['distribution'] }}, Versión: {{ ansible_facts['distribution_version'] }}"
+        delegate_to: local
