@@ -1,6 +1,6 @@
 ---
 - name: Leer y procesar el inventario CSV y obtener información del servidor remoto
-  hosts: local  # La máquina en la que se ejecuta el playbook
+  hosts: localhost  # La máquina en la que se ejecuta el playbook
   gather_facts: no  # No es necesario recopilar hechos para esta tarea
 
   vars:
