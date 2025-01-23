@@ -83,7 +83,7 @@
 
 
 - name: Obtener información de los hosts dinámicos
-  hosts: dynamic_hosts
+  hosts: local
   gather_facts: yes
 
   tasks:
@@ -94,7 +94,7 @@
           owner: "{{ ansible_user }}"
           group: "{{ ansible_user }}"
           mode: '0600'
-          delegate_to: local  # indica que el archivo src: está en el controlador
+          delegate_to: dynamic_hosts  # indica que el archivo src: está en el controlador
     - name: Mostrar facts
       debug:
         msg: >
