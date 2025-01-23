@@ -77,8 +77,6 @@
         groups: "dynamic_hosts"
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        remote_tmp: /tmp/ansible
-
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
@@ -89,10 +87,10 @@
   gather_facts: yes
 
   tasks:
-    - name: Mostrar facts
+    - name: Obtener la fecha actual del sistema
+      set_fact:
+        current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
+
+    - name: Mostrar información del sistema 
       debug:
-        msg: >
-          Host: {{ inventory_hostname }} | 
-          Distribución: {{ ansible_facts['distribution'] }}, 
-          Versión: {{ ansible_facts['distribution_version'] }}
-        delegate_to: local
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
