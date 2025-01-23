@@ -55,6 +55,7 @@
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
+        delegate_to: local
 
 - name: Obtener información del sistema operativo de los hosts dinámicos
   hosts: dynamic_hosts
