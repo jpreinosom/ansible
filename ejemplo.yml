@@ -77,7 +77,6 @@
         groups: "dynamic_hosts"
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_ssh_private_key_data: "{{ my_private_key }}"
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
