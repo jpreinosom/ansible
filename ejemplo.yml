@@ -2,7 +2,7 @@
 # playbooks/analizar_vulnerabilidades.yml
 
 - name: Leer y procesar el inventario CSV
-  hosts: local
+  hosts: localhost
   connection: local  # Ejecutar localmente en la misma máquina
   gather_facts: no
   vars:
@@ -236,30 +236,3 @@
       set_fact:
         suscrita: "No aplica"
       when: ansible_distribution not in ["RedHat"]
-
-- name: Insertar registros en la base de datos
-  hosts: grafana_hosts
-  become: yes
-  tasks:
-    - name: Insertar registros desde dynamic_hosts en la base de datos
-      command: >
-        psql -U grafana_user -d grafana_db -c "
-        INSERT INTO inventario (
-          ip, distribucion, version, familia, soportada, eol, release, nombre, suscrita
-        ) VALUES (
-           '{{ item.IP }}',
-          '{{ hostvars[item.IP].ansible_distribution | default('No disponible') }}',
-          '{{ hostvars[item.IP].ansible_distribution_version | default('No disponible') }}',
-          '{{ hostvars[item.IP].os_family | default('No disponible') }}',
-          '{{ hostvars[item.IP].subscription_status | default('No definido') | trim }}',
-          '{{ hostvars[item.IP].eol_date| default('No definido') }}',
-          '{{ hostvars[item.IP].release_date| default('No definido') }}',
-          '{{ hostvars[item.IP].nombre_maquina | default('No disponible') }}',
-          '{{ hostvars[item.IP].suscrita | default('No aplica') }}'
-        )"
-      loop: "{{ hostvars['localhost'].csv_data }}"
-      loop_control:
-        loop_var: item
-      environment:
-        PGPASSWORD: "grafana_password"
-      become: no
