@@ -2,7 +2,7 @@
 # playbooks/analizar_vulnerabilidades.yml
 
 - name: Leer y procesar el inventario CSV
-  hosts: localhost
+  hosts: local
   connection: local  # Ejecutar localmente en la misma máquina
   gather_facts: no
   vars:
