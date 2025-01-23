@@ -1,8 +1,8 @@
 ---
-- name: Leer y procesar el inventario CSV y crear hosts dinámicos
+- name: Construir inventario dinámico a partir de CSV y usar llave inline
   hosts: localhost
   gather_facts: no
-  
+
   vars:
     input_file: "{{ playbook_dir }}/inventory/webServer.csv"
     delimiter: ";"
@@ -27,7 +27,7 @@
       set_fact:
         csv_content: "{{ lookup('file', input_file) }}"
 
-    - name: Extraer encabezados del CSV (primera línea)
+    - name: Extraer encabezados (primera línea)
       set_fact:
         headers: >-
           {{ 
@@ -54,14 +54,9 @@
 
     - name: Separar columnas en cada fila
       set_fact:
-        row_splits: >-
-          {{ 
-            rows 
-            | map('split', delimiter) 
-            | list 
-          }}
+        row_splits: "{{ rows | map('split', delimiter) | list }}"
 
-    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
+    - name: Validar que cada fila tenga el mismo número de columnas que los encabezados
       fail:
         msg: "La fila {{ row }} no coincide con el número de columnas de los encabezados."
       when: row | length != headers | length
@@ -69,30 +64,39 @@
       loop_control:
         loop_var: row
 
-    - name: Combinar encabezados con filas para crear diccionarios
+    - name: Combinar encabezados y filas en una lista de diccionarios
       set_fact:
         csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
       loop: "{{ row_splits }}"
       loop_control:
         loop_var: row
 
-    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts'
+    # Aquí cargamos la llave privada en una variable (opcionalmente, podría venir de un vault)
+    - name: Cargar contenido de la llave privada (id_rsa)
+      set_fact:
+        my_private_key: "{{ lookup('file', '~/.ssh/id_rsa') }}"
+      delegate_to: local
+
+    - name: Crear hosts dinámicos con la llave "inline"
       add_host:
         name: "{{ item.IP }}"
-        groups: dynamic_hosts
+        groups: "dynamic_hosts"
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_ssh_private_key_file: "~/.ssh/id_rsa"  # Ajusta aquí la ruta
+        ansible_ssh_private_key_data: "{{ my_private_key }}"
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
 
 
-- name: Obtener información del sistema operativo de los hosts dinámicos
+- name: Obtener información de los hosts dinámicos
   hosts: dynamic_hosts
   gather_facts: yes
 
   tasks:
-    - name: Mostrar la información de la distribución y versión del sistema operativo
+    - name: Mostrar facts
       debug:
-        msg: "Host: {{ inventory_hostname }} | Distribución: {{ ansible_facts['distribution'] }}, Versión: {{ ansible_facts['distribution_version'] }}"
+        msg: >
+          Host: {{ inventory_hostname }} | 
+          Distribución: {{ ansible_facts['distribution'] }}, 
+          Versión: {{ ansible_facts['distribution_version'] }}
