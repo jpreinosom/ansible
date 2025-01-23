@@ -59,7 +59,7 @@
         
 
 - name: Obtener información del sistema operativo de los hosts dinámicos
-  hosts: local
+  hosts: dynamic_hosts
   gather_facts: yes  # Obtiene la información del sistema operativo
   remote_user: "{{ ansible_user }}"  # Usa el usuario desde el CSV
 
@@ -67,4 +67,4 @@
     - name: Mostrar la información de la distribución y versión del sistema operativo
       debug:
         msg: "Distribución: {{ ansible_facts['distribution'] }}, Versión: {{ ansible_facts['distribution_version'] }}"
-        delegate_to: dynamic_hosts
+        delegate_to: local
