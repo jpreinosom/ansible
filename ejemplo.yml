@@ -82,7 +82,7 @@
         groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+        ansible_ssh_private_key_file: "~/.ssh/id_rsa"  # Ajusta aquí la ruta
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
@@ -91,8 +91,6 @@
 - name: Obtener información del sistema operativo de los hosts dinámicos
   hosts: dynamic_hosts
   gather_facts: yes
-  # No es obligatorio, pero si quieres ser explícito:
-  # remote_user: "{{ ansible_user }}"
 
   tasks:
     - name: Mostrar la información de la distribución y versión del sistema operativo
