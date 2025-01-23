@@ -77,7 +77,6 @@
         groups: "dynamic_hosts"
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta correcta a la clave privada
         remote_tmp: /tmp/ansible
 
       loop: "{{ csv_data }}"
