@@ -96,3 +96,4 @@
           Host: {{ inventory_hostname }} | 
           Distribución: {{ ansible_facts['distribution'] }}, 
           Versión: {{ ansible_facts['distribution_version'] }}
+        delegate_to: local
