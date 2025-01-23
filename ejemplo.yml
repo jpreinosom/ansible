@@ -1,8 +1,8 @@
 ---
-- name: Leer y procesar el inventario CSV y obtener información del servidor remoto
-  hosts: localhost  # La máquina en la que se ejecuta el playbook
-  gather_facts: no  # No es necesario recopilar hechos para esta tarea
-
+- name: Leer y procesar el inventario CSV y crear hosts dinámicos
+  hosts: localhost
+  gather_facts: no
+  
   vars:
     input_file: "{{ playbook_dir }}/inventory/webServer.csv"
     delimiter: ";"
@@ -18,30 +18,61 @@
         msg: "El archivo de inventario {{ input_file }} no existe."
       when: not file_check.stat.exists
 
+    - name: Fallar si el archivo está vacío
+      fail:
+        msg: "El archivo {{ input_file }} está vacío."
+      when: file_check.stat.size == 0
+
     - name: Leer contenido del archivo CSV
       set_fact:
         csv_content: "{{ lookup('file', input_file) }}"
 
-    - name: Extraer encabezados del CSV
+    - name: Extraer encabezados del CSV (primera línea)
       set_fact:
-        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+        headers: >-
+          {{ 
+            csv_content.splitlines() 
+            | first 
+            | split(delimiter) 
+            | map('trim') 
+            | list
+          }}
 
-    - name: Extraer filas del CSV
+    - name: Extraer filas (omitiendo la primera línea y vacías)
       set_fact:
-        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+        rows: >-
+          {{ 
+            csv_content.splitlines()[1:] 
+            | reject('match', '^$') 
+            | list
+          }}
+
+    - name: Validar que existan filas con datos
+      fail:
+        msg: "El archivo no tiene filas de datos (solo encabezados)."
+      when: rows | length == 0
+
+    - name: Separar columnas en cada fila
+      set_fact:
+        row_splits: >-
+          {{ 
+            rows 
+            | map('split', delimiter) 
+            | list 
+          }}
 
     - name: Validar que cada fila tenga el mismo número de campos que los encabezados
       fail:
-        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+        msg: "La fila {{ row }} no coincide con el número de columnas de los encabezados."
       when: row | length != headers | length
-      loop: "{{ rows }}"
+      loop: "{{ row_splits }}"
       loop_control:
         loop_var: row
 
     - name: Combinar encabezados con filas para crear diccionarios
       set_fact:
         csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
-      loop: "{{ rows }}"
+      loop: "{{ row_splits }}"
       loop_control:
         loop_var: row
 
@@ -51,20 +82,19 @@
         groups: dynamic_hosts
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
-        ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta de la llave privada
-        delegate_to: local
+        ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
-        
+
 
 - name: Obtener información del sistema operativo de los hosts dinámicos
   hosts: dynamic_hosts
-  gather_facts: yes  # Obtiene la información del sistema operativo
-  remote_user: "{{ ansible_user }}"  # Usa el usuario desde el CSV
+  gather_facts: yes
+  # No es obligatorio, pero si quieres ser explícito:
+  # remote_user: "{{ ansible_user }}"
 
   tasks:
     - name: Mostrar la información de la distribución y versión del sistema operativo
       debug:
-        msg: "Distribución: {{ ansible_facts['distribution'] }}, Versión: {{ ansible_facts['distribution_version'] }}"
-        delegate_to: local
+        msg: "Host: {{ inventory_hostname }} | Distribución: {{ ansible_facts['distribution'] }}, Versión: {{ ansible_facts['distribution_version'] }}"
