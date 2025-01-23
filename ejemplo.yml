@@ -77,27 +77,18 @@
         groups: "dynamic_hosts"
         ansible_host: "{{ item.IP }}"
         ansible_user: "{{ item.Usuario }}"
+        ansible_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta correcta a la clave privada
+        remote_tmp: /tmp/ansible
+
       loop: "{{ csv_data }}"
       loop_control:
         loop_var: item
 
 
 - name: Obtener información de los hosts dinámicos
-  hosts: local
-  gather_facts: yes
-  tasks:
-    - name: Copiar la llave privada desde el controlador
-      ansible.builtin.copy:
-          src: /home/ansible/.ssh/id_rsa
-          dest: /home/{{ ansible_user }}/.ssh/id_rsa
-          owner: "{{ ansible_user }}"
-          group: "{{ ansible_user }}"
-          mode: '0600'
-          delegate_to: dynamic_hosts
-
-- name: Obtener información de los hosts dinámicos
   hosts: dynamic_hosts
   gather_facts: yes
+
   tasks:
     - name: Mostrar facts
       debug:
