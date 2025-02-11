@@ -1,0 +1,350 @@
+---
+- name: Leer y procesar el inventario CSV
+  hosts: localhost
+  connection: local  # Ejecutar localmente en la misma máquina
+  gather_facts: no
+  vars:
+    input_file: "/home/ansible/configuracion/webServer.csv"
+    grafana_file: "/home/ansible/configuracion/grafana.csv"
+    delimiter: ";"
+    ansible_ssh_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta a la clave privada
+  tasks:
+    - name: Leer el contenido de la llave privada
+      slurp:
+        src: /home/ansible/.ssh/id_rsa  # Ruta de la llave privada en la máquina local
+      register: private_key_content
+
+    - name: Mostrar el contenido de la llave privada (decodificado)
+      debug:
+        msg: "{{ private_key_content.content | b64decode }}"
+
+    - name: Verificar que el archivo CSV existe
+      stat:
+        path: "{{ input_file }}"
+      register: file_check
+
+    - name: Fallar si el archivo de inventario no existe
+      fail:
+        msg: "El archivo de inventario {{ input_file }} no existe."
+      when: not file_check.stat.exists
+
+    - name: Leer contenido del archivo CSV
+      slurp:
+        src: "{{ input_file }}"
+      register: slurped_file
+
+    - name: Establecer el contenido del archivo CSV
+      set_fact:
+        csv_content: "{{ slurped_file.content | b64decode }}"
+
+    - name: Extraer encabezados del CSV
+      set_fact:
+        headers: "{{ csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del CSV
+      set_fact:
+        rows: "{{ csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != headers | length
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas para crear diccionarios
+      set_fact:
+        csv_data: "{{ csv_data | default([]) + [ dict(headers | zip(row)) ] }}"
+      loop: "{{ rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Verificar que el archivo Grafana CSV existe
+      stat:
+        path: "{{ grafana_file }}"
+      register: grafana_file_check
+
+    - name: Fallar si el archivo de inventario Grafana no existe
+      fail:
+        msg: "El archivo de inventario {{ grafana_file }} no existe."
+      when: not grafana_file_check.stat.exists
+
+    - name: Leer contenido del archivo Grafana CSV
+      slurp:
+        src: "{{ grafana_file }}"
+      register: slurped_grafana_file
+
+    - name: Establecer el contenido del archivo Grafana CSV
+      set_fact:
+        grafana_csv_content: "{{ slurped_grafana_file.content | b64decode }}"
+
+    - name: Extraer encabezados del archivo Grafana CSV
+      set_fact:
+        grafana_headers: "{{ grafana_csv_content.split('\n') | first | split(delimiter) | map('trim') | list }}"
+
+    - name: Extraer filas del archivo Grafana CSV
+      set_fact:
+        grafana_rows: "{{ grafana_csv_content.split('\n')[1:] | reject('match', '^$') | list | map('split', delimiter) | list }}"
+
+    - name: Validar que cada fila del archivo Grafana tenga el mismo número de campos que los encabezados
+      fail:
+        msg: "La fila {{ row }} no tiene el mismo número de campos que los encabezados."
+      when: row | length != grafana_headers | length
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Combinar encabezados con filas del archivo Grafana para crear diccionarios
+      set_fact:
+        grafana_csv_data: "{{ grafana_csv_data | default([]) + [ dict(grafana_headers | zip(row)) ] }}"
+      loop: "{{ grafana_rows }}"
+      loop_control:
+        loop_var: row
+
+    - name: Agregar hosts dinámicamente al grupo 'dynamic_hosts' y agregar 'csv_data'
+      ansible.builtin.add_host:
+        name: "{{ item.IP }}"
+        groups: dynamic_hosts
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta correcta a la clave privada
+        remote_tmp: /tmp/ansible
+        csv_data: "{{ csv_data }}"  # Aquí agregamos 'csv_data' explícitamente al host
+      loop: "{{ csv_data }}"
+      loop_control:
+        loop_var: item
+
+    - name: Agregar hosts dinámicamente al grupo 'grafana_hosts' y agregar 'csv_data'
+      ansible.builtin.add_host:
+        name: "{{ item.IP }}"
+        groups: grafana_hosts
+        ansible_host: "{{ item.IP }}"
+        ansible_user: "{{ item.Usuario }}"
+        ansible_private_key_file: /home/ansible/.ssh/id_rsa  # Ruta correcta a la clave privada
+        remote_tmp: /tmp/ansible
+        csv_data: "{{ grafana_csv_data }}"  # Aquí agregamos 'grafana_csv_data' explícitamente al host
+      loop: "{{ grafana_csv_data }}"
+      loop_control:
+        loop_var: item
+
+- name: Obtener información y verificar EoL de los servidores
+  hosts: dynamic_hosts
+  gather_facts: yes
+  vars_files:
+    - vars/eol_map.yml
+    - vars/release_map.yml
+  tasks:
+    - name: Determinar la familia del sistema operativo
+      set_fact:
+        os_family: "Linux"
+
+    - name: Obtener la fecha actual del sistema
+      set_fact:
+        current_date: "{{ ansible_date_time.date | regex_replace('-', '') }}"  # YYYYMMDD
+
+    - name: Mostrar información del sistema 
+      debug:
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
+
+    - name: Determinar la fecha de EoL para la distribución y versión
+      set_fact:
+        eol_date: >-
+          {{
+            (eol_map.get(ansible_distribution, {})
+            | dict2items
+            | selectattr('key', '==', ansible_distribution_version)
+            | map(attribute='value')
+            | list
+            | first)
+            | default(
+              (eol_map.get(ansible_distribution, {})
+              | dict2items
+              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
+              | map(attribute='value')
+              | list
+              | first),
+              'No definido'
+            )
+          }}
+    - name: Determinar la fecha de lanzamiento para la distribución y versión
+      set_fact:
+        release_date: >-
+          {{
+            (release_map.get(ansible_distribution, {})
+            | dict2items
+            | selectattr('key', '==', ansible_distribution_version)
+            | map(attribute='value')
+            | list
+            | first)
+            | default(
+              (release_map.get(ansible_distribution, {})
+              | dict2items
+              | selectattr('key', '==', ansible_distribution_version.split('.')[0])
+              | map(attribute='value')
+              | list
+              | first),
+              'No definido'
+            )
+          }}
+
+    - name: Establecer el estado de suscripción
+      set_fact:
+        subscription_status: >-
+          {% if eol_date != 'No definido' %}
+            {% if current_date | int > (eol_date | regex_replace('-', '') | int) %}
+              Deprecado
+            {% else %}
+              Soportada
+            {% endif %}
+          {% else %}
+            Versión sin fecha establecida de EoL
+          {% endif %}
+
+    - name: Mostrar información del sistema operativo
+      debug:
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}, EOL: {{ eol_date }}, Release: {{ release_date }}, Estado de suscripción: {{ subscription_status }}"     
+
+    - name: Mostrar información de EoL
+      debug:
+        msg: "EOL: {{ eol_date }}"
+
+- name: Obtener información y verificar EoL de los servidores
+  hosts: dynamic_hosts
+  gather_facts: yes
+  vars:
+    cert_check_port: 443
+  tasks:
+    - name: Determinar la familia del sistema operativo
+      set_fact:
+        os_family: "Linux"
+
+    - name: Mostrar información del sistema 
+      debug:
+        msg: "Distribución: {{ ansible_distribution }}, Versión: {{ ansible_distribution_version }}"
+
+    - name: Verificar si NGINX está instalado
+      command: which nginx
+      register: nginx_installed
+      ignore_errors: true
+
+    - name: Verificar si Apache está instalado
+      command: which apache2
+      register: apache2_installed
+      ignore_errors: true
+
+    - name: Verificar si Apache (httpd) está instalado
+      command: which httpd
+      register: httpd_installed
+      ignore_errors: true
+
+    - name: Determinar el servidor web instalado
+      set_fact:
+        web_server: >-
+          {% if nginx_installed.rc == 0 %}
+            NGINX
+          {% elif apache2_installed.rc == 0 %}
+            Apache2
+          {% elif httpd_installed.rc == 0 %}
+            Apache (httpd)
+          {% else %}
+            No identificado
+          {% endif %}
+
+    - name: Mostrar el servidor web detectado
+      debug:
+        msg: "Servidor web instalado: {{ web_server }}"
+
+    - name: "Obtener el certificado SSL desde el puerto {{ cert_check_port }}"
+      shell: |
+        echo | openssl s_client -servername {{ inventory_hostname }} \
+                              -connect {{ inventory_hostname }}:{{ cert_check_port }} 2>/dev/null \
+          | openssl x509 -noout -dates
+      register: ssl_cert_info
+      changed_when: false
+      ignore_errors: true  # Para que no falle si algún servidor no responde o no tiene SSL
+
+    - name: "Examinar si se obtuvo el certificado"
+      fail:
+        msg: "No se pudo obtener el certificado SSL desde {{ inventory_hostname }} en el puerto {{ cert_check_port }}."
+      when: ssl_cert_info.stdout is not regex("notBefore=|notAfter=")
+
+    - name: "Extraer la fecha de expiración (notAfter)"
+      set_fact:
+        ssl_cert_expiration_raw: "{{ (ssl_cert_info.stdout | regex_search('notAfter=(.*)', '\\1')) | first | trim }}"
+      when: ssl_cert_info.stdout is not none
+
+    - name: "Verificar el valor de ssl_cert_expiration_raw"
+      debug:
+        var: ssl_cert_expiration_raw
+      when: ssl_cert_expiration_raw is defined
+
+    - name: "Limpiar ssl_cert_expiration_raw"
+      set_fact:
+        ssl_cert_expiration_clean: "{{ ssl_cert_expiration_raw | regex_replace('\\s+', ' ') | trim }}"
+      when: ssl_cert_expiration_raw is defined
+
+    - name: "Convertir fecha de expiración a timestamp"
+      shell: "date -d '{{ ssl_cert_expiration_clean }}' +%s"
+      register: ssl_cert_expiration_ts
+      when: ssl_cert_expiration_clean is defined
+
+    - name: "Obtener la fecha actual como timestamp"
+      shell: "date -u +%s"
+      register: current_time_ts
+      when: ssl_cert_expiration_clean is defined
+
+    - name: "Calcular días restantes para vencimiento"
+      set_fact:
+        days_left: "{{ ((ssl_cert_expiration_ts.stdout | int) - (current_time_ts.stdout | int)) // 86400 }}"
+      when: ssl_cert_expiration_ts.stdout is defined and current_time_ts.stdout is defined
+
+    - name: "Mostrar resultado en pantalla (debug)"
+      debug:
+        msg: "El certificado de {{ inventory_hostname }} vence en {{ days_left }} días (Expira el: {{ ssl_cert_expiration_clean }})."
+      when: days_left is defined
+
+    # Acumular days_left en una lista en el host local
+    - name: Acumular days_left en grafana_hosts
+      set_fact:
+        ssl_expiration_list: "{{ ssl_expiration_list | default([]) + [{'host': inventory_hostname, 'days_left': days_left}] }}"
+      when: days_left is defined
+      delegate_to: grafana_hosts
+
+    - name: "Verificar ssl_expiration_list en grafana_hosts"
+      debug:
+        var: ssl_expiration_list
+      delegate_to: grafana_hosts
+
+- name: Insertar registros en la tabla inventario en la base de datos
+  hosts: grafana_hosts
+  become: yes
+  tasks:
+    - name: "Recopilar ssl_expiration_list desde todos los dynamic_hosts"
+      set_fact:
+        ssl_expiration_list: "{{ ssl_expiration_list | default([]) + [{'host': item, 'days_left': hostvars[item].days_left | int if hostvars[item].days_left is defined else 0 }] }}"
+      loop: "{{ groups['dynamic_hosts'] }}"
+      run_once: true
+
+    - name: "Verificar ssl_expiration_list en envio mail"
+      debug:
+        var: ssl_expiration_list
+
+    - name: "Mostrar número de elementos en ssl_expiration_list"
+      debug:
+        msg: "Número de certificados a verificar: {{ ssl_expiration_list | length }}"
+
+    - name: Insertar registros desde dynamic_hosts en la base de datos
+      command: >
+        psql -U grafana_user -d grafana_db -c "
+        INSERT INTO certificado (
+          host, restantes
+        ) VALUES (
+           '{{ item.host }}',
+          '{{ item.days_left }}'
+        )"
+      loop: "{{ ssl_expiration_list | default([]) }}"
+      environment:
+        PGPASSWORD: "grafana_password"
+      become: no
+...
