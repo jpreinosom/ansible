@@ -1,0 +1,9 @@
+---
+- name: Mostrar variables de gather facts
+  hosts: invent
+  gather_facts: yes
+
+  tasks:
+    - name: Mostrar todas las variables de gather facts
+      debug:
+        var: ansible_facts
