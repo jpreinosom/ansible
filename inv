@@ -1,4 +1,4 @@
-[invent]
+[all]
 192.168.100.54 ansible_user=rhel
 192.168.100.56 ansible_user=centos
 192.168.100.65 ansible_user=ubuntu

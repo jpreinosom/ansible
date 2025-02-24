@@ -1,6 +1,6 @@
 ---
 - name: Mostrar variables de gather facts
-  hosts: invent
+  hosts: all
   gather_facts: yes
 
   tasks:
