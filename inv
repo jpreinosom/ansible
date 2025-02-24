@@ -1,3 +1,3 @@
-[all]
+[invent]
 192.168.100.100 ansible_user=webserver
 192.168.100.101 ansible_user=nginx
