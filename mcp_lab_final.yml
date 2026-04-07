@@ -1,0 +1,11 @@
+---
+- name: MCP Lab Final Test Playbook
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: Ping all hosts
+      ansible.builtin.ping:
+
+    - name: Display welcome message
+      ansible.builtin.debug:
+        msg: "¡Hola! Este es el playbook de prueba mcp_lab_final.yml ejecutándose correctamente."
