@@ -1,6 +1,6 @@
 ---
 - name: Validar acceso a RHEL 10
-  hosts: rhel10
+  hosts: all
   gather_facts: yes
   tasks:
     - name: Comprobar que es RHEL 10
