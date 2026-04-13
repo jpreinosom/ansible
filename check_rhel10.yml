@@ -1,0 +1,14 @@
+---
+- name: Validar acceso a RHEL 10
+  hosts: rhel10
+  gather_facts: yes
+  tasks:
+    - name: Comprobar que es RHEL 10
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution_major_version == "10"
+        msg: "¡Alerta! Este servidor no es RHEL 10, es versión {{ ansible_distribution_major_version }}"
+
+    - name: Reportar estado
+      ansible.builtin.debug:
+        msg: "Conectado exitosamente a {{ ansible_hostname }} corriendo {{ ansible_distribution }} {{ ansible_distribution_version }}"
