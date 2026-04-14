@@ -1,7 +1,0 @@
-- hosts: all
-  gather_facts: false
-  tasks:
-  - name: Apagar servicio httpd
-    ansible.builtin.service:
-      name: httpd
-      state: stopped
