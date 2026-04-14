@@ -1,5 +1,5 @@
 ---
-- name: Reporte de Salud y Estado del Sistema
+- name: Reporte de Salud y Estado del Sistema (V2 - Mejorado)
   hosts: all
   become: yes
   tasks:
@@ -17,18 +17,25 @@
       register: ram_free
       changed_when: false
 
-    - name: ⚙️ 4. Verificar estado del servicio SSH
+    - name: ⚡ 4. Comprobar Carga de CPU (último minuto)
+      ansible.builtin.shell: "uptime | awk -F'load average:' '{ print $2 }' | cut -d',' -f1 | xargs"
+      register: cpu_load
+      changed_when: false
+
+    - name: ⚙️ 5. Verificar estado del servicio SSH
       ansible.builtin.systemd:
         name: sshd
       register: ssh_status
 
-    - name: 📊 5. Resumen Final de Diagnóstico
+    - name: 📊 6. Resumen Final de Diagnóstico Mejorado
       ansible.builtin.debug:
         msg: 
           - "------------------------------------------"
           - "RESUMEN DEL HOST: {{ inventory_hostname }}"
           - "Uso de Disco: {{ disk_usage.stdout }}"
           - "RAM Disponible: {{ ram_free.stdout }} MB"
+          - "Carga CPU (1min): {{ cpu_load.stdout }}"
           - "Estado SSH: {{ 'ACTIVO' if ssh_status.status.ActiveState == 'active' else 'INACTIVO' }}"
           - "Uptime: {{ ansible_uptime_seconds | int // 3600 }} horas"
+          - "Fecha Ejecución: {{ ansible_date_time.date }} {{ ansible_date_time.time }}"
           - "------------------------------------------"
