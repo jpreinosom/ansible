@@ -1,0 +1,34 @@
+---
+- name: Reporte de Salud y Estado del Sistema
+  hosts: all
+  become: yes
+  tasks:
+    - name: 🔍 1. Validar versión de Red Hat
+      ansible.builtin.debug:
+        msg: "El servidor es {{ ansible_distribution }} versión {{ ansible_distribution_version }}"
+
+    - name: 💾 2. Comprobar uso de Disco (Root)
+      ansible.builtin.shell: "df -h / | awk 'NR==2 {print $5}'"
+      register: disk_usage
+      changed_when: false
+
+    - name: 🧠 3. Comprobar memoria RAM disponible
+      ansible.builtin.shell: "free -m | grep Mem | awk '{print $7}'"
+      register: ram_free
+      changed_when: false
+
+    - name: ⚙️ 4. Verificar estado del servicio SSH
+      ansible.builtin.systemd:
+        name: sshd
+      register: ssh_status
+
+    - name: 📊 5. Resumen Final de Diagnóstico
+      ansible.builtin.debug:
+        msg: 
+          - "------------------------------------------"
+          - "RESUMEN DEL HOST: {{ inventory_hostname }}"
+          - "Uso de Disco: {{ disk_usage.stdout }}"
+          - "RAM Disponible: {{ ram_free.stdout }} MB"
+          - "Estado SSH: {{ 'ACTIVO' if ssh_status.status.ActiveState == 'active' else 'INACTIVO' }}"
+          - "Uptime: {{ ansible_uptime_seconds | int // 3600 }} horas"
+          - "------------------------------------------"
