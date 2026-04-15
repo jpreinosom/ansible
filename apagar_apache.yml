@@ -1,1 +1,7 @@
-"El c\xF3digo YAML puro generado por la IA"
+- hosts: all
+  gather_facts: false
+  tasks:
+  - name: Apagar el servicio httpd
+    ansible.builtin.service:
+      name: httpd
+      state: stopped
