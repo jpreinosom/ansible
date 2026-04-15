@@ -1,7 +1,0 @@
-- hosts: all
-  gather_facts: false
-  tasks:
-  - name: Start httpd service
-    ansible.builtin.service:
-      name: httpd
-      state: started
